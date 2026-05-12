@@ -1,5 +1,7 @@
 # Simple Multi-Device Messaging PWA — Base Document
 
+Last updated: 2026-05-12
+
 ## 1. App idea
 
 Create a simple private messaging-style PWA inspired by WhatsApp, but designed for personal/exclusive use.
@@ -12,7 +14,9 @@ The app should let the user:
 - Search messages
 - Edit messages
 - Delete messages
+- Send a text block with `Ctrl+Enter` / `Cmd+Enter`
 - Forward text blocks between conversations
+- Reorder text blocks inside a conversation
 - Access the same content from iPhone, desktop, and tablet
 - Use the app offline when possible
 - Sign in easily using a Google/Gmail account
@@ -74,8 +78,33 @@ The user should be able to:
 7. Delete messages.
 8. Search messages.
 9. Forward/copy text blocks from one conversation to another.
-10. Access the same content from iPhone, desktop, and tablet.
-11. Continue reading and writing offline when the app has already loaded and local data is cached.
+10. Send a block of text from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
+11. Reorder text blocks inside a conversation.
+12. Access the same content from iPhone, desktop, and tablet.
+13. Continue reading and writing offline when the app has already loaded and local data is cached.
+
+### 3.1 Current implementation snapshot
+
+The current app state is a working Firebase-backed React PWA named `My Messages`.
+
+Implemented:
+
+- Vite + React frontend.
+- Firebase Authentication with Google provider.
+- Firestore cloud storage under `users/{userId}/conversations/{conversationId}/messages/{messageId}`.
+- Firestore security rules scoped to the signed-in user's UID.
+- Conversation create, rename, open, and delete.
+- Message create, edit, delete, forward, and search.
+- Responsive phone/desktop layout.
+- PWA manifest and generated service worker.
+- Firestore offline persistence is enabled for cached data and offline writes.
+
+Known development follow-ups:
+
+- Replace deprecated `enableMultiTabIndexedDbPersistence()` usage with the newer Firestore cache settings API.
+- Add keyboard send support with `Ctrl+Enter` / `Cmd+Enter`.
+- Add manual reordering for text blocks.
+- Add focused tests for Firestore rules, offline behavior, keyboard sending, and reorder persistence.
 
 ---
 
@@ -120,6 +149,30 @@ Important note:
 > Offline support has two parts: the PWA app shell and the message data cache.
 
 The service worker helps the app open offline. Firestore offline persistence helps cached data remain readable and allows local writes that sync later.
+
+### 4.1 Current stack
+
+The current codebase uses:
+
+- React 19
+- Vite 7
+- TypeScript
+- Firebase JS SDK 12
+- `vite-plugin-pwa`
+- `lucide-react` for icons
+
+Firebase is configured through a local `.env` file using Vite environment variables:
+
+```env
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+```
+
+The `.env` file should stay local and must not be committed.
 
 ---
 
@@ -214,11 +267,26 @@ Required message actions:
 - Edit message
 - Delete message
 - Forward message to another conversation
+- Reorder message within the current conversation
 
 Optional message actions:
 
 - Copy message text
 - Duplicate message in same conversation
+
+### 7.3.1 Message composer keyboard behavior
+
+The composer should support fast keyboard entry for desktop and hardware-keyboard tablet users.
+
+Requirements:
+
+- `Enter` inserts a new line in the message text.
+- `Ctrl+Enter` sends the current block on Windows/Linux.
+- `Cmd+Enter` sends the current block on macOS and iPad hardware keyboards.
+- Keyboard send should use the same validation as the Send button.
+- Empty or whitespace-only messages should not be sent.
+- While editing a message, `Ctrl+Enter` / `Cmd+Enter` should save the edit.
+- The visible Send/Save button remains available for touch users.
 
 ---
 
@@ -280,7 +348,35 @@ Simple display:
 
 ---
 
-### 7.7 Message search
+### 7.7 Reorder text blocks
+
+The user can manually reorder text blocks inside a conversation.
+
+Recommended Version 1 behavior:
+
+- Each message has simple reorder controls.
+- On touch devices, use explicit move up/down controls rather than drag-only behavior.
+- On desktop, drag-and-drop can be added, but keyboard/touch controls should still exist.
+- Reordering changes the display order of messages in that conversation only.
+- Reordering does not change `createdAt`; creation time remains historical metadata.
+- Reordering syncs across signed-in devices.
+- Offline reordering should be queued locally and synced when online again.
+
+Recommended data approach:
+
+- Store a numeric `sortOrder` field on each message.
+- Query/display messages by `sortOrder` ascending, then `createdAt` ascending as a fallback.
+- When creating a message, assign a `sortOrder` greater than the current last message.
+- When forwarding a message into a conversation, append it to the end with a new `sortOrder`.
+- For the first version, move up/down can swap the `sortOrder` values of two neighboring messages.
+
+Future option:
+
+- Add drag-and-drop with stable fractional ordering if conversations become long.
+
+---
+
+### 7.8 Message search
 
 The user can search messages.
 
@@ -380,6 +476,7 @@ Content:
 - Message list
 - Message input at bottom
 - Message actions: edit, delete, forward
+- Reorder controls for moving text blocks
 
 ---
 
@@ -460,6 +557,7 @@ Useful user fields:
   "searchText": "message content",
   "createdAt": "2026-05-11T12:00:00.000Z",
   "updatedAt": null,
+  "sortOrder": 1000,
   "isForwarded": false,
   "forwardedFromConversationId": null,
   "forwardedFromMessageId": null
@@ -488,6 +586,9 @@ Useful user fields:
 
 `updatedAt`
 : When message was edited. Null if never edited.
+
+`sortOrder`
+: Numeric display order within a conversation. Messages should be displayed by `sortOrder` ascending, with `createdAt` as a fallback.
 
 `isForwarded`
 : Whether this message was forwarded from another conversation.
@@ -528,6 +629,12 @@ Benefits:
 
 The app should support offline use as much as possible.
 
+Current implementation:
+
+- Firestore offline persistence is enabled in `src/firebase.ts`.
+- The current code uses `enableMultiTabIndexedDbPersistence()`.
+- Firebase logs a deprecation warning for that API, so a future maintenance update should move to Firestore settings with persistent local cache.
+
 ### 11.1 App shell offline
 
 Use a service worker to cache the app shell:
@@ -550,6 +657,7 @@ Expected behavior:
 - Previously loaded messages can be read offline.
 - New messages created offline are saved locally first.
 - Offline edits/deletes are saved locally first.
+- Offline reorder actions are saved locally first.
 - Changes sync to the cloud when the device is online again.
 
 Important limitation:
@@ -621,9 +729,11 @@ Important privacy note:
 ### Messages
 
 - User can create a message.
+- User can send or save a message with `Ctrl+Enter` / `Cmd+Enter`.
 - User can edit a message.
 - User can delete a message.
 - User can forward a message to another conversation.
+- User can reorder messages inside a conversation.
 - User can search messages.
 
 ### Multi-device
@@ -708,11 +818,14 @@ Version 1 is complete when:
 - I can open the same account on another device and see the same messages.
 - I can edit a message.
 - I can delete a message.
+- I can send a new message with `Ctrl+Enter` / `Cmd+Enter`.
 - I can search messages.
 - I can forward a message from one conversation to another.
+- I can reorder text blocks and see the same order after refresh.
 - I can open the app offline after it was previously loaded.
 - I can read cached content offline.
 - I can create or edit messages offline and have them sync when back online.
+- I can reorder cached messages offline and have the order sync when back online.
 
 ---
 
@@ -755,9 +868,13 @@ Conversations:
 
 Messages:
 - User can create text messages inside a conversation.
+- Enter should insert a newline in the composer.
+- Ctrl+Enter should send the current text block on Windows/Linux.
+- Cmd+Enter should send the current text block on macOS and iPad hardware keyboards.
 - User can edit messages.
 - User can delete messages with confirmation.
 - User can forward a message to another conversation.
+- User can reorder text blocks inside a conversation.
 - Forwarding creates a new message in the target conversation with the same text.
 - Show an optional "Forwarded" label on forwarded messages.
 - Show an "edited" label if a message was changed.
@@ -788,6 +905,7 @@ Message fields:
 - searchText
 - createdAt
 - updatedAt
+- sortOrder
 - isForwarded
 - forwardedFromConversationId
 - forwardedFromMessageId
@@ -809,18 +927,20 @@ Build in this order:
 6. Create conversation
 7. Open conversation
 8. Create message
-9. Sync messages across devices
-10. Edit message
-11. Delete message
-12. Forward message to another conversation
-13. Search messages
-14. Add PWA manifest
-15. Add service worker
-16. Enable Firestore offline persistence
-17. Test on iPhone 8
-18. Test on desktop
-19. Test on tablet
-20. Test offline behavior
+9. Add `Ctrl+Enter` / `Cmd+Enter` send behavior
+10. Sync messages across devices
+11. Edit message
+12. Delete message
+13. Forward message to another conversation
+14. Reorder text blocks
+15. Search messages
+16. Add PWA manifest
+17. Add service worker
+18. Enable Firestore offline persistence
+19. Test on iPhone 8
+20. Test on desktop
+21. Test on tablet
+22. Test offline behavior
 
 ---
 
@@ -828,5 +948,4 @@ Build in this order:
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create conversations, save text messages, edit/delete/search them, forward messages between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
-
+> A private Google-login PWA where I can create conversations, save text blocks, send with keyboard shortcuts, edit/delete/search/reorder them, forward blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
