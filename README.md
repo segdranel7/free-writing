@@ -16,9 +16,8 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 
 ## Development priorities
 
-- Add focused tests for Firestore rules and core message behavior.
+- Keep the V1 verification checklist current as Firebase/offline behavior changes.
 - Verify offline create, edit, delete, forward, move, and reorder behavior against Firebase/Firestore in a real browser.
-- Add focused UI coverage or manual QA notes for the shared forward/move transfer modal.
 - Consider loading only the active conversation's messages if large conversation lists become slow.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.
 
@@ -111,8 +110,20 @@ Existing messages without `sortOrder` are displayed in chronological order until
 ## Scripts
 
 - `npm run dev` starts the local Vite server.
+- `npm run test` runs the focused Vitest suite.
 - `npm run build` type-checks and builds the PWA.
 - `npm run preview` serves the production build locally.
+
+## Verification
+
+Run the automated checks before deployment or larger refactors:
+
+```bash
+npm run test
+npm run build
+```
+
+Use `docs/qa-v1-verification.md` for the real-browser Firebase/offline QA pass, including Firestore user-isolation expectations and offline sync scenarios that need an actual configured Firebase project.
 
 ## Product documentation
 

@@ -90,6 +90,7 @@ The current app state is a working Firebase-backed React PWA named `My Messages`
 Implemented:
 
 - Vite + React frontend.
+- Focused Vitest coverage for message service writes, loaded-message search, composer keyboard sending, reorder controls, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firestore cloud storage under `users/{userId}/conversations/{conversationId}/messages/{messageId}`.
@@ -105,8 +106,8 @@ Implemented:
 
 Known development follow-ups:
 
-- Add focused tests for Firestore rules, offline behavior, keyboard sending, and reorder persistence.
-- Add focused UI coverage or manual QA notes for the shared forward/move transfer modal.
+- Keep `docs/qa-v1-verification.md` current as Firebase/offline behavior changes.
+- Add emulator-backed Firestore rules tests if rule complexity grows beyond the current per-user UID isolation model.
 - Verify offline create, edit, delete, forward, move, and reorder behavior in a real browser against Firebase/Firestore.
 - Consider loading only the active conversation's messages if large conversation lists become slow.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.

@@ -1,0 +1,161 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Message } from '../types';
+
+const firestoreMocks = vi.hoisted(() => {
+  const batch = {
+    set: vi.fn(),
+    delete: vi.fn(),
+    update: vi.fn(),
+    commit: vi.fn(async () => undefined)
+  };
+
+  return {
+    db: { name: 'test-db' },
+    batch,
+    addDoc: vi.fn(async () => ({ id: 'new-message' })),
+    collection: vi.fn((_db: unknown, ...segments: string[]) => ({ type: 'collection', path: segments.join('/') })),
+    deleteDoc: vi.fn(async () => undefined),
+    doc: vi.fn((base: { path?: string }, ...segments: string[]) => ({
+      type: 'doc',
+      path: segments.length > 0 ? segments.join('/') : `${base.path}/auto-id`
+    })),
+    getDocs: vi.fn(),
+    onSnapshot: vi.fn(),
+    orderBy: vi.fn((field: string, direction: string) => ({ field, direction })),
+    query: vi.fn((ref: unknown, ...constraints: unknown[]) => ({ ref, constraints })),
+    serverTimestamp: vi.fn(() => 'SERVER_TIMESTAMP'),
+    updateDoc: vi.fn(async () => undefined),
+    writeBatch: vi.fn(() => batch)
+  };
+});
+
+const conversationMocks = vi.hoisted(() => ({
+  touchConversation: vi.fn(async () => undefined)
+}));
+
+vi.mock('firebase/firestore', () => firestoreMocks);
+vi.mock('../firebase', () => ({
+  requireDb: () => firestoreMocks.db
+}));
+vi.mock('./conversations', () => conversationMocks);
+
+import { createMessage, forwardMessage, moveMessage, reorderMessages } from './messages';
+
+const timestamp = (millis: number) => ({ toMillis: () => millis }) as Message['createdAt'];
+
+function sourceMessage(overrides: Partial<Message> = {}): Message {
+  return {
+    id: 'source-message',
+    userId: 'user-1',
+    conversationId: 'source-conversation',
+    text: 'Transfer this',
+    searchText: 'transfer this',
+    createdAt: timestamp(1),
+    updatedAt: null,
+    sortOrder: 1000,
+    isForwarded: false,
+    transferType: null,
+    forwardedFromConversationId: null,
+    forwardedFromMessageId: null,
+    ...overrides
+  };
+}
+
+function docsWithMessages(messages: Message[]) {
+  return {
+    docs: messages.map((message) => ({
+      id: message.id,
+      data: () => {
+        const { id: _id, ...data } = message;
+        return data;
+      }
+    }))
+  };
+}
+
+describe('message service writes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    firestoreMocks.getDocs.mockResolvedValue(docsWithMessages([]));
+  });
+
+  it('creates trimmed searchable messages at the next persisted sort order', async () => {
+    firestoreMocks.getDocs.mockResolvedValue(
+      docsWithMessages([
+        sourceMessage({ id: 'first', sortOrder: 1000 }),
+        sourceMessage({ id: 'second', sortOrder: 3000 })
+      ])
+    );
+
+    await createMessage('user-1', 'conversation-1', '  Hello There  ');
+
+    expect(firestoreMocks.addDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages' }), {
+      userId: 'user-1',
+      conversationId: 'conversation-1',
+      text: 'Hello There',
+      searchText: 'hello there',
+      createdAt: 'SERVER_TIMESTAMP',
+      updatedAt: null,
+      sortOrder: 4000,
+      isForwarded: false,
+      transferType: null,
+      forwardedFromConversationId: null,
+      forwardedFromMessageId: null
+    });
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Hello There');
+  });
+
+  it('forwards a message as a new target message without deleting the source', async () => {
+    await forwardMessage('user-1', sourceMessage(), 'target-conversation');
+
+    expect(firestoreMocks.addDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/target-conversation/messages' }), {
+      userId: 'user-1',
+      conversationId: 'target-conversation',
+      text: 'Transfer this',
+      searchText: 'transfer this',
+      createdAt: 'SERVER_TIMESTAMP',
+      updatedAt: null,
+      sortOrder: 1000,
+      isForwarded: true,
+      transferType: 'forwarded',
+      forwardedFromConversationId: 'source-conversation',
+      forwardedFromMessageId: 'source-message'
+    });
+    expect(firestoreMocks.deleteDoc).not.toHaveBeenCalled();
+  });
+
+  it('moves a message by writing the target and deleting the source in one batch', async () => {
+    await moveMessage('user-1', sourceMessage(), 'target-conversation');
+
+    expect(firestoreMocks.batch.set).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/target-conversation/messages/auto-id' }), {
+      userId: 'user-1',
+      conversationId: 'target-conversation',
+      text: 'Transfer this',
+      searchText: 'transfer this',
+      createdAt: 'SERVER_TIMESTAMP',
+      updatedAt: null,
+      sortOrder: 1000,
+      isForwarded: true,
+      transferType: 'moved',
+      forwardedFromConversationId: 'source-conversation',
+      forwardedFromMessageId: 'source-message'
+    });
+    expect(firestoreMocks.batch.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/source-conversation/messages/source-message' }));
+    expect(firestoreMocks.batch.commit).toHaveBeenCalled();
+  });
+
+  it('persists reorder positions with stable numeric sort steps', async () => {
+    await reorderMessages('user-1', 'conversation-1', [
+      sourceMessage({ id: 'second' }),
+      sourceMessage({ id: 'first' })
+    ]);
+
+    expect(firestoreMocks.batch.update).toHaveBeenNthCalledWith(1, expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/second' }), {
+      sortOrder: 1000
+    });
+    expect(firestoreMocks.batch.update).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/first' }), {
+      sortOrder: 2000
+    });
+    expect(firestoreMocks.batch.commit).toHaveBeenCalled();
+  });
+});
