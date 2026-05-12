@@ -95,7 +95,8 @@ Implemented:
 - Firestore cloud storage under `users/{userId}/conversations/{conversationId}/messages/{messageId}`.
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
-- Message create, edit, delete, forward, search, and manual reorder.
+- Message create, edit, delete, forward, move to another conversation, search, and manual reorder.
+- Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
 - Composer keyboard send/save with `Ctrl+Enter` / `Cmd+Enter`, while plain `Enter` inserts a newline.
 - Responsive phone/desktop layout.
 - PWA manifest and generated service worker.
@@ -105,9 +106,11 @@ Implemented:
 Known development follow-ups:
 
 - Add focused tests for Firestore rules, offline behavior, keyboard sending, and reorder persistence.
-- Verify offline create, edit, delete, forward, and reorder behavior in a real browser against Firebase/Firestore.
+- Add focused UI coverage or manual QA notes for the shared forward/move transfer modal.
+- Verify offline create, edit, delete, forward, move, and reorder behavior in a real browser against Firebase/Firestore.
 - Consider loading only the active conversation's messages if large conversation lists become slow.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.
+- Keep `docs/ai-maintenance/` prompt files current when the recurring AI maintenance workflows change.
 
 ---
 
@@ -197,7 +200,7 @@ src/components/ConversationPane.tsx
   Active conversation view, message list, reorder controls, edit state, and composer UI.
 
 src/components/ForwardModal.tsx
-  Conversation picker used when forwarding a message.
+  Conversation picker used when forwarding or moving a message.
 
 src/hooks/useMessagingData.ts
   Authentication, conversation, and message subscription lifecycle.
@@ -216,6 +219,7 @@ Development impact:
 - Firebase read/write behavior should usually start in `src/services/`.
 - Subscription and data-loading behavior should usually start in `src/hooks/useMessagingData.ts`.
 - Small reusable helpers should live in `src/utils/`.
+- Recurring AI maintenance prompts live in `docs/ai-maintenance/`; `docs/ai-maintenance-prompts.md` is only the index.
 
 This structure makes the app easier for an AI coding tool or human developer to modify because each file has a narrower purpose and fewer unrelated concerns.
 
@@ -339,6 +343,7 @@ Required message actions:
 - Edit message
 - Delete message
 - Forward message to another conversation
+- Move message to another conversation
 - Reorder message within the current conversation
 
 Optional message actions:
@@ -417,6 +422,27 @@ Simple display:
 
 - Show the forwarded text as a normal message.
 - Optional small label: `Forwarded`.
+
+### 7.6.1 Move messages between conversations
+
+The current app supports moving a message from one conversation to another.
+
+Intended behavior:
+
+- User chooses `Move to conversation` from a message action.
+- App shows the same conversation picker used for forwarding.
+- App creates a replacement message in the target conversation.
+- App deletes the original message from the source conversation in the same Firestore batch.
+- The moved message stores source metadata so the source conversation can be opened from the moved message.
+- The moved message displays a small `Moved` label.
+
+Current implementation notes:
+
+- `src/services/messages.ts` has `moveMessage`, which writes the target message and deletes the source message in a Firestore batch.
+- Moved messages currently use `isForwarded: true`, `transferType: 'moved'`, `forwardedFromConversationId`, and `forwardedFromMessageId`.
+- `src/components/ConversationPane.tsx` includes a `Move to conversation` message action and displays `Moved` or `Forwarded` through `getTransferLabel`.
+- `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message }`.
+- `src/components/ForwardModal.tsx` receives `mode` and `sourceMessage`, changes its heading between `Forward to` and `Move to`, and excludes the source conversation from target choices.
 
 ---
 
@@ -549,6 +575,7 @@ Content:
 - Message list
 - Message input at bottom
 - Message actions: edit, delete, forward
+- Message action: move to another conversation
 - Reorder controls for moving text blocks
 
 ---
@@ -632,6 +659,7 @@ Useful user fields:
   "updatedAt": null,
   "sortOrder": 1000,
   "isForwarded": false,
+  "transferType": null,
   "forwardedFromConversationId": null,
   "forwardedFromMessageId": null
 }
@@ -666,11 +694,14 @@ Useful user fields:
 `isForwarded`
 : Whether this message was forwarded from another conversation.
 
+`transferType`
+: Optional transfer label. Current known values are `forwarded`, `moved`, or `null`. This is newer than `isForwarded` and gives the UI a clearer way to distinguish copied forwards from moved messages.
+
 `forwardedFromConversationId`
-: Source conversation ID, if forwarded.
+: Source conversation ID, if forwarded or moved.
 
 `forwardedFromMessageId`
-: Source message ID, if forwarded.
+: Source message ID, if forwarded or moved.
 
 ---
 
@@ -749,6 +780,7 @@ When online:
 - Edited messages should sync to the cloud.
 - Deleted messages should sync to the cloud.
 - Forwarded messages should sync to the cloud.
+- Moved messages should sync to the cloud.
 - Other signed-in devices should receive the updates.
 
 When offline:
@@ -806,6 +838,7 @@ Important privacy note:
 - User can edit a message.
 - User can delete a message.
 - User can forward a message to another conversation.
+- User can move a message to another conversation.
 - User can reorder messages inside a conversation.
 - User can search messages.
 
@@ -894,6 +927,7 @@ Version 1 is complete when:
 - I can send a new message with `Ctrl+Enter` / `Cmd+Enter`.
 - I can search messages.
 - I can forward a message from one conversation to another.
+- I can move a message from one conversation to another.
 - I can reorder text blocks and see the same order after refresh.
 - I can open the app offline after it was previously loaded.
 - I can read cached content offline.
@@ -947,9 +981,12 @@ Messages:
 - User can edit messages.
 - User can delete messages with confirmation.
 - User can forward a message to another conversation.
+- User can move a message to another conversation.
 - User can reorder text blocks inside a conversation.
 - Forwarding creates a new message in the target conversation with the same text.
+- Moving creates a message in the target conversation and removes the original from the source conversation.
 - Show an optional "Forwarded" label on forwarded messages.
+- Show an optional "Moved" label on moved messages.
 - Show an "edited" label if a message was changed.
 
 Search:
@@ -980,6 +1017,7 @@ Message fields:
 - updatedAt
 - sortOrder
 - isForwarded
+- transferType
 - forwardedFromConversationId
 - forwardedFromMessageId
 
@@ -1005,15 +1043,16 @@ Build in this order:
 11. Edit message
 12. Delete message
 13. Forward message to another conversation
-14. Reorder text blocks
-15. Search messages
-16. Add PWA manifest
-17. Add service worker
-18. Enable Firestore offline persistence
-19. Test on iPhone 8
-20. Test on desktop
-21. Test on tablet
-22. Test offline behavior
+14. Move message to another conversation
+15. Reorder text blocks
+16. Search messages
+17. Add PWA manifest
+18. Add service worker
+19. Enable Firestore offline persistence
+20. Test on iPhone 8
+21. Test on desktop
+22. Test on tablet
+23. Test offline behavior
 
 ---
 
@@ -1021,4 +1060,4 @@ Build in this order:
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create conversations, save text blocks, send with keyboard shortcuts, edit/delete/search/reorder them, forward blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create conversations, save text blocks, send with keyboard shortcuts, edit/delete/search/reorder them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.

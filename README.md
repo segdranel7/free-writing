@@ -8,7 +8,7 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 - Firestore-backed conversations and messages.
 - Firestore rules scoped to the signed-in user's `uid`.
 - Conversation create, rename, open, and delete.
-- Message create, edit, delete, forward, search, and manual reorder.
+- Message create, edit, delete, forward, move between conversations, search, and manual reorder.
 - `Ctrl+Enter` / `Cmd+Enter` sends a new message or saves an edit; plain `Enter` inserts a newline.
 - PWA manifest and generated service worker.
 - Firestore persistent local cache for cached data and queued offline writes.
@@ -17,7 +17,8 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 ## Development priorities
 
 - Add focused tests for Firestore rules and core message behavior.
-- Verify offline create, edit, delete, forward, and reorder behavior against Firebase/Firestore in a real browser.
+- Verify offline create, edit, delete, forward, move, and reorder behavior against Firebase/Firestore in a real browser.
+- Add focused UI coverage or manual QA notes for the shared forward/move transfer modal.
 - Consider loading only the active conversation's messages if large conversation lists become slow.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.
 
@@ -29,7 +30,7 @@ The React app is split by responsibility:
 - `src/components/SignInScreen.tsx` renders the logged-out Firebase sign-in flow.
 - `src/components/Sidebar.tsx` renders search and conversation navigation.
 - `src/components/ConversationPane.tsx` renders the active conversation, messages, reorder controls, and composer.
-- `src/components/ForwardModal.tsx` renders the forward target picker.
+- `src/components/ForwardModal.tsx` renders the transfer target picker for forwarding or moving messages.
 - `src/hooks/useMessagingData.ts` owns auth, conversation, and message subscriptions.
 - `src/services/` contains Firebase auth, conversation, message, and search operations.
 - `src/utils/` contains small shared formatting and error helpers.
@@ -101,6 +102,7 @@ Messages should include:
 - `updatedAt`
 - `sortOrder`
 - `isForwarded`
+- `transferType`
 - `forwardedFromConversationId`
 - `forwardedFromMessageId`
 
@@ -115,3 +117,5 @@ Existing messages without `sortOrder` are displayed in chronological order until
 ## Product documentation
 
 See `simple_offline_messaging_pwa_base_doc.md` for the full product and development base document.
+
+See `docs/ai-maintenance-prompts.md` for the AI maintenance prompt index. Individual prompt files live in `docs/ai-maintenance/`.

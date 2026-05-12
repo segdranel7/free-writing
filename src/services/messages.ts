@@ -31,7 +31,8 @@ function normalizeMessages(messages: Message[]) {
   return messages
     .map((message, index) => ({
       ...message,
-      sortOrder: typeof message.sortOrder === 'number' ? message.sortOrder : (index + 1) * sortStep
+      sortOrder: typeof message.sortOrder === 'number' ? message.sortOrder : (index + 1) * sortStep,
+      transferType: message.transferType ?? (message.isForwarded ? 'forwarded' : null)
     }))
     .sort(
       (first, second) =>
@@ -68,6 +69,7 @@ export async function createMessage(userId: string, conversationId: string, text
     updatedAt: null,
     sortOrder,
     isForwarded: false,
+    transferType: null,
     forwardedFromConversationId: null,
     forwardedFromMessageId: null
   });
@@ -109,11 +111,39 @@ export async function forwardMessage(
     updatedAt: null,
     sortOrder,
     isForwarded: true,
+    transferType: 'forwarded',
     forwardedFromConversationId: source.conversationId,
     forwardedFromMessageId: source.id
   });
   await touchConversation(userId, targetConversationId, source.text);
   return forwarded;
+}
+
+export async function moveMessage(
+  userId: string,
+  source: Message,
+  targetConversationId: string
+) {
+  const sortOrder = await getNextSortOrder(userId, targetConversationId);
+  const targetMessage = doc(messagesPath(userId, targetConversationId));
+  const batch = writeBatch(requireDb());
+  batch.set(targetMessage, {
+    userId,
+    conversationId: targetConversationId,
+    text: source.text,
+    searchText: source.searchText,
+    createdAt: serverTimestamp(),
+    updatedAt: null,
+    sortOrder,
+    isForwarded: true,
+    transferType: 'moved',
+    forwardedFromConversationId: source.conversationId,
+    forwardedFromMessageId: source.id
+  });
+  batch.delete(messagePath(userId, source.conversationId, source.id));
+  await batch.commit();
+  await touchConversation(userId, targetConversationId, source.text);
+  return targetMessage;
 }
 
 export async function reorderMessages(userId: string, conversationId: string, messages: Message[]) {

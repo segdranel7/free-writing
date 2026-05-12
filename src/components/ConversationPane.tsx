@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Edit3, Forward, MoreVertical, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Edit3, Forward, MoreVertical, MoveRight, Reply, Trash2, X } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import { formatDate } from '../utils/date';
 
@@ -13,9 +13,17 @@ type ConversationPaneProps = {
   onCancelEdit: () => void;
   onEditMessage: (message: Message) => void;
   onForwardMessage: (message: Message) => void;
+  onMoveToConversation: (message: Message) => void;
+  onNavigateToSource: (conversationId: string) => void;
   onDeleteMessage: (message: Message) => void;
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
 };
+
+function getTransferLabel(message: Message) {
+  if (message.transferType === 'moved') return 'Moved';
+  if (message.transferType === 'forwarded' || message.isForwarded) return 'Forwarded';
+  return null;
+}
 
 export function ConversationPane({
   activeConversation,
@@ -28,6 +36,8 @@ export function ConversationPane({
   onCancelEdit,
   onEditMessage,
   onForwardMessage,
+  onMoveToConversation,
+  onNavigateToSource,
   onDeleteMessage,
   onMoveMessage
 }: ConversationPaneProps) {
@@ -49,7 +59,17 @@ export function ConversationPane({
             {activeMessages.map((message, messageIndex) => (
               <article className="message-bubble" key={message.id}>
                 <div className="message-meta">
-                  {message.isForwarded && <span>Forwarded</span>}
+                  {getTransferLabel(message) && <span>{getTransferLabel(message)}</span>}
+                  {message.forwardedFromConversationId && (
+                    <button
+                      className="source-link"
+                      title="Open source conversation"
+                      onClick={() => onNavigateToSource(message.forwardedFromConversationId as string)}
+                    >
+                      <Reply size={13} />
+                      Source
+                    </button>
+                  )}
                   {message.updatedAt && <span>edited</span>}
                   <time>{formatDate(message.createdAt)}</time>
                 </div>
@@ -78,6 +98,9 @@ export function ConversationPane({
                   </button>
                   <button className="icon-button bare" title="Forward" onClick={() => onForwardMessage(message)}>
                     <Forward size={16} />
+                  </button>
+                  <button className="icon-button bare" title="Move to conversation" onClick={() => onMoveToConversation(message)}>
+                    <MoveRight size={16} />
                   </button>
                   <button className="icon-button bare" title="Delete" onClick={() => onDeleteMessage(message)}>
                     <Trash2 size={16} />

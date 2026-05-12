@@ -15,6 +15,8 @@ export type Conversation = {
   lastMessagePreview: string;
 };
 
+export type MessageTransferType = 'forwarded' | 'moved' | null;
+
 export type Message = {
   id: string;
   userId: string;
@@ -25,6 +27,7 @@ export type Message = {
   updatedAt: Timestamp | null;
   sortOrder: number;
   isForwarded: boolean;
+  transferType?: MessageTransferType;
   forwardedFromConversationId: string | null;
   forwardedFromMessageId: string | null;
 };

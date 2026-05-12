@@ -14,10 +14,16 @@ import {
   deleteMessage,
   editMessage,
   forwardMessage,
+  moveMessage,
   reorderMessages
 } from './services/messages';
 import { searchLoadedMessages } from './services/search';
 import type { Conversation, Message } from './types';
+
+type TransferAction = {
+  mode: 'forward' | 'move';
+  message: Message;
+};
 
 export default function App() {
   const {
@@ -34,7 +40,7 @@ export default function App() {
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
-  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+  const [transferAction, setTransferAction] = useState<TransferAction | null>(null);
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
@@ -84,9 +90,13 @@ export default function App() {
   }
 
   async function handleForwardMessage(targetConversationId: string) {
-    if (!user || !forwardingMessage) return;
-    await forwardMessage(user.uid, forwardingMessage, targetConversationId);
-    setForwardingMessage(null);
+    if (!user || !transferAction) return;
+    if (transferAction.mode === 'move') {
+      await moveMessage(user.uid, transferAction.message, targetConversationId);
+    } else {
+      await forwardMessage(user.uid, transferAction.message, targetConversationId);
+    }
+    setTransferAction(null);
     setActiveConversationId(targetConversationId);
   }
 
@@ -116,6 +126,12 @@ export default function App() {
   function handleCancelEdit() {
     setEditingMessage(null);
     setDraft('');
+  }
+
+  function handleNavigateToSource(conversationId: string) {
+    setTransferAction(null);
+    setSearchTerm('');
+    setActiveConversationId(conversationId);
   }
 
   if (authLoading) {
@@ -155,16 +171,19 @@ export default function App() {
         onSubmitMessage={() => void handleSubmitMessage()}
         onCancelEdit={handleCancelEdit}
         onEditMessage={handleEditMessage}
-        onForwardMessage={setForwardingMessage}
+        onForwardMessage={(message) => setTransferAction({ mode: 'forward', message })}
+        onMoveToConversation={(message) => setTransferAction({ mode: 'move', message })}
+        onNavigateToSource={handleNavigateToSource}
         onDeleteMessage={(message) => void handleDeleteMessage(message)}
         onMoveMessage={(messageIndex, direction) => void handleMoveMessage(messageIndex, direction)}
       />
 
-      {forwardingMessage && (
+      {transferAction && (
         <ForwardModal
           conversations={conversations}
-          forwardingMessage={forwardingMessage}
-          onClose={() => setForwardingMessage(null)}
+          mode={transferAction.mode}
+          sourceMessage={transferAction.message}
+          onClose={() => setTransferAction(null)}
           onForward={(conversationId) => void handleForwardMessage(conversationId)}
         />
       )}
