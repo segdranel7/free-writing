@@ -335,6 +335,11 @@ button {
   opacity: 0.35;
 }
 
+.copy-status {
+  color: #6ce5cf;
+  font-weight: 700;
+}
+
 .reorder-actions {
   display: flex;
   margin-right: auto;

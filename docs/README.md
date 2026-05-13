@@ -6,7 +6,7 @@ This is the entry point for the Simple Multi-Device Messaging PWA documentation.
 
 ## App summary
 
-The app is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, editing, deletion, forwarding, moving, manual reordering, multi-device access, and offline support for the app shell plus cached Firestore data.
+The app is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual reordering, multi-device access, and offline support for the app shell plus cached Firestore data.
 
 Target devices:
 
@@ -96,7 +96,7 @@ It contains:
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create conversations, save text blocks, send with keyboard shortcuts, edit/delete/search/reorder them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create conversations, save text blocks, copy them, send with keyboard shortcuts, edit/delete/search/reorder them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
 
 ## Maintenance guidance
 

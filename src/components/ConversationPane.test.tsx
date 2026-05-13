@@ -59,6 +59,37 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
 }
 
 describe('ConversationPane', () => {
+  it('copies message text with one click', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText }
+    });
+
+    renderPane();
+
+    fireEvent.click(screen.getAllByTitle('Copy text')[0]);
+
+    expect(writeText).toHaveBeenCalledWith('First');
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
+  });
+
+  it('shows copy feedback when clipboard writes fail', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('Clipboard unavailable'));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText }
+    });
+
+    renderPane();
+
+    fireEvent.click(screen.getAllByTitle('Copy text')[0]);
+
+    expect(await screen.findByText('Copy failed')).toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalledWith('Unable to copy message text.', expect.any(Error));
+
+    consoleError.mockRestore();
+  });
+
   it('submits with Ctrl+Enter and Cmd+Enter but leaves plain Enter as a newline shortcut', () => {
     const props = renderPane();
     const composer = screen.getByPlaceholderText('Write a message');

@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Edit3, Forward, MoreVertical, MoveRight, Reply, Trash2, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, Copy, Edit3, Forward, MoreVertical, MoveRight, Reply, Trash2, X } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import { formatDate } from '../utils/date';
 
@@ -19,10 +20,21 @@ type ConversationPaneProps = {
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
 };
 
+const COPY_FEEDBACK_TIMEOUT_MS = 1600;
+
+type CopyFeedback = {
+  messageId: string;
+  status: 'copied' | 'failed';
+};
+
 function getTransferLabel(message: Message) {
   if (message.transferType === 'moved') return 'Moved';
   if (message.transferType === 'forwarded' || message.isForwarded) return 'Forwarded';
   return null;
+}
+
+function getCopyFeedbackLabel(feedback: CopyFeedback) {
+  return feedback.status === 'copied' ? 'Copied' : 'Copy failed';
 }
 
 export function ConversationPane({
@@ -41,6 +53,30 @@ export function ConversationPane({
   onDeleteMessage,
   onMoveMessage
 }: ConversationPaneProps) {
+  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
+
+  useEffect(() => {
+    if (!copyFeedback) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setCopyFeedback((currentFeedback) =>
+        currentFeedback?.messageId === copyFeedback.messageId ? null : currentFeedback
+      );
+    }, COPY_FEEDBACK_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [copyFeedback]);
+
+  async function copyMessageText(message: Message) {
+    try {
+      await navigator.clipboard.writeText(message.text);
+      setCopyFeedback({ messageId: message.id, status: 'copied' });
+    } catch (error) {
+      console.error('Unable to copy message text.', error);
+      setCopyFeedback({ messageId: message.id, status: 'failed' });
+    }
+  }
+
   return (
     <section className={`conversation-pane ${activeConversation ? 'open' : ''}`}>
       {activeConversation ? (
@@ -96,6 +132,14 @@ export function ConversationPane({
                   <button className="icon-button bare" title="Edit" onClick={() => onEditMessage(message)}>
                     <Edit3 size={16} />
                   </button>
+                  <button className="icon-button bare" title="Copy text" onClick={() => void copyMessageText(message)}>
+                    <Copy size={16} />
+                  </button>
+                  {copyFeedback?.messageId === message.id && (
+                    <span className="copy-status" aria-live="polite">
+                      {getCopyFeedbackLabel(copyFeedback)}
+                    </span>
+                  )}
                   <button className="icon-button bare" title="Forward" onClick={() => onForwardMessage(message)}>
                     <Forward size={16} />
                   </button>

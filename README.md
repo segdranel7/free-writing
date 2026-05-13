@@ -9,7 +9,7 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 - Firestore-backed conversations and messages.
 - Firestore rules scoped to the signed-in user's `uid`.
 - Conversation create, rename, open, and delete.
-- Message create, edit, delete, forward, move between conversations, search, and manual reorder.
+- Message create, edit, copy-to-clipboard, delete, forward, move between conversations, search, and manual reorder.
 - `Ctrl+Enter` / `Cmd+Enter` sends a new message or saves an edit; plain `Enter` inserts a newline.
 - PWA manifest and generated service worker.
 - Dark visual theme, including matching browser/PWA theme colors.
@@ -33,7 +33,7 @@ The React app is split by responsibility:
 - `src/App.tsx` coordinates app state, derived data, and user actions.
 - `src/components/SignInScreen.tsx` renders the logged-out Firebase sign-in flow.
 - `src/components/Sidebar.tsx` renders search and conversation navigation.
-- `src/components/ConversationPane.tsx` renders the active conversation, messages, reorder controls, and composer.
+- `src/components/ConversationPane.tsx` renders the active conversation, messages, copy/edit/transfer/reorder controls, and composer.
 - `src/components/ForwardModal.tsx` renders the transfer target picker for forwarding or moving messages.
 - `src/hooks/useMessagingData.ts` owns auth, conversation, and message subscriptions; it currently subscribes to every conversation's messages to support loaded-message search.
 - `src/services/` contains Firebase auth, conversation, message, and search operations.

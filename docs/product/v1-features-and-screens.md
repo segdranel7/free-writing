@@ -65,6 +65,7 @@ Required message actions:
 
 - Create message
 - Edit message
+- Copy message text
 - Delete message
 - Forward message to another conversation
 - Move message to another conversation
@@ -72,7 +73,6 @@ Required message actions:
 
 Optional message actions:
 
-- Copy message text
 - Duplicate message in same conversation
 
 ### 7.3.1 Message composer keyboard behavior

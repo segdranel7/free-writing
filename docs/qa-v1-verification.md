@@ -13,7 +13,7 @@ npm run build
 
 Expected result:
 
-- Vitest passes for search, message service writes, composer keyboard behavior, reorder controls, and the forward/move modal.
+- Vitest passes for search, message service writes, message copy feedback, composer keyboard behavior, reorder controls, and the forward/move modal.
 - The production build completes without TypeScript or Vite errors.
 
 ## Firestore rules
@@ -42,17 +42,18 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 2. Create two conversations.
 3. Create several messages in the first conversation.
 4. Edit one message.
-5. Delete one message.
-6. Forward one message to the second conversation.
-7. Move one message to the second conversation.
-8. Reorder messages with the up/down controls.
-9. Search for text that exists in loaded messages.
-10. Disconnect the browser from the network.
-11. Reload the app.
-12. Confirm the app shell opens and cached conversations/messages remain readable.
-13. While offline, create, edit, delete, forward, move, and reorder messages.
-14. Reconnect to the network.
-15. Confirm all queued changes sync and remain visible after another reload.
+5. Copy one message and confirm clipboard feedback appears.
+6. Delete one message.
+7. Forward one message to the second conversation.
+8. Move one message to the second conversation.
+9. Reorder messages with the up/down controls.
+10. Search for text that exists in loaded messages.
+11. Disconnect the browser from the network.
+12. Reload the app.
+13. Confirm the app shell opens and cached conversations/messages remain readable.
+14. While offline, create, edit, copy, delete, forward, move, and reorder messages.
+15. Reconnect to the network.
+16. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 

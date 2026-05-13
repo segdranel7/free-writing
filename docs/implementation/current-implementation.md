@@ -18,7 +18,7 @@ Implemented:
 - Firestore cloud storage under `users/{userId}/conversations/{conversationId}/messages/{messageId}`.
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
-- Message create, edit, delete, forward, move to another conversation, search, and manual reorder.
+- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, and manual reorder.
 - Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
 - Composer keyboard send/save with `Ctrl+Enter` / `Cmd+Enter`, while plain `Enter` inserts a newline.
 - Responsive phone/desktop layout.
@@ -93,7 +93,7 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, and navigation UI.
 
 src/components/ConversationPane.tsx
-  Active conversation view, message list, reorder controls, edit state, and composer UI.
+  Active conversation view, message list, copy/edit/transfer/reorder controls, edit state, and composer UI.
 
 src/components/ForwardModal.tsx
   Conversation picker used when forwarding or moving a message.
@@ -167,6 +167,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/services/messages.ts` has `moveMessage`, which writes the target message and deletes the source message in a Firestore batch.
 - Moved messages currently use `isForwarded: true`, `transferType: 'moved'`, `forwardedFromConversationId`, and `forwardedFromMessageId`.
 - `src/components/ConversationPane.tsx` includes a `Move to conversation` message action and displays `Moved` or `Forwarded` through `getTransferLabel`.
+- `src/components/ConversationPane.tsx` includes a `Copy text` message action with short-lived success/failure feedback; the copy action is browser clipboard API UI only and does not touch Firestore.
 - `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message }`.
 - `src/components/ForwardModal.tsx` receives `mode` and `sourceMessage`, changes its heading between `Forward to` and `Move to`, and excludes the source conversation from target choices.
 - Moving touches the target conversation preview after the batch, but does not recompute the source conversation preview after deleting the original.
