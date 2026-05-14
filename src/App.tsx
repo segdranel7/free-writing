@@ -122,6 +122,11 @@ export default function App() {
     await createMessageAfter(user.uid, source.conversationId, source, sourceConversationMessages, text);
   }
 
+  async function handleReplaceWithEnglish(source: Message, text: string) {
+    if (!user) return;
+    await editMessage(user.uid, source.conversationId, source.id, text);
+  }
+
   async function handleMergeMessages(messages: Message[]) {
     if (!user || !activeConversationId || messages.length < 2) return;
     await mergeMessages(user.uid, activeConversationId, messages);
@@ -191,8 +196,9 @@ export default function App() {
         onDeleteMessage={(message) => void handleDeleteMessage(message)}
         onMoveMessage={(messageIndex, direction) => void handleMoveMessage(messageIndex, direction)}
         onMergeMessages={handleMergeMessages}
-        onConvertToEnglish={(message) => requestEnglishVersions(message.text)}
+        onConvertToEnglish={requestEnglishVersions}
         onCreateEnglishBlock={handleCreateEnglishBlock}
+        onReplaceWithEnglish={handleReplaceWithEnglish}
       />
 
       {transferAction && (

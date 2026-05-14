@@ -66,16 +66,19 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 8. Move one message to the second conversation.
 9. Reorder messages with the up/down controls.
 10. Select at least two messages, merge them, and confirm one unified block replaces the originals.
-11. Convert one message to English, choose non-default options for at least one segment, and create the English block.
-12. Confirm the English block appears directly below the original and remains after reload.
-13. Search for text that exists in loaded messages.
-14. Disconnect the browser from the network.
-15. Reload the app.
-16. Confirm the app shell opens and cached conversations/messages remain readable.
-17. While offline, create, edit, copy, delete, forward, move, reorder, and merge messages.
-18. Confirm requesting a new English conversion while offline fails gracefully without creating a message.
-19. Reconnect to the network.
-20. Confirm all queued changes sync and remain visible after another reload.
+11. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
+12. Convert one message to English, choose non-default options for at least one segment, and create the English block.
+13. Confirm the English block appears directly below the original and remains after reload.
+14. Convert another message to English and replace the source block with the selected English text.
+15. Enter draft text in the composer, convert the draft to English, choose an option, and confirm the draft updates before sending.
+16. Search for text that exists in loaded messages.
+17. Disconnect the browser from the network.
+18. Reload the app.
+19. Confirm the app shell opens and cached conversations/messages remain readable.
+20. While offline, create, edit, copy, delete, forward, move, reorder, and merge messages.
+21. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, or changing draft text.
+22. Reconnect to the network.
+23. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 
@@ -85,7 +88,9 @@ Expected result:
 - Source links navigate back to the original conversation when source metadata exists.
 - Reordered messages keep their order after reconnect and reload.
 - Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.
-- English conversion keeps the original message unchanged and stores the selected English result as a normal message.
+- English conversion can keep the original message unchanged by creating a new block, or replace the original when `Replace block` is chosen.
+- Draft English conversion updates only the composer draft until the user sends it.
+- Long conversations keep the composer and merge action reachable without scrolling the whole page.
 
 ## Known follow-up if a step fails
 

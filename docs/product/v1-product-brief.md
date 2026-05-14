@@ -20,7 +20,7 @@ The app should let the user:
 - Forward text blocks between conversations
 - Reorder text blocks inside a conversation
 - Merge multiple selected text blocks into one unified block
-- Convert text blocks to English by choosing from AI-generated variants
+- Convert saved text blocks or draft text to English by choosing from AI-generated variants
 - Access the same content from iPhone, desktop, and tablet
 - Use the app offline when possible
 - Sign in easily using a Google/Gmail account
@@ -85,7 +85,7 @@ The user should be able to:
 10. Send a block of text from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
 11. Reorder text blocks inside a conversation.
 12. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
-13. Convert a text block to English by selecting one of three English versions for each smaller segment.
+13. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
 14. Access the same content from iPhone, desktop, and tablet.
 15. Continue reading and writing offline when the app has already loaded and local data is cached.
 

@@ -114,9 +114,10 @@ function buildPrompt(text: string) {
 You are a translation editor. Convert the provided text to English.
 
 Task:
-1. Divide the text into logical, readable segments. Use sentences or short meaningful phrases.
-2. If a sentence is long, break it into individual phrases.
-3. For each segment, provide exactly three distinct, natural English versions.
+1. Divide the text into a small number of larger, logical segments. Prefer complete sentences or short paragraphs over small phrases.
+2. Only split a sentence when it is unusually long or contains multiple unrelated ideas.
+3. Preserve the original order and meaning across the larger segments.
+4. For each segment, provide exactly three distinct, natural English versions.
 
 Return ONLY valid JSON with this exact structure:
 {

@@ -160,7 +160,7 @@ Useful user fields:
 `forwardedFromMessageId`
 : Source message ID, if forwarded or moved.
 
-English conversion results are also stored as normal messages. The current implementation links the new English block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message.
+English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. Replacing a source block with English text updates the same message through the normal edit path. Converting draft text only updates the unsaved composer draft until the user sends it.
 
 Merged text blocks are stored as normal messages. Merging does not require extra fields; the app creates a replacement message with unified text and deletes the selected original messages in the same batch.
 
@@ -227,7 +227,7 @@ Important limitation:
 
 If a conversation was never opened on a device before going offline, it may not be available offline on that device.
 
-AI-backed English conversion is an online-only feature. Previously created English blocks are cached like other messages, but requesting new conversion options requires network access to the server-side API.
+AI-backed English conversion is an online-only feature. Previously created or replaced English blocks are cached like other messages, but requesting new conversion options requires network access to the server-side API.
 
 ---
 
@@ -241,7 +241,7 @@ When online:
 - Forwarded messages should sync to the cloud.
 - Moved messages should sync to the cloud.
 - Merged replacement messages and deletion of their originals should sync to the cloud.
-- English conversion result messages should sync to the cloud.
+- English conversion result messages and replacement edits should sync to the cloud.
 - Other signed-in devices should receive the updates.
 
 When offline:

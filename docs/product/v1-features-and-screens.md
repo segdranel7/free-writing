@@ -91,26 +91,28 @@ Requirements:
 - While editing a message, `Ctrl+Enter` / `Cmd+Enter` should save the edit.
 - The visible Send/Save button remains available for touch users.
 
-### 7.3.2 Convert a text block to English
+### 7.3.2 Convert text to English
 
-The user can convert any saved text block into English without replacing the original.
+The user can convert saved text blocks or draft composer text into English.
 
 Version 1 behavior:
 
 - Each message has a `Convert to English` action.
-- The app breaks the message into smaller readable segments.
+- The composer has a `Convert draft to English` action when a non-empty draft is present.
+- The app breaks the text into a small number of readable segments, preferring complete sentences or short paragraphs.
 - Each segment shows three selectable English versions.
 - The first option is selected by default.
 - The user can choose one version for every segment.
 - The app shows a preview assembled from the selected options.
-- `Create block` inserts the assembled English text as a new message directly below the original.
-- The original message remains unchanged.
+- For a saved message, `Create block` inserts the assembled English text as a new message directly below the original.
+- For a saved message, `Replace block` updates the original block with the assembled English text.
+- For draft text, `Use in draft` replaces the composer draft with the assembled English text before sending.
 
 Requirements:
 
 - Empty text should not be sent for conversion.
 - Conversion requires the signed-in user and a working server-side translation endpoint.
-- Translation failures should show a clear error without creating a message.
+- Translation failures should show a clear error without creating, replacing, or changing draft text.
 - The Groq/API key must stay server-side and must not be exposed through `VITE_` browser environment variables.
 
 ---
@@ -335,13 +337,18 @@ Content:
 - Conversation title
 - Back button on mobile
 - Message list
-- Message input at bottom
+- Message input fixed at the bottom of the visible conversation pane
 - Message actions: edit, delete, forward
 - Message action: move to another conversation
 - Message action: convert to English
 - Reorder controls for moving text blocks
-- Selection controls and merge action for combining multiple selected blocks
+- Selection controls and a merge action for combining multiple selected blocks
 - English conversion picker modal with segment options and assembled preview
+
+Scrolling behavior:
+
+- Long conversations should scroll only the message list, not the entire conversation screen.
+- The conversation header, selected-message merge toolbar, and message composer should remain visible while the user scrolls through messages.
 
 ---
 
@@ -383,7 +390,8 @@ Content:
 - User can move a message to another conversation.
 - User can reorder messages inside a conversation.
 - User can merge multiple selected messages inside a conversation.
-- User can convert a message to English and create the result as a new block.
+- User can convert a message to English and either create a new result block or replace the source block.
+- User can convert draft composer text to English before sending.
 - User can search messages.
 
 ### Multi-device
@@ -448,6 +456,8 @@ Version 1 is complete when:
 - I can reorder text blocks and see the same order after refresh.
 - I can select multiple text blocks, merge them into one block, and confirm the originals are removed.
 - I can convert a text block to English, select variants, and create the English result below the original.
+- I can replace a source text block with selected English text.
+- I can convert draft composer text to English before sending.
 - I can open the app offline after it was previously loaded.
 - I can read cached content offline.
 - I can create or edit messages offline and have them sync when back online.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Combine, Copy, Edit3, Forward, Languages, MoreVertical, MoveRight, Reply, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Combine, Copy, Edit3, Forward, Languages, MoreVertical, MoveRight, Reply, Send, Trash2, X } from 'lucide-react';
 import type { Conversation, EnglishConversion, Message } from '../types';
 import { formatDate } from '../utils/date';
 
@@ -19,8 +19,9 @@ type ConversationPaneProps = {
   onDeleteMessage: (message: Message) => void;
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
   onMergeMessages: (messages: Message[]) => Promise<void>;
-  onConvertToEnglish: (message: Message) => Promise<EnglishConversion>;
+  onConvertToEnglish: (text: string) => Promise<EnglishConversion>;
   onCreateEnglishBlock: (message: Message, text: string) => Promise<void>;
+  onReplaceWithEnglish: (message: Message, text: string) => Promise<void>;
 };
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
@@ -31,8 +32,8 @@ type CopyFeedback = {
 };
 
 type EnglishPickerState = {
-  message: Message;
-  status: 'loading' | 'ready' | 'saving' | 'error';
+  source: { type: 'message'; message: Message } | { type: 'draft' };
+  status: 'loading' | 'ready' | 'creating' | 'replacing' | 'using-draft' | 'error';
   conversion: EnglishConversion | null;
   selections: number[];
   error: string | null;
@@ -65,7 +66,8 @@ export function ConversationPane({
   onMoveMessage,
   onMergeMessages,
   onConvertToEnglish,
-  onCreateEnglishBlock
+  onCreateEnglishBlock,
+  onReplaceWithEnglish
 }: ConversationPaneProps) {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [englishPicker, setEnglishPicker] = useState<EnglishPickerState | null>(null);
@@ -128,9 +130,9 @@ export function ConversationPane({
     }
   }
 
-  async function openEnglishPicker(message: Message) {
+  async function openMessageEnglishPicker(message: Message) {
     setEnglishPicker({
-      message,
+      source: { type: 'message', message },
       status: 'loading',
       conversion: null,
       selections: [],
@@ -138,9 +140,9 @@ export function ConversationPane({
     });
 
     try {
-      const conversion = await onConvertToEnglish(message);
+      const conversion = await onConvertToEnglish(message.text);
       setEnglishPicker({
-        message,
+        source: { type: 'message', message },
         status: 'ready',
         conversion,
         selections: conversion.segments.map(() => 0),
@@ -148,7 +150,37 @@ export function ConversationPane({
       });
     } catch (error) {
       setEnglishPicker({
-        message,
+        source: { type: 'message', message },
+        status: 'error',
+        conversion: null,
+        selections: [],
+        error: error instanceof Error ? error.message : 'Unable to convert this text to English.'
+      });
+    }
+  }
+
+  async function openDraftEnglishPicker() {
+    if (!draft.trim()) return;
+    setEnglishPicker({
+      source: { type: 'draft' },
+      status: 'loading',
+      conversion: null,
+      selections: [],
+      error: null
+    });
+
+    try {
+      const conversion = await onConvertToEnglish(draft);
+      setEnglishPicker({
+        source: { type: 'draft' },
+        status: 'ready',
+        conversion,
+        selections: conversion.segments.map(() => 0),
+        error: null
+      });
+    } catch (error) {
+      setEnglishPicker({
+        source: { type: 'draft' },
         status: 'error',
         conversion: null,
         selections: [],
@@ -174,23 +206,38 @@ export function ConversationPane({
       .trim();
   }
 
-  async function createEnglishBlock() {
+  async function saveEnglishResult(action: 'create' | 'replace' | 'draft') {
     if (!englishPicker || !englishPicker.conversion) return;
     const englishText = getAssembledEnglishText(englishPicker);
     if (!englishText) return;
 
-    setEnglishPicker({ ...englishPicker, status: 'saving', error: null });
+    const nextStatus =
+      action === 'create' ? 'creating' : action === 'replace' ? 'replacing' : 'using-draft';
+    setEnglishPicker({ ...englishPicker, status: nextStatus, error: null });
     try {
-      await onCreateEnglishBlock(englishPicker.message, englishText);
+      if (action === 'draft') {
+        onDraftChange(englishText);
+      } else if (englishPicker.source.type === 'message') {
+        if (action === 'create') {
+          await onCreateEnglishBlock(englishPicker.source.message, englishText);
+        } else {
+          await onReplaceWithEnglish(englishPicker.source.message, englishText);
+        }
+      }
       setEnglishPicker(null);
     } catch (error) {
       setEnglishPicker({
         ...englishPicker,
         status: 'error',
-        error: error instanceof Error ? error.message : 'Unable to create the English block.'
+        error: error instanceof Error ? error.message : 'Unable to save the English text.'
       });
     }
   }
+
+  const englishPickerIsSaving =
+    englishPicker?.status === 'creating' ||
+    englishPicker?.status === 'replacing' ||
+    englishPicker?.status === 'using-draft';
 
   return (
     <section className={`conversation-pane ${activeConversation ? 'open' : ''}`}>
@@ -277,7 +324,7 @@ export function ConversationPane({
                   <button className="icon-button bare" title="Copy text" onClick={() => void copyMessageText(message)}>
                     <Copy size={16} />
                   </button>
-                  <button className="icon-button bare" title="Convert to English" onClick={() => void openEnglishPicker(message)}>
+                  <button className="icon-button bare" title="Convert to English" onClick={() => void openMessageEnglishPicker(message)}>
                     <Languages size={16} />
                   </button>
                   {copyFeedback?.messageId === message.id && (
@@ -327,9 +374,29 @@ export function ConversationPane({
               placeholder="Write a message"
               rows={2}
             />
-            <button className="primary-button send-button" disabled={!draft.trim()}>
-              {editingMessage ? 'Save' : 'Send'}
-            </button>
+            <div className="composer-actions">
+              {!editingMessage && (
+                <button
+                  className="icon-button"
+                  type="button"
+                  title="Convert draft to English"
+                  disabled={!draft.trim()}
+                  onClick={() => void openDraftEnglishPicker()}
+                >
+                  <Languages size={17} />
+                </button>
+              )}
+              <button className="primary-button send-button" disabled={!draft.trim()}>
+                {editingMessage ? (
+                  'Save'
+                ) : (
+                  <>
+                    <Send size={16} />
+                    Send
+                  </>
+                )}
+              </button>
+            </div>
           </form>
 
           {englishPicker && (
@@ -358,7 +425,7 @@ export function ConversationPane({
                     <div className="english-segments">
                       {englishPicker.conversion.segments.map((segment, segmentIndex) => (
                         <fieldset className="english-segment" key={`${segment.original}-${segmentIndex}`}>
-                          <legend>{segment.original}</legend>
+                          <legend className="visually-hidden">English option group {segmentIndex + 1}</legend>
                           {segment.options.map((option, optionIndex) => (
                             <label className="english-option" key={option}>
                               <input
@@ -375,7 +442,9 @@ export function ConversationPane({
                     </div>
 
                     <div className="english-preview">
-                      <p className="eyebrow">New block preview</p>
+                      <p className="eyebrow">
+                        {englishPicker.source.type === 'draft' ? 'Draft preview' : 'English preview'}
+                      </p>
                       <p>{getAssembledEnglishText(englishPicker)}</p>
                     </div>
                   </>
@@ -385,14 +454,35 @@ export function ConversationPane({
                   <button className="text-button" type="button" onClick={() => setEnglishPicker(null)}>
                     Cancel
                   </button>
-                  <button
-                    className="primary-button"
-                    type="button"
-                    disabled={!englishPicker.conversion || englishPicker.status === 'saving'}
-                    onClick={() => void createEnglishBlock()}
-                  >
-                    {englishPicker.status === 'saving' ? 'Creating...' : 'Create block'}
-                  </button>
+                  {englishPicker.source.type === 'message' ? (
+                    <>
+                      <button
+                        className="text-button"
+                        type="button"
+                        disabled={!englishPicker.conversion || englishPickerIsSaving}
+                        onClick={() => void saveEnglishResult('replace')}
+                      >
+                        {englishPicker.status === 'replacing' ? 'Replacing...' : 'Replace block'}
+                      </button>
+                      <button
+                        className="primary-button"
+                        type="button"
+                        disabled={!englishPicker.conversion || englishPickerIsSaving}
+                        onClick={() => void saveEnglishResult('create')}
+                      >
+                        {englishPicker.status === 'creating' ? 'Creating...' : 'Create block'}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="primary-button"
+                      type="button"
+                      disabled={!englishPicker.conversion || englishPickerIsSaving}
+                      onClick={() => void saveEnglishResult('draft')}
+                    >
+                      {englishPicker.status === 'using-draft' ? 'Updating...' : 'Use in draft'}
+                    </button>
+                  )}
                 </footer>
               </section>
             </div>

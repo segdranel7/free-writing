@@ -52,7 +52,7 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     onDeleteMessage: vi.fn(),
     onMoveMessage: vi.fn(),
     onMergeMessages: vi.fn(async () => undefined),
-    onConvertToEnglish: vi.fn(async () => ({
+    onConvertToEnglish: vi.fn(async (_text: string) => ({
       segments: [
         {
           original: 'First',
@@ -61,6 +61,7 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
       ]
     })),
     onCreateEnglishBlock: vi.fn(async () => undefined),
+    onReplaceWithEnglish: vi.fn(async () => undefined),
     ...overrides
   };
 
@@ -174,8 +175,12 @@ describe('ConversationPane', () => {
 
     fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
 
-    expect(props.onConvertToEnglish).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }));
+    expect(props.onConvertToEnglish).toHaveBeenCalledWith('First');
     expect(await screen.findByRole('dialog', { name: 'Choose English versions' })).toBeInTheDocument();
+    expect(screen.queryByText('Olá mundo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tudo bem')).not.toBeInTheDocument();
+    expect(screen.queryByText('Part 1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Part 2')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Hello world')).toBeChecked();
     expect(screen.getByLabelText('All good')).toBeChecked();
     expect(screen.getByText('Hello world All good')).toBeInTheDocument();
@@ -208,6 +213,50 @@ describe('ConversationPane', () => {
       expect.objectContaining({ id: 'first' }),
       'First selected Second selected'
     );
+  });
+
+  it('can replace the source block with the selected English text', async () => {
+    const onReplaceWithEnglish = vi.fn(async () => undefined);
+    renderPane({
+      onReplaceWithEnglish,
+      onConvertToEnglish: vi.fn(async () => ({
+        segments: [
+          {
+            original: 'Primeiro',
+            options: ['First default', 'First replacement', 'First formal'] as [string, string, string]
+          }
+        ]
+      }))
+    });
+
+    fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
+    fireEvent.click(await screen.findByLabelText('First replacement'));
+    fireEvent.click(screen.getByRole('button', { name: 'Replace block' }));
+
+    expect(onReplaceWithEnglish).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'first' }),
+      'First replacement'
+    );
+  });
+
+  it('converts draft text to English before sending', async () => {
+    const onDraftChange = vi.fn();
+    const onConvertToEnglish = vi.fn(async () => ({
+      segments: [
+        {
+          original: 'Pronto para enviar',
+          options: ['Ready to send', 'Ready to submit', 'Prepared to send'] as [string, string, string]
+        }
+      ]
+    }));
+    renderPane({ draft: 'Pronto para enviar', onDraftChange, onConvertToEnglish });
+
+    fireEvent.click(screen.getByTitle('Convert draft to English'));
+    fireEvent.click(await screen.findByLabelText('Ready to submit'));
+    fireEvent.click(screen.getByRole('button', { name: 'Use in draft' }));
+
+    expect(onConvertToEnglish).toHaveBeenCalledWith('Pronto para enviar');
+    expect(onDraftChange).toHaveBeenCalledWith('Ready to submit');
   });
 
   it('shows a clear error when English conversion fails', async () => {

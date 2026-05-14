@@ -19,10 +19,11 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
 - Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual reorder, and selected-block merge.
-- Per-message English conversion that segments text, presents three English options per segment, and creates a new message below the source from selected variants.
+- English conversion for saved messages and composer draft text. It segments text, presents three English options per segment, and can create a new message below a saved source, replace a saved source, or place the selected English text back into the draft.
 - Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
 - Composer keyboard send/save with `Ctrl+Enter` / `Cmd+Enter`, while plain `Enter` inserts a newline.
 - Responsive phone/desktop layout.
+- Conversation pane layout is constrained to the viewport; only the message list scrolls, keeping the conversation header, merge toolbar, and composer visible in long conversations.
 - Dark visual theme across sign-in, sidebar, conversation pane, composer, message bubbles, modal, and hover states.
 - PWA manifest and generated service worker.
 - Browser/PWA theme colors are aligned to the dark app shell color.
@@ -133,7 +134,7 @@ src/utils/
   Shared formatting and error helpers.
 
 src/styles.css
-  Global dark theme, responsive layout, component surfaces, input states, message bubbles, modal styling, English picker styling, and hover states.
+  Global dark theme, responsive layout, viewport-constrained conversation pane, component surfaces, input states, message bubbles, modal styling, English picker styling, and hover states.
 
 index.html + vite.config.ts
   Browser theme color, generated PWA manifest colors, and local `/api/to-english` development middleware. Theme colors currently match the dark app shell so installed/mobile surfaces do not flash the old light theme.
@@ -143,7 +144,7 @@ Development impact:
 
 - `App.tsx` should stay focused on orchestration and cross-component workflows.
 - UI changes should usually start in `src/components/`.
-- Theme and layout styling changes should usually start in `src/styles.css`, then update PWA theme colors if the app shell color changes.
+- Theme and layout styling changes should usually start in `src/styles.css`, then update PWA theme colors if the app shell color changes. The app shell and active conversation pane are viewport-height flex layouts; keep message-list scrolling isolated so the header, merge toolbar, and composer remain reachable.
 - Firebase read/write behavior should usually start in `src/services/`.
 - Hosted translation backend behavior should usually start in `workers/translation/index.ts`; local-only Vite proxy behavior lives in `vite.config.ts`. `functions/src/index.ts` is legacy Firebase Functions code and is not used by the free hosted path.
 - Subscription and data-loading behavior should usually start in `src/hooks/useMessagingData.ts`.
@@ -218,11 +219,13 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 - `src/services/translation.ts` posts `{ text }` to `VITE_TRANSLATION_API_URL` or `/api/to-english`.
 - The request includes the current Firebase ID token in the `Authorization` header.
-- `src/components/ConversationPane.tsx` owns the English picker modal state. It shows loading, error, ready, and saving states.
-- Each AI segment returns exactly three options. The first is selected by default, and selected options are joined with spaces for the preview/new message.
+- `src/components/ConversationPane.tsx` owns the English picker modal state. It shows loading, error, ready, creating, replacing, and draft-update states.
+- Each AI segment returns exactly three options. The first is selected by default, and selected options are joined with spaces for the preview/saved text.
+- Saved-message conversion can create a new English block below the source or replace the source message by calling the normal edit flow. Draft conversion places the selected English text back into the composer without saving until the user sends it.
 - `src/services/messages.ts` has `createMessageAfter`, which inserts the English result directly below the source message by choosing a midpoint `sortOrder` when possible or rebalancing order when no numeric gap exists.
-- English conversion is online-only. Created English blocks persist like normal messages and then participate in Firestore cache/sync behavior.
+- English conversion is online-only. Created and replaced English blocks persist like normal messages and then participate in Firestore cache/sync behavior.
 - Hosted production uses `workers/translation/index.ts`, Firebase ID-token verification through Google Identity Toolkit, and Cloudflare Worker secrets for `GROQ_API_KEY` and `FIREBASE_API_KEY`. Local Vite dev uses equivalent middleware in `vite.config.ts` with `GROQ_API_KEY` from ignored `.env`.
+- Translation prompts in the Worker and Vite middleware ask the model to prefer larger logical segments, complete sentences, or short paragraphs instead of splitting aggressively into small phrases.
 
 ### Offline behavior
 
@@ -232,7 +235,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Sync behavior
 
-Conversation `lastMessagePreview` is updated on create, edit, forward, move target writes, merge result creation, and English conversion result creation. It is not currently recalculated after deleting a message, deleting originals during merge, or removing a moved message from its source conversation.
+Conversation `lastMessagePreview` is updated on create, edit, forward, move target writes, merge result creation, English conversion result creation, and English replacement edits. It is not currently recalculated after deleting a message, deleting originals during merge, or removing a moved message from its source conversation.
 
 ### Performance
 

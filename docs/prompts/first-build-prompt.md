@@ -54,10 +54,13 @@ Messages:
 - User can reorder text blocks inside a conversation.
 - User can select multiple text blocks inside a conversation and merge them into one unified block.
 - User can convert a text block to English.
+- User can convert draft composer text to English before sending.
 - Forwarding creates a new message in the target conversation with the same text.
 - Moving creates a message in the target conversation and removes the original from the source conversation.
 - Merging creates one normal replacement message from the selected blocks in display order and removes the selected originals.
-- English conversion breaks the source message into smaller segments, offers three selectable English versions for each segment, and creates the selected English result as a new message below the original.
+- English conversion breaks the source text into a small number of larger logical segments, offers three selectable English versions for each segment, and can create the selected English result as a new message below the original.
+- For saved messages, English conversion can also replace the source block with the selected English text.
+- For draft text, English conversion can place the selected English text back into the composer before the user sends it.
 - Show an optional "Forwarded" label on forwarded messages.
 - Show an optional "Moved" label on moved messages.
 - Show an "edited" label if a message was changed.
