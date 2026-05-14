@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -29,6 +29,7 @@ Recommended implementation:
 ```text
 Firebase Authentication + Google Sign-In
 Firebase Firestore for cloud data
+Firebase Functions for server-side AI translation requests
 Firestore offline persistence for offline reads/writes
 PWA service worker for offline app shell
 Firebase Hosting for the deployed static app
@@ -39,8 +40,9 @@ Why this is recommended:
 - Google login is relatively easy with Firebase Authentication.
 - Firestore can sync data across devices.
 - Firestore supports offline persistence on the web when enabled.
+- Firebase Functions keeps third-party AI API keys out of browser code.
 - A service worker can cache the app shell so the app itself opens offline.
-- Firebase Hosting is the chosen hosting target because it fits the existing Firebase Auth and Firestore stack, provides HTTPS, and serves the Vite PWA build directly from `dist/`.
+- Firebase Hosting is the chosen hosting target because it fits the existing Firebase Auth, Firestore, and Functions stack, provides HTTPS, serves the Vite PWA build directly from `dist/`, and can rewrite API routes to Functions.
 
 Important note:
 
@@ -158,6 +160,8 @@ Useful user fields:
 `forwardedFromMessageId`
 : Source message ID, if forwarded or moved.
 
+English conversion results are also stored as normal messages. The current implementation links the new English block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message.
+
 ---
 
 ## 10. Suggested database structure
@@ -220,6 +224,8 @@ Important limitation:
 
 If a conversation was never opened on a device before going offline, it may not be available offline on that device.
 
+AI-backed English conversion is an online-only feature. Previously created English blocks are cached like other messages, but requesting new conversion options requires network access to the server-side API.
+
 ---
 
 ## 12. Sync behavior
@@ -231,6 +237,7 @@ When online:
 - Deleted messages should sync to the cloud.
 - Forwarded messages should sync to the cloud.
 - Moved messages should sync to the cloud.
+- English conversion result messages should sync to the cloud.
 - Other signed-in devices should receive the updates.
 
 When offline:
@@ -251,6 +258,8 @@ Minimum security requirements:
 - A user can only write their own conversations.
 - A user can only read their own messages.
 - A user can only write their own messages.
+- AI conversion requests must require a signed-in Firebase user.
+- Third-party AI API keys must be stored server-side, preferably as Firebase Functions secrets.
 
 Recommended Firebase security rule concept:
 
@@ -261,8 +270,25 @@ Allow access only when request.auth.uid equals the userId in the path.
 Important privacy note:
 
 - Cloud sync means messages are stored in a cloud database.
+- English conversion sends the selected source text to a third-party AI provider through the server-side proxy.
 - This is different from a local-only app.
 - For very sensitive content, future encryption should be considered.
+
+## 13.1 Server-side English conversion
+
+The deployed app should route `POST /api/to-english` through Firebase Hosting to a Firebase Function.
+
+Expected request flow:
+
+```text
+Browser
+  -> Firebase ID token in Authorization header
+  -> Firebase Function verifies the token
+  -> Function calls Groq with GROQ_API_KEY secret
+  -> Function returns validated segment/options JSON
+```
+
+The browser receives only structured translation options. It must never receive the Groq key.
 
 ---
 
@@ -274,6 +300,7 @@ Important privacy note:
 Frontend: React, Vue, Svelte, or plain JavaScript
 Auth: Firebase Authentication with Google provider
 Database: Firestore
+Server API: Firebase Functions
 Offline data: Firestore offline persistence
 PWA: Manifest + service worker
 Hosting: Firebase Hosting
@@ -285,6 +312,7 @@ Hosting: Firebase Hosting
 React PWA
 Firebase Auth
 Firestore
+Firebase Functions
 Firebase Hosting
 ```
 

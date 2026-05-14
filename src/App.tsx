@@ -11,6 +11,7 @@ import {
 } from './services/conversations';
 import {
   createMessage,
+  createMessageAfter,
   deleteMessage,
   editMessage,
   forwardMessage,
@@ -18,6 +19,7 @@ import {
   reorderMessages
 } from './services/messages';
 import { searchLoadedMessages } from './services/search';
+import { requestEnglishVersions } from './services/translation';
 import type { Conversation, Message } from './types';
 
 type TransferAction = {
@@ -113,6 +115,12 @@ export default function App() {
     await reorderMessages(user.uid, activeConversationId, nextMessages);
   }
 
+  async function handleCreateEnglishBlock(source: Message, text: string) {
+    if (!user) return;
+    const sourceConversationMessages = messagesByConversation[source.conversationId] ?? [];
+    await createMessageAfter(user.uid, source.conversationId, source, sourceConversationMessages, text);
+  }
+
   function handleStartRename(conversation: Conversation) {
     setRenamingId(conversation.id);
     setRenameDraft(conversation.title);
@@ -176,6 +184,8 @@ export default function App() {
         onNavigateToSource={handleNavigateToSource}
         onDeleteMessage={(message) => void handleDeleteMessage(message)}
         onMoveMessage={(messageIndex, direction) => void handleMoveMessage(messageIndex, direction)}
+        onConvertToEnglish={(message) => requestEnglishVersions(message.text)}
+        onCreateEnglishBlock={handleCreateEnglishBlock}
       />
 
       {transferAction && (

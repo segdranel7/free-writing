@@ -1,6 +1,6 @@
 # First Build Prompt
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md).
 
@@ -11,7 +11,7 @@ Use this prompt when asking an AI builder to create the first version:
 ```text
 Build a simple multi-device offline-capable PWA called "My Messages".
 
-The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing, searching, editing, deleting, and forwarding my own text messages between private conversations.
+The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing, searching, editing, deleting, converting to English, and forwarding my own text messages between private conversations.
 
 Target devices:
 - iPhone 8
@@ -25,6 +25,7 @@ Core requirements:
 - Cloud sync using Firestore.
 - Firestore offline persistence enabled.
 - PWA support with manifest and service worker.
+- Server-side AI proxy for text-block English conversion.
 - App shell should open offline after first load.
 - Cached conversations and messages should be readable offline.
 - Offline writes should sync when the device is online again.
@@ -51,8 +52,10 @@ Messages:
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
 - User can reorder text blocks inside a conversation.
+- User can convert a text block to English.
 - Forwarding creates a new message in the target conversation with the same text.
 - Moving creates a message in the target conversation and removes the original from the source conversation.
+- English conversion breaks the source message into smaller segments, offers three selectable English versions for each segment, and creates the selected English result as a new message below the original.
 - Show an optional "Forwarded" label on forwarded messages.
 - Show an optional "Moved" label on moved messages.
 - Show an "edited" label if a message was changed.
@@ -89,6 +92,11 @@ Message fields:
 - forwardedFromConversationId
 - forwardedFromMessageId
 
+English conversion:
+- Use a server-side endpoint such as Firebase Functions so the AI provider key is not exposed in browser code.
+- Require the signed-in Firebase user for conversion requests.
+- Store created English results as normal messages with `sortOrder` immediately after the source message.
+
 Keep the app simple. Do not add contacts, group chat, phone numbers, push notifications, media uploads, voice notes, read receipts, or real messaging between different people.
 ```
 
@@ -113,13 +121,15 @@ Build in this order:
 13. Forward message to another conversation
 14. Move message to another conversation
 15. Reorder text blocks
-16. Search messages
-17. Add PWA manifest
-18. Add service worker
-19. Enable Firestore offline persistence
-20. Test on iPhone 8
-21. Test on desktop
-22. Test on tablet
-23. Test offline behavior
+16. Add English conversion through a server-side proxy
+17. Search messages
+18. Add PWA manifest
+19. Add service worker
+20. Enable Firestore offline persistence
+21. Test on iPhone 8
+22. Test on desktop
+23. Test on tablet
+24. Test offline behavior
+25. Test authenticated English conversion
 
 ---

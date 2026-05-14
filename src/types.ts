@@ -31,3 +31,12 @@ export type Message = {
   forwardedFromConversationId: string | null;
   forwardedFromMessageId: string | null;
 };
+
+export type EnglishSegment = {
+  original: string;
+  options: [string, string, string];
+};
+
+export type EnglishConversion = {
+  segments: EnglishSegment[];
+};

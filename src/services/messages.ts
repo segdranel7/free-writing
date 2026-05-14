@@ -77,6 +77,81 @@ export async function createMessage(userId: string, conversationId: string, text
   return message;
 }
 
+function getSortOrderAfterSource(messages: Message[], source: Message) {
+  const sourceIndex = messages.findIndex((message) => message.id === source.id);
+  const normalizedSourceIndex = sourceIndex >= 0 ? sourceIndex : messages.length - 1;
+  const previousSortOrder = messages[normalizedSourceIndex]?.sortOrder ?? source.sortOrder ?? 0;
+  const nextSortOrder = messages[normalizedSourceIndex + 1]?.sortOrder;
+
+  if (typeof nextSortOrder !== 'number') {
+    return { sortOrder: previousSortOrder + sortStep, needsRebalance: false, sourceIndex: normalizedSourceIndex };
+  }
+
+  const midpoint = Math.floor((previousSortOrder + nextSortOrder) / 2);
+  return {
+    sortOrder: midpoint,
+    needsRebalance: midpoint <= previousSortOrder,
+    sourceIndex: normalizedSourceIndex
+  };
+}
+
+export async function createMessageAfter(
+  userId: string,
+  conversationId: string,
+  source: Message,
+  messages: Message[],
+  text: string
+) {
+  const cleanText = text.trim();
+  const orderedMessages = normalizeMessages(messages);
+  const insertion = getSortOrderAfterSource(orderedMessages, source);
+  const targetMessage = doc(messagesPath(userId, conversationId));
+
+  if (!insertion.needsRebalance) {
+    const batch = writeBatch(requireDb());
+    batch.set(targetMessage, {
+      userId,
+      conversationId,
+      text: cleanText,
+      searchText: cleanText.toLowerCase(),
+      createdAt: serverTimestamp(),
+      updatedAt: null,
+      sortOrder: insertion.sortOrder,
+      isForwarded: false,
+      transferType: null,
+      forwardedFromConversationId: source.conversationId,
+      forwardedFromMessageId: source.id
+    });
+    await batch.commit();
+    await touchConversation(userId, conversationId, cleanText);
+    return targetMessage;
+  }
+
+  const batch = writeBatch(requireDb());
+  orderedMessages.forEach((message, index) => {
+    const shiftedIndex = index > insertion.sourceIndex ? index + 1 : index;
+    batch.update(messagePath(userId, conversationId, message.id), {
+      sortOrder: (shiftedIndex + 1) * sortStep
+    });
+  });
+  batch.set(targetMessage, {
+    userId,
+    conversationId,
+    text: cleanText,
+    searchText: cleanText.toLowerCase(),
+    createdAt: serverTimestamp(),
+    updatedAt: null,
+    sortOrder: (insertion.sourceIndex + 2) * sortStep,
+    isForwarded: false,
+    transferType: null,
+    forwardedFromConversationId: source.conversationId,
+    forwardedFromMessageId: source.id
+  });
+  await batch.commit();
+  await touchConversation(userId, conversationId, cleanText);
+  return targetMessage;
+}
+
 export async function editMessage(
   userId: string,
   conversationId: string,

@@ -1,6 +1,6 @@
 # Version 1 Features and Screens
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 Related docs: [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -70,6 +70,7 @@ Required message actions:
 - Forward message to another conversation
 - Move message to another conversation
 - Reorder message within the current conversation
+- Convert message to English
 
 Optional message actions:
 
@@ -88,6 +89,28 @@ Requirements:
 - Empty or whitespace-only messages should not be sent.
 - While editing a message, `Ctrl+Enter` / `Cmd+Enter` should save the edit.
 - The visible Send/Save button remains available for touch users.
+
+### 7.3.2 Convert a text block to English
+
+The user can convert any saved text block into English without replacing the original.
+
+Version 1 behavior:
+
+- Each message has a `Convert to English` action.
+- The app breaks the message into smaller readable segments.
+- Each segment shows three selectable English versions.
+- The first option is selected by default.
+- The user can choose one version for every segment.
+- The app shows a preview assembled from the selected options.
+- `Create block` inserts the assembled English text as a new message directly below the original.
+- The original message remains unchanged.
+
+Requirements:
+
+- Empty text should not be sent for conversion.
+- Conversion requires the signed-in user and a working server-side translation endpoint.
+- Translation failures should show a clear error without creating a message.
+- The Groq/API key must stay server-side and must not be exposed through `VITE_` browser environment variables.
 
 ---
 
@@ -290,7 +313,9 @@ Content:
 - Message input at bottom
 - Message actions: edit, delete, forward
 - Message action: move to another conversation
+- Message action: convert to English
 - Reorder controls for moving text blocks
+- English conversion picker modal with segment options and assembled preview
 
 ---
 
@@ -331,6 +356,7 @@ Content:
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
 - User can reorder messages inside a conversation.
+- User can convert a message to English and create the result as a new block.
 - User can search messages.
 
 ### Multi-device
@@ -393,6 +419,7 @@ Version 1 is complete when:
 - I can forward a message from one conversation to another.
 - I can move a message from one conversation to another.
 - I can reorder text blocks and see the same order after refresh.
+- I can convert a text block to English, select variants, and create the English result below the original.
 - I can open the app offline after it was previously loaded.
 - I can read cached content offline.
 - I can create or edit messages offline and have them sync when back online.

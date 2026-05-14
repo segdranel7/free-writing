@@ -1,12 +1,12 @@
 # Simple Multi-Device Messaging PWA Documentation
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 This is the entry point for the Simple Multi-Device Messaging PWA documentation. The detailed base document has been split into smaller files so product intent, architecture, implementation status, and reusable prompts can be updated independently.
 
 ## App summary
 
-The app is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual reordering, multi-device access, and offline support for the app shell plus cached Firestore data.
+The app is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual reordering, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
 
 Target devices:
 
@@ -19,6 +19,7 @@ Recommended Version 1 stack:
 - React PWA
 - Firebase Authentication with Google provider
 - Firestore cloud data with offline persistence
+- Firebase Functions for server-side AI translation proxying
 - PWA manifest and service worker
 - Firebase Hosting
 
@@ -31,6 +32,7 @@ Read these files by purpose:
 - [Firebase PWA architecture](architecture/firebase-pwa-architecture.md): architecture decision, data model, Firestore structure, offline behavior, sync behavior, security, privacy, and stack options.
 - [Current implementation](implementation/current-implementation.md): current React/Firebase app state, code organization, hosting decision, known follow-ups, and implementation-specific notes.
 - [First build prompt](prompts/first-build-prompt.md): reusable AI-builder prompt and suggested development order.
+- [QA verification checklist](qa-v1-verification.md): automated checks and manual real-browser QA scenarios.
 
 ## Product docs
 
@@ -49,7 +51,7 @@ Use the product docs when changing what the app should do or checking whether a 
 
 - Google/Gmail login behavior
 - Conversation behavior
-- Message creation, editing, deletion, forwarding, moving, and reordering
+- Message creation, editing, deletion, forwarding, moving, reordering, and English conversion
 - Message search
 - Sign-in, conversation list, conversation, and search screens
 - Functional requirements
@@ -58,7 +60,7 @@ Use the product docs when changing what the app should do or checking whether a 
 
 ## Architecture docs
 
-Use [Firebase PWA architecture](architecture/firebase-pwa-architecture.md) when changing storage, authentication, security, offline support, or sync behavior.
+Use [Firebase PWA architecture](architecture/firebase-pwa-architecture.md) when changing storage, authentication, security, offline support, sync behavior, or server-side AI/API integration.
 
 It contains:
 
@@ -92,11 +94,15 @@ It contains:
 - The reusable first-build prompt
 - The suggested development order
 
+## QA docs
+
+Use [QA verification checklist](qa-v1-verification.md) before treating Firebase, Functions, offline behavior, or browser-specific behavior as stable.
+
 ## Version 1 product summary
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create conversations, save text blocks, copy them, send with keyboard shortcuts, edit/delete/search/reorder them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create conversations, save text blocks, copy them, convert them to English, send with keyboard shortcuts, edit/delete/search/reorder them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
 
 ## Maintenance guidance
 

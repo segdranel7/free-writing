@@ -10,6 +10,7 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 - Firestore rules scoped to the signed-in user's `uid`.
 - Conversation create, rename, open, and delete.
 - Message create, edit, copy-to-clipboard, delete, forward, move between conversations, search, and manual reorder.
+- Per-message English conversion through a Firebase Functions proxy backed by Groq.
 - `Ctrl+Enter` / `Cmd+Enter` sends a new message or saves an edit; plain `Enter` inserts a newline.
 - PWA manifest and generated service worker.
 - Dark visual theme, including matching browser/PWA theme colors.
@@ -37,6 +38,7 @@ The React app is split by responsibility:
 - `src/components/ForwardModal.tsx` renders the transfer target picker for forwarding or moving messages.
 - `src/hooks/useMessagingData.ts` owns auth, conversation, and message subscriptions; it currently subscribes to every conversation's messages to support loaded-message search.
 - `src/services/` contains Firebase auth, conversation, message, and search operations.
+- `functions/` contains the secured `/api/to-english` Firebase Function used for English conversion.
 - `src/utils/` contains small shared formatting and error helpers.
 - `src/styles.css` owns the dark theme and responsive layout styles; `index.html` and the PWA manifest config use the same dark theme color for browser/install surfaces.
 
@@ -62,9 +64,18 @@ VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
+VITE_TRANSLATION_API_URL=
 ```
 
 If any required value is missing or still looks like a placeholder, the sign-in screen shows a setup notice and disables Google sign-in until `.env` is fixed and the dev server is restarted.
+
+`VITE_TRANSLATION_API_URL` is optional and mainly useful for pointing local browser builds at an emulator endpoint. Production uses the Firebase Hosting rewrite at `/api/to-english`.
+
+Set the Groq API key as a Firebase Functions secret, not in `.env`:
+
+```bash
+firebase functions:secrets:set GROQ_API_KEY
+```
 
 ## Firebase rules
 
@@ -126,6 +137,7 @@ Conversation `lastMessagePreview` is updated on create, edit, forward, and the t
 - `npm run dev` starts the local Vite server.
 - `npm run test` runs the focused Vitest suite.
 - `npm run build` type-checks and builds the PWA.
+- `npm run functions:build` type-checks and builds the Firebase Functions backend.
 - `npm run preview` serves the production build locally.
 
 ## Verification

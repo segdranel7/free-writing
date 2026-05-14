@@ -39,7 +39,7 @@ vi.mock('../firebase', () => ({
 }));
 vi.mock('./conversations', () => conversationMocks);
 
-import { createMessage, forwardMessage, moveMessage, reorderMessages } from './messages';
+import { createMessage, createMessageAfter, forwardMessage, moveMessage, reorderMessages } from './messages';
 
 const timestamp = (millis: number) => ({ toMillis: () => millis }) as Message['createdAt'];
 
@@ -122,6 +122,48 @@ describe('message service writes', () => {
       forwardedFromMessageId: 'source-message'
     });
     expect(firestoreMocks.deleteDoc).not.toHaveBeenCalled();
+  });
+
+  it('creates an English block directly after the source message with a midpoint sort order', async () => {
+    const first = sourceMessage({ id: 'first', conversationId: 'conversation-1', sortOrder: 1000 });
+    const second = sourceMessage({ id: 'second', conversationId: 'conversation-1', sortOrder: 3000 });
+
+    await createMessageAfter('user-1', 'conversation-1', first, [first, second], '  English text  ');
+
+    expect(firestoreMocks.batch.set).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/auto-id' }), {
+      userId: 'user-1',
+      conversationId: 'conversation-1',
+      text: 'English text',
+      searchText: 'english text',
+      createdAt: 'SERVER_TIMESTAMP',
+      updatedAt: null,
+      sortOrder: 2000,
+      isForwarded: false,
+      transferType: null,
+      forwardedFromConversationId: 'conversation-1',
+      forwardedFromMessageId: 'first'
+    });
+    expect(firestoreMocks.batch.update).not.toHaveBeenCalled();
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'English text');
+  });
+
+  it('rebalances message order when inserting an English block without a sort gap', async () => {
+    const first = sourceMessage({ id: 'first', conversationId: 'conversation-1', sortOrder: 1000 });
+    const second = sourceMessage({ id: 'second', conversationId: 'conversation-1', sortOrder: 1001 });
+
+    await createMessageAfter('user-1', 'conversation-1', first, [first, second], 'English text');
+
+    expect(firestoreMocks.batch.update).toHaveBeenNthCalledWith(1, expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/first' }), {
+      sortOrder: 1000
+    });
+    expect(firestoreMocks.batch.update).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/second' }), {
+      sortOrder: 3000
+    });
+    expect(firestoreMocks.batch.set).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/auto-id' }), expect.objectContaining({
+      text: 'English text',
+      sortOrder: 2000
+    }));
+    expect(firestoreMocks.batch.commit).toHaveBeenCalled();
   });
 
   it('moves a message by writing the target and deleting the source in one batch', async () => {

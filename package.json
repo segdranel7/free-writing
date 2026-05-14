@@ -7,6 +7,7 @@
     "dev": "vite",
     "test": "vitest run",
     "build": "tsc -b && vite build",
+    "functions:build": "npm --prefix functions run build",
     "preview": "vite preview"
   },
   "dependencies": {

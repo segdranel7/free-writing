@@ -51,6 +51,15 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     onNavigateToSource: vi.fn(),
     onDeleteMessage: vi.fn(),
     onMoveMessage: vi.fn(),
+    onConvertToEnglish: vi.fn(async () => ({
+      segments: [
+        {
+          original: 'First',
+          options: ['First option one', 'First option two', 'First option three'] as [string, string, string]
+        }
+      ]
+    })),
+    onCreateEnglishBlock: vi.fn(async () => undefined),
     ...overrides
   };
 
@@ -128,5 +137,72 @@ describe('ConversationPane', () => {
 
     expect(props.onMoveMessage).toHaveBeenCalledWith(0, 1);
     expect(props.onMoveMessage).toHaveBeenCalledWith(1, -1);
+  });
+
+  it('opens the English picker and defaults to the first option for each segment', async () => {
+    const props = renderPane({
+      onConvertToEnglish: vi.fn(async () => ({
+        segments: [
+          {
+            original: 'Olá mundo',
+            options: ['Hello world', 'Hi world', 'Hello, everyone'] as [string, string, string]
+          },
+          {
+            original: 'Tudo bem',
+            options: ['All good', 'Everything is fine', 'Is everything okay'] as [string, string, string]
+          }
+        ]
+      }))
+    });
+
+    fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
+
+    expect(props.onConvertToEnglish).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }));
+    expect(await screen.findByRole('dialog', { name: 'Choose English versions' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Hello world')).toBeChecked();
+    expect(screen.getByLabelText('All good')).toBeChecked();
+    expect(screen.getByText('Hello world All good')).toBeInTheDocument();
+  });
+
+  it('creates a new English block from the selected options', async () => {
+    const onCreateEnglishBlock = vi.fn(async () => undefined);
+    renderPane({
+      onCreateEnglishBlock,
+      onConvertToEnglish: vi.fn(async () => ({
+        segments: [
+          {
+            original: 'Primeiro',
+            options: ['First default', 'First selected', 'First formal'] as [string, string, string]
+          },
+          {
+            original: 'Segundo',
+            options: ['Second default', 'Second selected', 'Second formal'] as [string, string, string]
+          }
+        ]
+      }))
+    });
+
+    fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
+    fireEvent.click(await screen.findByLabelText('First selected'));
+    fireEvent.click(screen.getByLabelText('Second selected'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create block' }));
+
+    expect(onCreateEnglishBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'first' }),
+      'First selected Second selected'
+    );
+  });
+
+  it('shows a clear error when English conversion fails', async () => {
+    renderPane({
+      onConvertToEnglish: vi.fn(async () => {
+        throw new Error('Translation service unavailable');
+      })
+    });
+
+    fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Translation service unavailable');
+    expect(screen.getByRole('button', { name: 'Create block' })).toBeDisabled();
   });
 });

@@ -1,6 +1,6 @@
 # Current Implementation
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [QA checklist](../qa-v1-verification.md).
 
@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `My Messages`
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for message service writes, loaded-message search, composer keyboard sending, reorder controls, and the shared forward/move modal.
+- Focused Vitest coverage for message service writes, loaded-message search, composer keyboard sending, reorder controls, English conversion UI/service behavior, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -19,6 +19,7 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
 - Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, and manual reorder.
+- Per-message English conversion that segments text, presents three English options per segment, and creates a new message below the source from selected variants.
 - Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
 - Composer keyboard send/save with `Ctrl+Enter` / `Cmd+Enter`, while plain `Enter` inserts a newline.
 - Responsive phone/desktop layout.
@@ -28,6 +29,8 @@ Implemented:
 - Firestore persistent local cache is enabled for cached data and offline writes.
 - Message order is persisted with numeric `sortOrder` values and syncs across devices.
 - Search runs across messages loaded by Firestore subscriptions; the current hook subscribes to every conversation's messages after the conversation list loads.
+- Firebase Functions backend proxy for `POST /api/to-english`.
+- Local Vite development middleware for `/api/to-english` so Codespaces/Vite testing works without Firebase Hosting rewrites.
 
 Known development follow-ups:
 
@@ -48,8 +51,10 @@ The current codebase uses:
 - Vite 7
 - TypeScript
 - Firebase JS SDK 12
+- Firebase Functions and Admin SDK in the `functions/` package
 - `vite-plugin-pwa`
 - `lucide-react` for icons
+- Groq Chat Completions for English conversion through a server-side proxy
 
 Current visual system:
 
@@ -67,9 +72,18 @@ VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
+VITE_TRANSLATION_API_URL=
 ```
 
 The `.env` file should stay local and must not be committed.
+
+`VITE_TRANSLATION_API_URL` is optional. Leave it blank for the same-origin `/api/to-english` route. In Vite dev, that route is handled by local middleware in `vite.config.ts`; in production, Firebase Hosting rewrites it to the Firebase Function.
+
+For local Vite-only translation testing, `GROQ_API_KEY` may be stored in ignored `.env` without the `VITE_` prefix. For deployed Functions, set it as a Firebase secret:
+
+```bash
+firebase functions:secrets:set GROQ_API_KEY
+```
 
 Current setup behavior:
 
@@ -93,7 +107,7 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, and navigation UI.
 
 src/components/ConversationPane.tsx
-  Active conversation view, message list, copy/edit/transfer/reorder controls, edit state, and composer UI.
+  Active conversation view, message list, copy/edit/transfer/reorder/English conversion controls, conversion picker state, edit state, and composer UI.
 
 src/components/ForwardModal.tsx
   Conversation picker used when forwarding or moving a message.
@@ -105,16 +119,19 @@ src/hooks/useMessagingData.ts
   It does not currently expose per-subscription loading or error states to the UI.
 
 src/services/
-  Firebase auth, conversation, message, and search operations.
+  Firebase auth, conversation, message, search, and translation request operations.
+
+functions/src/index.ts
+  Firebase Function for authenticated English conversion requests. Verifies Firebase ID tokens, calls Groq with the `GROQ_API_KEY` secret, validates the JSON shape, and returns segment/options data.
 
 src/utils/
   Shared formatting and error helpers.
 
 src/styles.css
-  Global dark theme, responsive layout, component surfaces, input states, message bubbles, modal styling, and hover states.
+  Global dark theme, responsive layout, component surfaces, input states, message bubbles, modal styling, English picker styling, and hover states.
 
 index.html + vite.config.ts
-  Browser theme color and generated PWA manifest colors. These currently match the dark app shell so installed/mobile surfaces do not flash the old light theme.
+  Browser theme color, generated PWA manifest colors, and local `/api/to-english` development middleware. Theme colors currently match the dark app shell so installed/mobile surfaces do not flash the old light theme.
 ```
 
 Development impact:
@@ -123,6 +140,7 @@ Development impact:
 - UI changes should usually start in `src/components/`.
 - Theme and layout styling changes should usually start in `src/styles.css`, then update PWA theme colors if the app shell color changes.
 - Firebase read/write behavior should usually start in `src/services/`.
+- Translation backend behavior should usually start in `functions/src/index.ts`; local-only Vite proxy behavior lives in `vite.config.ts`.
 - Subscription and data-loading behavior should usually start in `src/hooks/useMessagingData.ts`.
 - Small reusable helpers should live in `src/utils/`.
 - Recurring AI maintenance prompts live in `docs/ai-maintenance/`; `docs/ai-maintenance-prompts.md` is only the index.
@@ -136,23 +154,28 @@ The Version 1 app should be deployed with **Firebase Hosting**.
 Current hosting configuration:
 
 - `firebase.json` serves the production build from `dist/`.
+- `/api/to-english` rewrites to the `toEnglish` Firebase Function before the React app catch-all rewrite.
 - All routes rewrite to `/index.html` so the React app can handle navigation.
+- Firebase Functions deploy from the `functions/` directory, with a predeploy TypeScript build.
 - Firestore rules are deployed from `firebase.rules`.
 
 Primary deployment flow:
 
 ```bash
 npm run build
-firebase deploy --only hosting
+npm run functions:build
+firebase deploy --only hosting,functions
 ```
 
-Deploy hosting and Firestore rules together when security rules changed:
+Deploy hosting, Functions, and Firestore rules together when security rules changed:
 
 ```bash
-firebase deploy --only hosting,firestore:rules
+firebase deploy --only hosting,functions,firestore:rules
 ```
 
 After deployment, confirm the Firebase Hosting domain is listed under **Firebase Authentication > Settings > Authorized domains** so Google sign-in works on the hosted app.
+
+For Codespaces or other preview domains, add the preview host to Firebase Authentication authorized domains before testing Google sign-in.
 
 Local hosting on an idle machine is not the primary Version 1 deployment target. It remains a possible later option for serving the static `dist/` files privately, but Firebase would still provide authentication, Firestore storage, and cross-device sync unless the backend architecture is changed.
 
@@ -180,6 +203,16 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - This is intentionally simple, but it means search coverage depends on the active subscriptions and local cache.
 - Message subscriptions query Firestore by `createdAt` and then normalize/sort by `sortOrder` in client code so older records without explicit ordering still display chronologically.
 
+### English conversion
+
+- `src/services/translation.ts` posts `{ text }` to `VITE_TRANSLATION_API_URL` or `/api/to-english`.
+- The request includes the current Firebase ID token in the `Authorization` header.
+- `src/components/ConversationPane.tsx` owns the English picker modal state. It shows loading, error, ready, and saving states.
+- Each AI segment returns exactly three options. The first is selected by default, and selected options are joined with spaces for the preview/new message.
+- `src/services/messages.ts` has `createMessageAfter`, which inserts the English result directly below the source message by choosing a midpoint `sortOrder` when possible or rebalancing order when no numeric gap exists.
+- English conversion is online-only. Created English blocks persist like normal messages and then participate in Firestore cache/sync behavior.
+- Production uses `functions/src/index.ts`, Firebase ID-token verification, and the `GROQ_API_KEY` Firebase secret. Local Vite dev uses equivalent middleware in `vite.config.ts` with `GROQ_API_KEY` from ignored `.env`.
+
 ### Offline behavior
 
 - Firestore offline persistence is enabled in `src/firebase.ts`.
@@ -188,7 +221,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Sync behavior
 
-Conversation `lastMessagePreview` is updated on create, edit, forward, and move target writes. It is not currently recalculated after deleting a message or removing a moved message from its source conversation.
+Conversation `lastMessagePreview` is updated on create, edit, forward, move target writes, and English conversion result creation. It is not currently recalculated after deleting a message or removing a moved message from its source conversation.
 
 ### Performance
 

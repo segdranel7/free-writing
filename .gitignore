@@ -1,5 +1,7 @@
 node_modules
 dist
+functions/node_modules
+functions/lib
 .firebase
 firebase-debug.log
 .env

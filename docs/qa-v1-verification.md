@@ -9,12 +9,24 @@ Run:
 ```bash
 npm run test
 npm run build
+npm run functions:build
 ```
 
 Expected result:
 
-- Vitest passes for search, message service writes, message copy feedback, composer keyboard behavior, reorder controls, and the forward/move modal.
+- Vitest passes for search, message service writes, message copy feedback, composer keyboard behavior, reorder controls, English conversion UI/service behavior, and the forward/move modal.
 - The production build completes without TypeScript or Vite errors.
+- The Firebase Functions TypeScript build completes without errors.
+
+## English conversion setup
+
+Before testing real conversion, configure the server-side Groq key:
+
+```bash
+firebase functions:secrets:set GROQ_API_KEY
+```
+
+For local Vite-only testing, put `GROQ_API_KEY` in ignored `.env` without the `VITE_` prefix and restart the dev server. The browser should call `/api/to-english`; in Vite dev this is local middleware, and in production Firebase Hosting rewrites it to the `toEnglish` Function.
 
 ## Firestore rules
 
@@ -47,13 +59,16 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 7. Forward one message to the second conversation.
 8. Move one message to the second conversation.
 9. Reorder messages with the up/down controls.
-10. Search for text that exists in loaded messages.
-11. Disconnect the browser from the network.
-12. Reload the app.
-13. Confirm the app shell opens and cached conversations/messages remain readable.
-14. While offline, create, edit, copy, delete, forward, move, and reorder messages.
-15. Reconnect to the network.
-16. Confirm all queued changes sync and remain visible after another reload.
+10. Convert one message to English, choose non-default options for at least one segment, and create the English block.
+11. Confirm the English block appears directly below the original and remains after reload.
+12. Search for text that exists in loaded messages.
+13. Disconnect the browser from the network.
+14. Reload the app.
+15. Confirm the app shell opens and cached conversations/messages remain readable.
+16. While offline, create, edit, copy, delete, forward, move, and reorder messages.
+17. Confirm requesting a new English conversion while offline fails gracefully without creating a message.
+18. Reconnect to the network.
+19. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 
@@ -62,9 +77,13 @@ Expected result:
 - Forwarded messages are labeled `Forwarded`; moved messages are labeled `Moved`.
 - Source links navigate back to the original conversation when source metadata exists.
 - Reordered messages keep their order after reconnect and reload.
+- English conversion keeps the original message unchanged and stores the selected English result as a normal message.
 
 ## Known follow-up if a step fails
 
 - If offline reload fails, inspect service worker registration and generated PWA assets.
 - If cached reads or queued writes fail, inspect Firestore persistent local cache setup in `src/firebase.ts`.
 - If cross-user access succeeds, stop and fix `firebase.rules` before deployment.
+- If English conversion returns 404 in Vite dev, restart the Vite dev server so local `/api/to-english` middleware is active.
+- If English conversion returns 401, confirm Google sign-in succeeded and the current preview/hosting domain is in Firebase Authentication authorized domains.
+- If English conversion returns 500/502, confirm `GROQ_API_KEY` is configured in the correct runtime and inspect the Function or Vite server logs.
