@@ -11,7 +11,7 @@ Use this prompt when asking an AI builder to create the first version:
 ```text
 Build a simple multi-device offline-capable PWA called "My Messages".
 
-The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing, searching, editing, deleting, converting to English, and forwarding my own text messages between private conversations.
+The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing, searching, editing, deleting, merging, converting to English, and forwarding my own text messages between private conversations.
 
 Target devices:
 - iPhone 8
@@ -52,9 +52,11 @@ Messages:
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
 - User can reorder text blocks inside a conversation.
+- User can select multiple text blocks inside a conversation and merge them into one unified block.
 - User can convert a text block to English.
 - Forwarding creates a new message in the target conversation with the same text.
 - Moving creates a message in the target conversation and removes the original from the source conversation.
+- Merging creates one normal replacement message from the selected blocks in display order and removes the selected originals.
 - English conversion breaks the source message into smaller segments, offers three selectable English versions for each segment, and creates the selected English result as a new message below the original.
 - Show an optional "Forwarded" label on forwarded messages.
 - Show an optional "Moved" label on moved messages.
@@ -121,15 +123,16 @@ Build in this order:
 13. Forward message to another conversation
 14. Move message to another conversation
 15. Reorder text blocks
-16. Add English conversion through a server-side proxy
-17. Search messages
-18. Add PWA manifest
-19. Add service worker
-20. Enable Firestore offline persistence
-21. Test on iPhone 8
-22. Test on desktop
-23. Test on tablet
-24. Test offline behavior
-25. Test authenticated English conversion
+16. Merge selected text blocks
+17. Add English conversion through a server-side proxy
+18. Search messages
+19. Add PWA manifest
+20. Add service worker
+21. Enable Firestore offline persistence
+22. Test on iPhone 8
+23. Test on desktop
+24. Test on tablet
+25. Test offline behavior
+26. Test authenticated English conversion
 
 ---

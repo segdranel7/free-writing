@@ -39,7 +39,7 @@ vi.mock('../firebase', () => ({
 }));
 vi.mock('./conversations', () => conversationMocks);
 
-import { createMessage, createMessageAfter, forwardMessage, moveMessage, reorderMessages } from './messages';
+import { createMessage, createMessageAfter, forwardMessage, mergeMessages, moveMessage, reorderMessages } from './messages';
 
 const timestamp = (millis: number) => ({ toMillis: () => millis }) as Message['createdAt'];
 
@@ -184,6 +184,31 @@ describe('message service writes', () => {
     });
     expect(firestoreMocks.batch.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/source-conversation/messages/source-message' }));
     expect(firestoreMocks.batch.commit).toHaveBeenCalled();
+  });
+
+  it('merges selected messages into one replacement block and deletes the originals', async () => {
+    const first = sourceMessage({ id: 'first', conversationId: 'conversation-1', text: 'First block', sortOrder: 3000 });
+    const second = sourceMessage({ id: 'second', conversationId: 'conversation-1', text: 'Second block', sortOrder: 1000 });
+
+    await mergeMessages('user-1', 'conversation-1', [first, second]);
+
+    expect(firestoreMocks.batch.set).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/auto-id' }), {
+      userId: 'user-1',
+      conversationId: 'conversation-1',
+      text: 'Second block\n\nFirst block',
+      searchText: 'second block\n\nfirst block',
+      createdAt: 'SERVER_TIMESTAMP',
+      updatedAt: null,
+      sortOrder: 1000,
+      isForwarded: false,
+      transferType: null,
+      forwardedFromConversationId: null,
+      forwardedFromMessageId: null
+    });
+    expect(firestoreMocks.batch.delete).toHaveBeenNthCalledWith(1, expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/second' }));
+    expect(firestoreMocks.batch.delete).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/first' }));
+    expect(firestoreMocks.batch.commit).toHaveBeenCalled();
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Second block\n\nFirst block');
   });
 
   it('persists reorder positions with stable numeric sort steps', async () => {

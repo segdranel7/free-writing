@@ -70,6 +70,7 @@ Required message actions:
 - Forward message to another conversation
 - Move message to another conversation
 - Reorder message within the current conversation
+- Merge multiple selected messages into one unified block
 - Convert message to English
 
 Optional message actions:
@@ -215,7 +216,31 @@ Future option:
 
 ---
 
-### 7.8 Message search
+### 7.8 Merge text blocks
+
+The user can select multiple text blocks in one conversation and merge them into a single unified block.
+
+Version 1 behavior:
+
+- Each message can be selected with a checkbox.
+- A merge control is disabled until at least two messages are selected.
+- Merging creates one new message containing the selected messages in their current display order.
+- The merged text keeps the original block boundaries with blank lines between blocks.
+- The original selected messages are deleted after the new unified block is created.
+- The new merged message appears at the first selected message's display position.
+- Merging affects only messages in the current conversation.
+- Merged messages are stored as normal messages, not as forwarded or moved messages.
+
+Requirements:
+
+- Merge should be a single Firestore batch so the app does not leave duplicate/orphaned originals after a partial write.
+- Empty selected block text should not create empty content in the merged result.
+- After a successful merge, selected-message UI state should clear.
+- Merge failures should show a clear error without clearing the selection.
+
+---
+
+### 7.9 Message search
 
 The user can search messages.
 
@@ -315,6 +340,7 @@ Content:
 - Message action: move to another conversation
 - Message action: convert to English
 - Reorder controls for moving text blocks
+- Selection controls and merge action for combining multiple selected blocks
 - English conversion picker modal with segment options and assembled preview
 
 ---
@@ -356,6 +382,7 @@ Content:
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
 - User can reorder messages inside a conversation.
+- User can merge multiple selected messages inside a conversation.
 - User can convert a message to English and create the result as a new block.
 - User can search messages.
 
@@ -419,10 +446,12 @@ Version 1 is complete when:
 - I can forward a message from one conversation to another.
 - I can move a message from one conversation to another.
 - I can reorder text blocks and see the same order after refresh.
+- I can select multiple text blocks, merge them into one block, and confirm the originals are removed.
 - I can convert a text block to English, select variants, and create the English result below the original.
 - I can open the app offline after it was previously loaded.
 - I can read cached content offline.
 - I can create or edit messages offline and have them sync when back online.
 - I can reorder cached messages offline and have the order sync when back online.
+- I can merge cached selected messages offline and have the merged result sync when back online.
 
 ---

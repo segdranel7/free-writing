@@ -51,6 +51,7 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     onNavigateToSource: vi.fn(),
     onDeleteMessage: vi.fn(),
     onMoveMessage: vi.fn(),
+    onMergeMessages: vi.fn(async () => undefined),
     onConvertToEnglish: vi.fn(async () => ({
       segments: [
         {
@@ -137,6 +138,22 @@ describe('ConversationPane', () => {
 
     expect(props.onMoveMessage).toHaveBeenCalledWith(0, 1);
     expect(props.onMoveMessage).toHaveBeenCalledWith(1, -1);
+  });
+
+  it('selects multiple blocks and merges them in visible order', async () => {
+    const onMergeMessages = vi.fn(async () => undefined);
+    renderPane({ onMergeMessages });
+
+    expect(screen.getByRole('button', { name: 'Merge' })).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText('Select block: First'));
+    fireEvent.click(screen.getByLabelText('Select block: Second'));
+    fireEvent.click(screen.getByRole('button', { name: 'Merge' }));
+
+    expect(onMergeMessages).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'first' }),
+      expect.objectContaining({ id: 'second' })
+    ]);
   });
 
   it('opens the English picker and defaults to the first option for each segment', async () => {

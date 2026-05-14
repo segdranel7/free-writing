@@ -11,14 +11,14 @@ The current app state is a working Firebase-backed React PWA named `My Messages`
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for message service writes, loaded-message search, composer keyboard sending, reorder controls, English conversion UI/service behavior, and the shared forward/move modal.
+- Focused Vitest coverage for message service writes, loaded-message search, composer keyboard sending, reorder controls, multi-block merge, English conversion UI/service behavior, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
 - Firestore cloud storage under `users/{userId}/conversations/{conversationId}/messages/{messageId}`.
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
-- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, and manual reorder.
+- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual reorder, and selected-block merge.
 - Per-message English conversion that segments text, presents three English options per segment, and creates a new message below the source from selected variants.
 - Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
 - Composer keyboard send/save with `Ctrl+Enter` / `Cmd+Enter`, while plain `Enter` inserts a newline.
@@ -36,7 +36,7 @@ Known development follow-ups:
 
 - Keep `docs/qa-v1-verification.md` current as Firebase/offline behavior changes.
 - Add emulator-backed Firestore rules tests if rule complexity grows beyond the current per-user UID isolation model.
-- Verify offline create, edit, delete, forward, move, and reorder behavior in a real browser against Firebase/Firestore.
+- Verify offline create, edit, delete, forward, move, reorder, and merge behavior in a real browser against Firebase/Firestore.
 - Consider loading only the active conversation's messages or adding a search index if large conversation lists become slow; this would require revisiting current loaded-message search behavior.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.
 - Recompute or clear source conversation previews after message delete and move actions if stale `lastMessagePreview` values become confusing.
@@ -109,7 +109,7 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, and navigation UI.
 
 src/components/ConversationPane.tsx
-  Active conversation view, message list, copy/edit/transfer/reorder/English conversion controls, conversion picker state, edit state, and composer UI.
+  Active conversation view, message list, selected-message state, copy/edit/transfer/reorder/merge/English conversion controls, conversion picker state, edit state, and composer UI.
 
 src/components/ForwardModal.tsx
   Conversation picker used when forwarding or moving a message.
@@ -192,7 +192,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 - The app does not currently create or update a profile document at `users/{userId}`. That path is used as the security and ownership namespace for each user's conversation subcollection.
 
-### Move messages between conversations
+### Move and merge messages
 
 - `src/services/messages.ts` has `moveMessage`, which writes the target message and deletes the source message in a Firestore batch.
 - Moved messages currently use `isForwarded: true`, `transferType: 'moved'`, `forwardedFromConversationId`, and `forwardedFromMessageId`.
@@ -201,6 +201,10 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message }`.
 - `src/components/ForwardModal.tsx` receives `mode` and `sourceMessage`, changes its heading between `Forward to` and `Move to`, and excludes the source conversation from target choices.
 - Moving touches the target conversation preview after the batch, but does not recompute the source conversation preview after deleting the original.
+- `src/services/messages.ts` has `mergeMessages`, which normalizes the selected messages into display order, joins trimmed block text with blank lines, creates one replacement message at the first selected message's `sortOrder`, and deletes the selected originals in the same Firestore batch.
+- Merged replacement blocks are normal messages with `isForwarded: false`, `transferType: null`, and no source metadata.
+- `src/components/ConversationPane.tsx` tracks selected message IDs, prunes selections when messages/conversations change, highlights selected bubbles, and enables the merge action only when at least two current messages are selected.
+- Successful merge clears the current selection. Failed merge keeps the selection and shows an inline error in the selection toolbar.
 
 ### Message search
 
@@ -228,7 +232,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Sync behavior
 
-Conversation `lastMessagePreview` is updated on create, edit, forward, move target writes, and English conversion result creation. It is not currently recalculated after deleting a message or removing a moved message from its source conversation.
+Conversation `lastMessagePreview` is updated on create, edit, forward, move target writes, merge result creation, and English conversion result creation. It is not currently recalculated after deleting a message, deleting originals during merge, or removing a moved message from its source conversation.
 
 ### Performance
 

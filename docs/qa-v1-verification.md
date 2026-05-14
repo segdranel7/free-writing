@@ -13,7 +13,7 @@ npm run build
 
 Expected result:
 
-- Vitest passes for search, message service writes, message copy feedback, composer keyboard behavior, reorder controls, English conversion UI/service behavior, and the forward/move modal.
+- Vitest passes for search, message service writes, message copy feedback, composer keyboard behavior, reorder controls, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
 - The production build completes without TypeScript or Vite errors.
 
 ## English conversion setup
@@ -65,16 +65,17 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 7. Forward one message to the second conversation.
 8. Move one message to the second conversation.
 9. Reorder messages with the up/down controls.
-10. Convert one message to English, choose non-default options for at least one segment, and create the English block.
-11. Confirm the English block appears directly below the original and remains after reload.
-12. Search for text that exists in loaded messages.
-13. Disconnect the browser from the network.
-14. Reload the app.
-15. Confirm the app shell opens and cached conversations/messages remain readable.
-16. While offline, create, edit, copy, delete, forward, move, and reorder messages.
-17. Confirm requesting a new English conversion while offline fails gracefully without creating a message.
-18. Reconnect to the network.
-19. Confirm all queued changes sync and remain visible after another reload.
+10. Select at least two messages, merge them, and confirm one unified block replaces the originals.
+11. Convert one message to English, choose non-default options for at least one segment, and create the English block.
+12. Confirm the English block appears directly below the original and remains after reload.
+13. Search for text that exists in loaded messages.
+14. Disconnect the browser from the network.
+15. Reload the app.
+16. Confirm the app shell opens and cached conversations/messages remain readable.
+17. While offline, create, edit, copy, delete, forward, move, reorder, and merge messages.
+18. Confirm requesting a new English conversion while offline fails gracefully without creating a message.
+19. Reconnect to the network.
+20. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 
@@ -83,6 +84,7 @@ Expected result:
 - Forwarded messages are labeled `Forwarded`; moved messages are labeled `Moved`.
 - Source links navigate back to the original conversation when source metadata exists.
 - Reordered messages keep their order after reconnect and reload.
+- Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.
 - English conversion keeps the original message unchanged and stores the selected English result as a normal message.
 
 ## Known follow-up if a step fails

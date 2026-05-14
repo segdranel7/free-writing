@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Copy, Edit3, Forward, Languages, MoreVertical, MoveRight, Reply, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Combine, Copy, Edit3, Forward, Languages, MoreVertical, MoveRight, Reply, Trash2, X } from 'lucide-react';
 import type { Conversation, EnglishConversion, Message } from '../types';
 import { formatDate } from '../utils/date';
 
@@ -18,6 +18,7 @@ type ConversationPaneProps = {
   onNavigateToSource: (conversationId: string) => void;
   onDeleteMessage: (message: Message) => void;
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
+  onMergeMessages: (messages: Message[]) => Promise<void>;
   onConvertToEnglish: (message: Message) => Promise<EnglishConversion>;
   onCreateEnglishBlock: (message: Message, text: string) => Promise<void>;
 };
@@ -62,11 +63,17 @@ export function ConversationPane({
   onNavigateToSource,
   onDeleteMessage,
   onMoveMessage,
+  onMergeMessages,
   onConvertToEnglish,
   onCreateEnglishBlock
 }: ConversationPaneProps) {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [englishPicker, setEnglishPicker] = useState<EnglishPickerState | null>(null);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+
+  const selectedMessages = activeMessages.filter((message) => selectedMessageIds.includes(message.id));
 
   useEffect(() => {
     if (!copyFeedback) return undefined;
@@ -79,6 +86,37 @@ export function ConversationPane({
 
     return () => window.clearTimeout(timeoutId);
   }, [copyFeedback]);
+
+  useEffect(() => {
+    const activeMessageIds = new Set(activeMessages.map((message) => message.id));
+    setSelectedMessageIds((currentIds) => {
+      const nextIds = currentIds.filter((messageId) => activeMessageIds.has(messageId));
+      return nextIds.length === currentIds.length ? currentIds : nextIds;
+    });
+  }, [activeConversation?.id, activeMessages]);
+
+  function toggleMessageSelection(messageId: string) {
+    setMergeError(null);
+    setSelectedMessageIds((currentIds) =>
+      currentIds.includes(messageId)
+        ? currentIds.filter((currentId) => currentId !== messageId)
+        : [...currentIds, messageId]
+    );
+  }
+
+  async function mergeSelectedMessages() {
+    if (selectedMessages.length < 2) return;
+    setIsMerging(true);
+    setMergeError(null);
+    try {
+      await onMergeMessages(selectedMessages);
+      setSelectedMessageIds([]);
+    } catch (error) {
+      setMergeError(error instanceof Error ? error.message : 'Unable to merge the selected blocks.');
+    } finally {
+      setIsMerging(false);
+    }
+  }
 
   async function copyMessageText(message: Message) {
     try {
@@ -168,10 +206,37 @@ export function ConversationPane({
             </div>
           </header>
 
+          <div className="selection-toolbar" aria-live="polite">
+            <span>{selectedMessages.length} selected</span>
+            {mergeError && (
+              <span className="merge-error" role="alert">
+                {mergeError}
+              </span>
+            )}
+            <button
+              className="primary-button merge-button"
+              type="button"
+              title="Merge selected text blocks"
+              disabled={selectedMessages.length < 2 || isMerging}
+              onClick={() => void mergeSelectedMessages()}
+            >
+              <Combine size={16} />
+              {isMerging ? 'Merging...' : 'Merge'}
+            </button>
+          </div>
+
           <div className="messages">
             {activeMessages.map((message, messageIndex) => (
-              <article className="message-bubble" key={message.id}>
+              <article className={`message-bubble ${selectedMessageIds.includes(message.id) ? 'selected' : ''}`} key={message.id}>
                 <div className="message-meta">
+                  <label className="message-selector">
+                    <input
+                      type="checkbox"
+                      checked={selectedMessageIds.includes(message.id)}
+                      onChange={() => toggleMessageSelection(message.id)}
+                      aria-label={`Select block: ${message.text.slice(0, 48) || 'empty block'}`}
+                    />
+                  </label>
                   {getTransferLabel(message) && <span>{getTransferLabel(message)}</span>}
                   {message.forwardedFromConversationId && (
                     <button

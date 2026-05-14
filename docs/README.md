@@ -6,7 +6,7 @@ This is the entry point for the Simple Multi-Device Messaging PWA documentation.
 
 ## App summary
 
-The app is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual reordering, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
+The app is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual reordering, multi-block merging, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
 
 Target devices:
 
@@ -51,7 +51,7 @@ Use the product docs when changing what the app should do or checking whether a 
 
 - Google/Gmail login behavior
 - Conversation behavior
-- Message creation, editing, deletion, forwarding, moving, reordering, and English conversion
+- Message creation, editing, deletion, forwarding, moving, reordering, merging, and English conversion
 - Message search
 - Sign-in, conversation list, conversation, and search screens
 - Functional requirements
@@ -102,7 +102,7 @@ Use [QA verification checklist](qa-v1-verification.md) before treating Firebase,
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create conversations, save text blocks, copy them, convert them to English, send with keyboard shortcuts, edit/delete/search/reorder them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create conversations, save text blocks, copy them, convert them to English, send with keyboard shortcuts, edit/delete/search/reorder/merge them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
 
 ## Maintenance guidance
 

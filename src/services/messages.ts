@@ -221,6 +221,34 @@ export async function moveMessage(
   return targetMessage;
 }
 
+export async function mergeMessages(userId: string, conversationId: string, messages: Message[]) {
+  const selectedMessages = normalizeMessages(messages);
+  const mergedText = selectedMessages.map((message) => message.text.trim()).filter(Boolean).join('\n\n').trim();
+  if (selectedMessages.length < 2 || !mergedText) return null;
+
+  const targetMessage = doc(messagesPath(userId, conversationId));
+  const batch = writeBatch(requireDb());
+  batch.set(targetMessage, {
+    userId,
+    conversationId,
+    text: mergedText,
+    searchText: mergedText.toLowerCase(),
+    createdAt: serverTimestamp(),
+    updatedAt: null,
+    sortOrder: selectedMessages[0].sortOrder,
+    isForwarded: false,
+    transferType: null,
+    forwardedFromConversationId: null,
+    forwardedFromMessageId: null
+  });
+  selectedMessages.forEach((message) => {
+    batch.delete(messagePath(userId, conversationId, message.id));
+  });
+  await batch.commit();
+  await touchConversation(userId, conversationId, mergedText);
+  return targetMessage;
+}
+
 export async function reorderMessages(userId: string, conversationId: string, messages: Message[]) {
   const batch = writeBatch(requireDb());
   messages.forEach((message, index) => {

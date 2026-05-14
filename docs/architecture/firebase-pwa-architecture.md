@@ -162,6 +162,8 @@ Useful user fields:
 
 English conversion results are also stored as normal messages. The current implementation links the new English block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message.
 
+Merged text blocks are stored as normal messages. Merging does not require extra fields; the app creates a replacement message with unified text and deletes the selected original messages in the same batch.
+
 ---
 
 ## 10. Suggested database structure
@@ -216,6 +218,7 @@ Expected behavior:
 - New messages created offline are saved locally first.
 - Offline edits/deletes are saved locally first.
 - Offline reorder actions are saved locally first.
+- Offline merge actions are saved locally first when the selected messages are cached.
 - Changes sync to the cloud when the device is online again.
 
 Important limitation:
@@ -237,6 +240,7 @@ When online:
 - Deleted messages should sync to the cloud.
 - Forwarded messages should sync to the cloud.
 - Moved messages should sync to the cloud.
+- Merged replacement messages and deletion of their originals should sync to the cloud.
 - English conversion result messages should sync to the cloud.
 - Other signed-in devices should receive the updates.
 

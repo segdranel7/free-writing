@@ -15,6 +15,7 @@ import {
   deleteMessage,
   editMessage,
   forwardMessage,
+  mergeMessages,
   moveMessage,
   reorderMessages
 } from './services/messages';
@@ -121,6 +122,11 @@ export default function App() {
     await createMessageAfter(user.uid, source.conversationId, source, sourceConversationMessages, text);
   }
 
+  async function handleMergeMessages(messages: Message[]) {
+    if (!user || !activeConversationId || messages.length < 2) return;
+    await mergeMessages(user.uid, activeConversationId, messages);
+  }
+
   function handleStartRename(conversation: Conversation) {
     setRenamingId(conversation.id);
     setRenameDraft(conversation.title);
@@ -184,6 +190,7 @@ export default function App() {
         onNavigateToSource={handleNavigateToSource}
         onDeleteMessage={(message) => void handleDeleteMessage(message)}
         onMoveMessage={(messageIndex, direction) => void handleMoveMessage(messageIndex, direction)}
+        onMergeMessages={handleMergeMessages}
         onConvertToEnglish={(message) => requestEnglishVersions(message.text)}
         onCreateEnglishBlock={handleCreateEnglishBlock}
       />

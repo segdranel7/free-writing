@@ -19,6 +19,7 @@ The app should let the user:
 - Send a text block with `Ctrl+Enter` / `Cmd+Enter`
 - Forward text blocks between conversations
 - Reorder text blocks inside a conversation
+- Merge multiple selected text blocks into one unified block
 - Convert text blocks to English by choosing from AI-generated variants
 - Access the same content from iPhone, desktop, and tablet
 - Use the app offline when possible
@@ -83,9 +84,10 @@ The user should be able to:
 9. Forward/copy text blocks from one conversation to another.
 10. Send a block of text from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
 11. Reorder text blocks inside a conversation.
-12. Convert a text block to English by selecting one of three English versions for each smaller segment.
-13. Access the same content from iPhone, desktop, and tablet.
-14. Continue reading and writing offline when the app has already loaded and local data is cached.
+12. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
+13. Convert a text block to English by selecting one of three English versions for each smaller segment.
+14. Access the same content from iPhone, desktop, and tablet.
+15. Continue reading and writing offline when the app has already loaded and local data is cached.
 
 ## 5. What Version 1 should not include
 
@@ -112,7 +114,7 @@ This version is still for one private user.
 
 ## 6. Core user story
 
-As the only user of the app, I want to sign in with Gmail, create private conversations, write and organize text messages, convert blocks to English when needed, search them, edit them, delete them, and access them from my iPhone, desktop, and tablet, even with limited offline support.
+As the only user of the app, I want to sign in with Gmail, create private conversations, write and organize text messages, merge related blocks, convert blocks to English when needed, search them, edit them, delete them, and access them from my iPhone, desktop, and tablet, even with limited offline support.
 
 ---
 
@@ -120,4 +122,4 @@ As the only user of the app, I want to sign in with Gmail, create private conver
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create conversations, save text blocks, convert them to English, send with keyboard shortcuts, edit/delete/search/reorder them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create conversations, save text blocks, convert them to English, send with keyboard shortcuts, edit/delete/search/reorder/merge them, forward or move blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
