@@ -29,7 +29,7 @@ Recommended implementation:
 ```text
 Firebase Authentication + Google Sign-In
 Firebase Firestore for cloud data
-Firebase Functions for server-side AI translation requests
+Cloudflare Worker for server-side AI translation requests
 Firestore offline persistence for offline reads/writes
 PWA service worker for offline app shell
 Firebase Hosting for the deployed static app
@@ -40,9 +40,9 @@ Why this is recommended:
 - Google login is relatively easy with Firebase Authentication.
 - Firestore can sync data across devices.
 - Firestore supports offline persistence on the web when enabled.
-- Firebase Functions keeps third-party AI API keys out of browser code.
+- Cloudflare Workers keep third-party AI API keys out of browser code while Firebase remains on the no-cost Spark plan.
 - A service worker can cache the app shell so the app itself opens offline.
-- Firebase Hosting is the chosen hosting target because it fits the existing Firebase Auth, Firestore, and Functions stack, provides HTTPS, serves the Vite PWA build directly from `dist/`, and can rewrite API routes to Functions.
+- Firebase Hosting is the chosen hosting target because it fits the existing Firebase Auth and Firestore stack, provides HTTPS, and serves the Vite PWA build directly from `dist/`.
 
 Important note:
 
@@ -259,7 +259,7 @@ Minimum security requirements:
 - A user can only read their own messages.
 - A user can only write their own messages.
 - AI conversion requests must require a signed-in Firebase user.
-- Third-party AI API keys must be stored server-side, preferably as Firebase Functions secrets.
+- Third-party AI API keys must be stored server-side as Cloudflare Worker secrets for the free hosted deployment.
 
 Recommended Firebase security rule concept:
 
@@ -276,16 +276,16 @@ Important privacy note:
 
 ## 13.1 Server-side English conversion
 
-The deployed app should route `POST /api/to-english` through Firebase Hosting to a Firebase Function.
+The deployed app should route English conversion requests to the Cloudflare Worker configured by `VITE_TRANSLATION_API_URL`.
 
 Expected request flow:
 
 ```text
 Browser
   -> Firebase ID token in Authorization header
-  -> Firebase Function verifies the token
-  -> Function calls Groq with GROQ_API_KEY secret
-  -> Function returns validated segment/options JSON
+  -> Cloudflare Worker verifies the token through Google Identity Toolkit
+  -> Worker calls Groq with GROQ_API_KEY secret
+  -> Worker returns validated segment/options JSON
 ```
 
 The browser receives only structured translation options. It must never receive the Groq key.
@@ -300,7 +300,7 @@ The browser receives only structured translation options. It must never receive 
 Frontend: React, Vue, Svelte, or plain JavaScript
 Auth: Firebase Authentication with Google provider
 Database: Firestore
-Server API: Firebase Functions
+Server API: Cloudflare Worker
 Offline data: Firestore offline persistence
 PWA: Manifest + service worker
 Hosting: Firebase Hosting
@@ -312,10 +312,10 @@ Hosting: Firebase Hosting
 React PWA
 Firebase Auth
 Firestore
-Firebase Functions
+Cloudflare Worker translation proxy
 Firebase Hosting
 ```
 
-This is likely the easiest path if using an AI coding tool.
+This keeps Firebase on the no-cost Spark plan while preserving a server-side AI key boundary.
 
 ---

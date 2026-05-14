@@ -19,7 +19,7 @@ Recommended Version 1 stack:
 - React PWA
 - Firebase Authentication with Google provider
 - Firestore cloud data with offline persistence
-- Firebase Functions for server-side AI translation proxying
+- Cloudflare Worker for server-side AI translation proxying
 - PWA manifest and service worker
 - Firebase Hosting
 
@@ -96,7 +96,7 @@ It contains:
 
 ## QA docs
 
-Use [QA verification checklist](qa-v1-verification.md) before treating Firebase, Functions, offline behavior, or browser-specific behavior as stable.
+Use [QA verification checklist](qa-v1-verification.md) before treating Firebase, Cloudflare Worker translation, offline behavior, or browser-specific behavior as stable.
 
 ## Version 1 product summary
 

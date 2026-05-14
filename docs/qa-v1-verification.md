@@ -9,24 +9,30 @@ Run:
 ```bash
 npm run test
 npm run build
-npm run functions:build
 ```
 
 Expected result:
 
 - Vitest passes for search, message service writes, message copy feedback, composer keyboard behavior, reorder controls, English conversion UI/service behavior, and the forward/move modal.
 - The production build completes without TypeScript or Vite errors.
-- The Firebase Functions TypeScript build completes without errors.
 
 ## English conversion setup
 
-Before testing real conversion, configure the server-side Groq key:
+Before testing hosted real conversion, deploy the Cloudflare Worker and configure its server-side secrets:
 
 ```bash
-firebase functions:secrets:set GROQ_API_KEY
+npx wrangler secret put GROQ_API_KEY
+npx wrangler secret put FIREBASE_API_KEY
+npx wrangler deploy
 ```
 
-For local Vite-only testing, put `GROQ_API_KEY` in ignored `.env` without the `VITE_` prefix and restart the dev server. The browser should call `/api/to-english`; in Vite dev this is local middleware, and in production Firebase Hosting rewrites it to the `toEnglish` Function.
+For local Vite-only testing, put `GROQ_API_KEY` in ignored `.env` without the `VITE_` prefix and restart the dev server. The browser should call `/api/to-english`; in Vite dev this is local middleware.
+
+For hosted Firebase testing, set `VITE_TRANSLATION_API_URL` in ignored `.env.production.local` to the deployed Worker URL before `npm run build`, then deploy Firebase Hosting only. The current Worker URL is:
+
+```env
+VITE_TRANSLATION_API_URL=https://free-writing-translation.free-writing-danielsegatto.workers.dev
+```
 
 ## Firestore rules
 
@@ -86,4 +92,4 @@ Expected result:
 - If cross-user access succeeds, stop and fix `firebase.rules` before deployment.
 - If English conversion returns 404 in Vite dev, restart the Vite dev server so local `/api/to-english` middleware is active.
 - If English conversion returns 401, confirm Google sign-in succeeded and the current preview/hosting domain is in Firebase Authentication authorized domains.
-- If English conversion returns 500/502, confirm `GROQ_API_KEY` is configured in the correct runtime and inspect the Function or Vite server logs.
+- If English conversion returns 500/502, confirm `GROQ_API_KEY` and `FIREBASE_API_KEY` are configured in the correct Worker runtime and inspect Worker or Vite server logs.

@@ -93,7 +93,7 @@ Message fields:
 - forwardedFromMessageId
 
 English conversion:
-- Use a server-side endpoint such as Firebase Functions so the AI provider key is not exposed in browser code.
+- Use a server-side endpoint such as a Cloudflare Worker so the AI provider key is not exposed in browser code.
 - Require the signed-in Firebase user for conversion requests.
 - Store created English results as normal messages with `sortOrder` immediately after the source message.
 

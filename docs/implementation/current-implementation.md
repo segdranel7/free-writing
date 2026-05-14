@@ -29,7 +29,7 @@ Implemented:
 - Firestore persistent local cache is enabled for cached data and offline writes.
 - Message order is persisted with numeric `sortOrder` values and syncs across devices.
 - Search runs across messages loaded by Firestore subscriptions; the current hook subscribes to every conversation's messages after the conversation list loads.
-- Firebase Functions backend proxy for `POST /api/to-english`.
+- Cloudflare Worker backend proxy for hosted English conversion.
 - Local Vite development middleware for `/api/to-english` so Codespaces/Vite testing works without Firebase Hosting rewrites.
 
 Known development follow-ups:
@@ -51,7 +51,8 @@ The current codebase uses:
 - Vite 7
 - TypeScript
 - Firebase JS SDK 12
-- Firebase Functions and Admin SDK in the `functions/` package
+- Cloudflare Worker in `workers/translation/` for the hosted Groq proxy
+- Legacy Firebase Functions and Admin SDK in the `functions/` package
 - `vite-plugin-pwa`
 - `lucide-react` for icons
 - Groq Chat Completions for English conversion through a server-side proxy
@@ -77,12 +78,13 @@ VITE_TRANSLATION_API_URL=
 
 The `.env` file should stay local and must not be committed.
 
-`VITE_TRANSLATION_API_URL` is optional. Leave it blank for the same-origin `/api/to-english` route. In Vite dev, that route is handled by local middleware in `vite.config.ts`; in production, Firebase Hosting rewrites it to the Firebase Function.
+`VITE_TRANSLATION_API_URL` is optional for local Vite dev. Leave it blank locally to use the same-origin `/api/to-english` middleware in `vite.config.ts`. For the hosted app, set it to the deployed Cloudflare Worker URL before building production.
 
-For local Vite-only translation testing, `GROQ_API_KEY` may be stored in ignored `.env` without the `VITE_` prefix. For deployed Functions, set it as a Firebase secret:
+For local Vite-only translation testing, `GROQ_API_KEY` may be stored in ignored `.env` without the `VITE_` prefix. For Cloudflare Worker local testing, copy `.dev.vars.example` to `.dev.vars`. For the deployed Worker, set secrets with Wrangler:
 
 ```bash
-firebase functions:secrets:set GROQ_API_KEY
+npx wrangler secret put GROQ_API_KEY
+npx wrangler secret put FIREBASE_API_KEY
 ```
 
 Current setup behavior:
@@ -121,8 +123,11 @@ src/hooks/useMessagingData.ts
 src/services/
   Firebase auth, conversation, message, search, and translation request operations.
 
+workers/translation/index.ts
+  Cloudflare Worker for authenticated English conversion requests. Verifies Firebase ID tokens through Google Identity Toolkit, calls Groq with the `GROQ_API_KEY` secret, validates the JSON shape, and returns segment/options data.
+
 functions/src/index.ts
-  Firebase Function for authenticated English conversion requests. Verifies Firebase ID tokens, calls Groq with the `GROQ_API_KEY` secret, validates the JSON shape, and returns segment/options data.
+  Legacy Firebase Function version of the translation proxy. Firebase Functions require the Blaze plan and are not used by the default free hosted deployment.
 
 src/utils/
   Shared formatting and error helpers.
@@ -140,7 +145,7 @@ Development impact:
 - UI changes should usually start in `src/components/`.
 - Theme and layout styling changes should usually start in `src/styles.css`, then update PWA theme colors if the app shell color changes.
 - Firebase read/write behavior should usually start in `src/services/`.
-- Translation backend behavior should usually start in `functions/src/index.ts`; local-only Vite proxy behavior lives in `vite.config.ts`.
+- Hosted translation backend behavior should usually start in `workers/translation/index.ts`; local-only Vite proxy behavior lives in `vite.config.ts`. `functions/src/index.ts` is legacy Firebase Functions code and is not used by the free hosted path.
 - Subscription and data-loading behavior should usually start in `src/hooks/useMessagingData.ts`.
 - Small reusable helpers should live in `src/utils/`.
 - Recurring AI maintenance prompts live in `docs/ai-maintenance/`; `docs/ai-maintenance-prompts.md` is only the index.
@@ -154,23 +159,25 @@ The Version 1 app should be deployed with **Firebase Hosting**.
 Current hosting configuration:
 
 - `firebase.json` serves the production build from `dist/`.
-- `/api/to-english` rewrites to the `toEnglish` Firebase Function before the React app catch-all rewrite.
 - All routes rewrite to `/index.html` so the React app can handle navigation.
-- Firebase Functions deploy from the `functions/` directory, with a predeploy TypeScript build.
+- Hosted English conversion uses the Cloudflare Worker URL configured through `VITE_TRANSLATION_API_URL`.
+- Current deployed Worker URL: `https://free-writing-translation.free-writing-danielsegatto.workers.dev`.
 - Firestore rules are deployed from `firebase.rules`.
 
 Primary deployment flow:
 
 ```bash
+npx wrangler secret put GROQ_API_KEY
+npx wrangler secret put FIREBASE_API_KEY
+npx wrangler deploy
 npm run build
-npm run functions:build
-firebase deploy --only hosting,functions
+npx firebase-tools deploy --only hosting
 ```
 
-Deploy hosting, Functions, and Firestore rules together when security rules changed:
+Deploy hosting and Firestore rules together when security rules changed:
 
 ```bash
-firebase deploy --only hosting,functions,firestore:rules
+npx firebase-tools deploy --only hosting,firestore:rules
 ```
 
 After deployment, confirm the Firebase Hosting domain is listed under **Firebase Authentication > Settings > Authorized domains** so Google sign-in works on the hosted app.
@@ -211,7 +218,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - Each AI segment returns exactly three options. The first is selected by default, and selected options are joined with spaces for the preview/new message.
 - `src/services/messages.ts` has `createMessageAfter`, which inserts the English result directly below the source message by choosing a midpoint `sortOrder` when possible or rebalancing order when no numeric gap exists.
 - English conversion is online-only. Created English blocks persist like normal messages and then participate in Firestore cache/sync behavior.
-- Production uses `functions/src/index.ts`, Firebase ID-token verification, and the `GROQ_API_KEY` Firebase secret. Local Vite dev uses equivalent middleware in `vite.config.ts` with `GROQ_API_KEY` from ignored `.env`.
+- Hosted production uses `workers/translation/index.ts`, Firebase ID-token verification through Google Identity Toolkit, and Cloudflare Worker secrets for `GROQ_API_KEY` and `FIREBASE_API_KEY`. Local Vite dev uses equivalent middleware in `vite.config.ts` with `GROQ_API_KEY` from ignored `.env`.
 
 ### Offline behavior
 

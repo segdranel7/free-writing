@@ -10,7 +10,7 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 - Firestore rules scoped to the signed-in user's `uid`.
 - Conversation create, rename, open, and delete.
 - Message create, edit, copy-to-clipboard, delete, forward, move between conversations, search, and manual reorder.
-- Per-message English conversion through a Firebase Functions proxy backed by Groq.
+- Per-message English conversion through a server-side Groq proxy, using Cloudflare Workers for the free hosted deployment.
 - `Ctrl+Enter` / `Cmd+Enter` sends a new message or saves an edit; plain `Enter` inserts a newline.
 - PWA manifest and generated service worker.
 - Dark visual theme, including matching browser/PWA theme colors.
@@ -38,7 +38,8 @@ The React app is split by responsibility:
 - `src/components/ForwardModal.tsx` renders the transfer target picker for forwarding or moving messages.
 - `src/hooks/useMessagingData.ts` owns auth, conversation, and message subscriptions; it currently subscribes to every conversation's messages to support loaded-message search.
 - `src/services/` contains Firebase auth, conversation, message, and search operations.
-- `functions/` contains the secured `/api/to-english` Firebase Function used for English conversion.
+- `workers/translation/` contains the secured Cloudflare Worker used for hosted English conversion.
+- `functions/` contains the legacy Firebase Function version of the English conversion proxy, but Firebase Functions require the Blaze plan and are not the default free hosted path.
 - `src/utils/` contains small shared formatting and error helpers.
 - `src/styles.css` owns the dark theme and responsive layout styles; `index.html` and the PWA manifest config use the same dark theme color for browser/install surfaces.
 
@@ -69,13 +70,16 @@ VITE_TRANSLATION_API_URL=
 
 If any required value is missing or still looks like a placeholder, the sign-in screen shows a setup notice and disables Google sign-in until `.env` is fixed and the dev server is restarted.
 
-`VITE_TRANSLATION_API_URL` is optional and mainly useful for pointing local browser builds at an emulator endpoint. Production uses the Firebase Hosting rewrite at `/api/to-english`.
+`VITE_TRANSLATION_API_URL` is optional for local Vite dev, where `/api/to-english` is handled by local middleware. For the free hosted app, set it to the deployed Cloudflare Worker URL before building production.
 
-Set the Groq API key as a Firebase Functions secret, not in `.env`:
+For Cloudflare Worker local testing, copy `.dev.vars.example` to `.dev.vars` and fill in `GROQ_API_KEY` and `FIREBASE_API_KEY`. For the deployed Worker, store both values as Cloudflare secrets:
 
 ```bash
-firebase functions:secrets:set GROQ_API_KEY
+npx wrangler secret put GROQ_API_KEY
+npx wrangler secret put FIREBASE_API_KEY
 ```
+
+The Groq key must never be stored in a `VITE_...` variable or committed file.
 
 ## Firebase rules
 
@@ -87,19 +91,34 @@ firebase deploy --only firestore:rules
 
 ## Hosting
 
-This app is intended to be hosted on **Firebase Hosting**. The repo already includes `firebase.json`, configured to serve the Vite production build from `dist/` and rewrite app routes to `index.html`.
+This app is intended to be hosted on **Firebase Hosting** with Firebase Spark-compatible services. English conversion for the hosted app is served by a separate **Cloudflare Worker** so the Groq key stays server-side without Firebase Blaze.
 
-Build and deploy:
+After setting the Worker secrets, deploy or update the Worker first:
+
+```bash
+npx wrangler login
+npx wrangler secret put GROQ_API_KEY
+npx wrangler secret put FIREBASE_API_KEY
+npx wrangler deploy
+```
+
+Then set the Worker URL in ignored production env before building. The current deployed Worker is `https://free-writing-translation.free-writing-danielsegatto.workers.dev`:
+
+```env
+VITE_TRANSLATION_API_URL=https://free-writing-translation.free-writing-danielsegatto.workers.dev
+```
+
+Build and deploy Firebase Hosting:
 
 ```bash
 npm run build
-firebase deploy --only hosting
+npx firebase-tools deploy --only hosting
 ```
 
 When deploying both hosting and Firestore rules:
 
 ```bash
-firebase deploy --only hosting,firestore:rules
+npx firebase-tools deploy --only hosting,firestore:rules
 ```
 
 For Google sign-in, make sure the Firebase Hosting domain is allowed in **Authentication > Settings > Authorized domains**.
@@ -137,7 +156,6 @@ Conversation `lastMessagePreview` is updated on create, edit, forward, and the t
 - `npm run dev` starts the local Vite server.
 - `npm run test` runs the focused Vitest suite.
 - `npm run build` type-checks and builds the PWA.
-- `npm run functions:build` type-checks and builds the Firebase Functions backend.
 - `npm run preview` serves the production build locally.
 
 ## Verification
