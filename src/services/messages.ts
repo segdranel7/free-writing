@@ -12,7 +12,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { requireDb } from '../firebase';
-import type { Message, MessageAttachment } from '../types';
+import type { Message, MessageAttachment, MessageReference } from '../types';
 import { touchConversation } from './conversations';
 
 const messagesPath = (userId: string, conversationId: string) =>
@@ -29,6 +29,7 @@ type MessageWriteInput = {
   text: string;
   searchText?: string;
   attachments?: MessageAttachment[];
+  references?: MessageReference[];
   sortOrder: number;
   isForwarded?: boolean;
   transferType?: Message['transferType'];
@@ -46,6 +47,7 @@ function buildMessageWrite({
   text,
   searchText,
   attachments = [],
+  references = [],
   sortOrder,
   isForwarded = false,
   transferType = null,
@@ -57,6 +59,7 @@ function buildMessageWrite({
     conversationId,
     text,
     searchText: searchText ?? text.toLowerCase(),
+    references,
     createdAt: serverTimestamp(),
     updatedAt: null,
     sortOrder,
@@ -82,6 +85,7 @@ function buildTransferredMessageWrite(
     text: source.text,
     searchText: source.searchText,
     attachments: source.attachments ?? [],
+    references: source.references ?? [],
     sortOrder,
     isForwarded: true,
     transferType,
@@ -95,6 +99,7 @@ function normalizeMessages(messages: Message[]) {
     .map((message, index) => ({
       ...message,
       attachments: message.attachments ?? [],
+      references: message.references ?? [],
       sortOrder: typeof message.sortOrder === 'number' ? message.sortOrder : (index + 1) * sortStep,
       transferType: message.transferType ?? (message.isForwarded ? 'forwarded' : null)
     }))
@@ -121,27 +126,32 @@ export function listenForMessages(
   });
 }
 
-function getMessagePreview(text: string, attachments: MessageAttachment[]) {
-  return text || (attachments.length === 1 ? 'Image' : `${attachments.length} images`);
+function getMessagePreview(text: string, attachments: MessageAttachment[], references: MessageReference[] = []) {
+  if (text) return text;
+  if (attachments.length > 0) return attachments.length === 1 ? 'Image' : `${attachments.length} images`;
+  if (references.length > 0) return references.length === 1 ? 'Reference' : `${references.length} references`;
+  return '';
 }
 
 export async function createMessage(
   userId: string,
   conversationId: string,
   text: string,
-  attachments: MessageAttachment[] = []
+  attachments: MessageAttachment[] = [],
+  references: MessageReference[] = []
 ) {
   const cleanText = text.trim();
-  if (!cleanText && attachments.length === 0) return null;
+  if (!cleanText && attachments.length === 0 && references.length === 0) return null;
   const sortOrder = await getNextSortOrder(userId, conversationId);
   const message = await addDoc(messagesPath(userId, conversationId), buildMessageWrite({
     userId,
     conversationId,
     text: cleanText,
     attachments,
+    references,
     sortOrder
   }));
-  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments));
+  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments, references));
   return message;
 }
 
@@ -215,7 +225,8 @@ export async function editMessage(
   conversationId: string,
   messageId: string,
   text: string,
-  attachments?: MessageAttachment[]
+  attachments?: MessageAttachment[],
+  references?: MessageReference[]
 ) {
   const cleanText = text.trim();
   const updates: {
@@ -223,14 +234,16 @@ export async function editMessage(
     searchText: string;
     updatedAt: ReturnType<typeof serverTimestamp>;
     attachments?: MessageAttachment[];
+    references?: MessageReference[];
   } = {
     text: cleanText,
     searchText: cleanText.toLowerCase(),
     updatedAt: serverTimestamp()
   };
   if (attachments) updates.attachments = attachments;
+  if (references) updates.references = references;
   await updateDoc(messagePath(userId, conversationId, messageId), updates);
-  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments ?? []));
+  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments ?? [], references ?? []));
 }
 
 export function deleteMessage(userId: string, conversationId: string, messageId: string) {

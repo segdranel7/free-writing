@@ -123,6 +123,18 @@ Useful user fields:
       "size": 123456
     }
   ],
+  "references": [
+    {
+      "id": "reference-id",
+      "type": "quote",
+      "sourceConversationId": "source-conversation-id",
+      "sourceConversationTitle": "Source title",
+      "sourceMessageId": "source-message-id",
+      "quoteText": "Selected source text",
+      "startOffset": 0,
+      "endOffset": 20
+    }
+  ],
   "createdAt": "2026-05-11T12:00:00.000Z",
   "updatedAt": null,
   "sortOrder": 1000,
@@ -153,6 +165,9 @@ Useful user fields:
 `attachments`
 : Optional array of message attachments. Current supported attachment type is `image`. Images are compressed client-side and stored as inline data URLs in Firestore message documents, so they must stay small enough for Firestore document limits.
 
+`references`
+: Structured cross-conversation references attached to the message separately from `text`. A `conversation` reference stores the source conversation ID and title snapshot. A `quote` reference also stores the source message ID, selected quote text, and start/end offsets in the source message. Older messages without this field are treated as having no references.
+
 `createdAt`
 : When message was created.
 
@@ -174,7 +189,7 @@ Useful user fields:
 `forwardedFromMessageId`
 : Source message ID, if forwarded or moved.
 
-Source metadata can exist without a visible source label. The UI only renders the source navigation label when `forwardedFromConversationId` is present and the message text contains the literal `<-source` marker; blocks without that marker must not display the label.
+Forwarded and moved source metadata is kept for transfer labeling and compatibility. User-visible cross-conversation links and quote citations are rendered from structured `references` instead of text markers.
 
 English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. Replacing a source block with English text updates the same message through the normal edit path. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft.
 

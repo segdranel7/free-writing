@@ -26,7 +26,7 @@ npx wrangler secret put FIREBASE_API_KEY
 npx wrangler deploy
 ```
 
-For local Vite-only testing, put `GROQ_API_KEY` in ignored `.env` without the `VITE_` prefix and restart the dev server. The browser should call `/api/to-english`; in Vite dev this is local middleware.
+For local Vite-only testing, put `GROQ_API_KEY` in ignored `.env` without the `VITE_` prefix and also ensure `VITE_FIREBASE_API_KEY` and other Firebase values are present in `.env`. Restart the dev server, then confirm the browser calls `/api/to-english`; in Vite dev this is local middleware.
 
 For hosted Firebase testing, set `VITE_TRANSLATION_API_URL` in ignored `.env.production.local` to the deployed Worker URL before `npm run build`, then deploy Firebase Hosting only. The current Worker URL is:
 
@@ -99,7 +99,7 @@ Expected result:
 - Small images can be added without Firebase Storage; if an image is too large for inline Firestore storage, the UI shows a clear error and keeps the unsent draft/edit.
 - Saved image previews are inert when clicked.
 - Forwarded messages are labeled `Forwarded`; moved messages are labeled `Moved`.
-- Source links navigate back to the original conversation only when source metadata exists and the block text contains `<-source`; blocks without that text marker do not show the source label.
+- Structured conversation and quote reference cards navigate to their source conversation or source text block when the source is still loaded; unavailable sources remain readable from their stored snapshot.
 - Reordered messages keep their order after reconnect and reload, whether reordered by explicit controls or drag on desktop and mobile/touch devices.
 - Drag reordering continues smoothly when the intended drop target starts off-screen by auto-scrolling the message list near its top or bottom edge.
 - Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.

@@ -140,6 +140,27 @@ Requirements:
 
 ---
 
+### 7.3.4 Message references
+
+The user can attach structured references to another conversation or a quoted message block.
+
+Version 1 behavior:
+
+- The composer can add a reference to another conversation or a selected quote from an existing message.
+- Reference cards render below the message text once saved.
+- Conversation references open the source conversation when the source is loaded.
+- Quote references open the source message and highlight the quoted text range when the source is loaded.
+- References are stored separately from message body text and remain visible even if the source is not currently loaded.
+
+Requirements:
+
+- Reference creation is available in the composer and while editing a message.
+- Reference cards should clearly show the source conversation or quoted text.
+- Users can remove references while editing an existing message.
+- References do not require additional external search infrastructure.
+
+---
+
 ### 7.4 Message editing
 
 The user can edit a message after creating it.
@@ -209,7 +230,7 @@ Intended behavior:
 - App shows the same conversation picker used for forwarding.
 - App creates a replacement message in the target conversation.
 - App deletes the original message from the source conversation in the same Firestore batch.
-- The moved message stores source metadata; the source navigation label is displayed only when the block text explicitly includes the `<-source` marker.
+- The moved message stores source metadata for transfer history. User-visible cross-conversation navigation is provided by structured conversation links and quote citations.
 - The moved message displays a small `Moved` label.
 
 
@@ -423,6 +444,7 @@ Content:
 - User can delete a message.
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
+- User can add a conversation or quote reference to a message.
 - User can reorder messages inside a conversation with move controls or drag-and-drop on desktop and touch/pointer devices.
 - User can merge multiple selected messages inside a conversation.
 - User can convert a message to English and either create a new result block or replace the source block.
@@ -487,6 +509,7 @@ Version 1 is complete when:
 - I can open the same account on another device and see the same messages.
 - I can edit a message.
 - I can delete a message.
+- I can add a conversation or quote reference to a message and open it when the source is loaded.
 - I can open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`.
 - I can search messages.
 - I can forward a message from one conversation to another.

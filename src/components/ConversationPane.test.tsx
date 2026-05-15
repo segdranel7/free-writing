@@ -25,6 +25,7 @@ function message(id: string, text: string): Message {
     conversationId: conversation.id,
     text,
     searchText: text.toLowerCase(),
+    references: [],
     createdAt: timestamp,
     updatedAt: null,
     sortOrder: 1000,
@@ -38,7 +39,12 @@ function message(id: string, text: string): Message {
 function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> = {}) {
   const props: ComponentProps<typeof ConversationPane> = {
     activeConversation: conversation,
+    conversations: [conversation],
     activeMessages: [message('first', 'First'), message('second', 'Second')],
+    messagesByConversation: {
+      [conversation.id]: [message('first', 'First'), message('second', 'Second')]
+    },
+    navigationTarget: null,
     draft: 'Ready to send',
     editingMessage: null,
     onBack: vi.fn(),
@@ -49,7 +55,8 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     onSaveEdit: vi.fn(),
     onForwardMessage: vi.fn(),
     onMoveToConversation: vi.fn(),
-    onNavigateToSource: vi.fn(),
+    onNavigateToReference: vi.fn(),
+    onNavigationHandled: vi.fn(),
     onDeleteMessage: vi.fn(),
     onMoveMessage: vi.fn(),
     onReorderMessage: vi.fn(),
@@ -110,7 +117,7 @@ describe('ConversationPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => {
-      expect(onSubmitMessage).toHaveBeenCalledWith(undefined, [image]);
+      expect(onSubmitMessage).toHaveBeenCalledWith(undefined, [image], []);
     });
     expect(objectUrls.revokeObjectURL).toHaveBeenCalledWith('blob:image-preview');
 
@@ -140,7 +147,7 @@ describe('ConversationPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => {
-      expect(composer.onSubmitMessage).toHaveBeenCalledWith(undefined, [image]);
+      expect(composer.onSubmitMessage).toHaveBeenCalledWith(undefined, [image], []);
     });
 
     objectUrls.restore();
@@ -169,7 +176,7 @@ describe('ConversationPane', () => {
     await waitFor(() => {
       expect(composer.onSubmitMessage).toHaveBeenCalledWith(undefined, [
         expect.objectContaining({ name: 'pasted-image.png', type: 'image/png' })
-      ]);
+      ], []);
     });
 
     Object.assign(navigator, {
@@ -249,7 +256,7 @@ describe('ConversationPane', () => {
     fireEvent.change(editor, { target: { value: 'Edited first block' } });
     fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true });
 
-    expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'Edited first block', []);
+    expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'Edited first block', [], []);
     expect(props.onSubmitMessage).not.toHaveBeenCalled();
   });
 
@@ -279,7 +286,7 @@ describe('ConversationPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
-      expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'First', [image]);
+      expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'First', [image], []);
     });
 
     objectUrls.restore();
@@ -570,34 +577,130 @@ describe('ConversationPane', () => {
     ]);
   });
 
-  it('does not show a source marker when the block text has no source marker', () => {
+  it('adds a pending conversation link from the composer picker and sends it', async () => {
+    const onSubmitMessage = vi.fn(async () => undefined);
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+
     renderPane({
-      activeMessages: [
-        {
-          ...message('first', 'Forwarded text without a marker'),
-          forwardedFromConversationId: 'source-conversation',
-          forwardedFromMessageId: 'source-message'
-        }
-      ]
+      draft: '',
+      conversations: [conversation, sourceConversation],
+      onSubmitMessage
     });
 
-    expect(screen.queryByRole('button', { name: 'Source' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTitle('Add conversation link'));
+    fireEvent.click(screen.getByRole('button', { name: 'Source chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Insert link' }));
+
+    expect(screen.getByLabelText('Pending references')).toHaveTextContent('Source chat');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(onSubmitMessage).toHaveBeenCalledWith(undefined, [], [
+        expect.objectContaining({
+          type: 'conversation',
+          sourceConversationId: 'source-conversation',
+          sourceConversationTitle: 'Source chat'
+        })
+      ]);
+    });
   });
 
-  it('shows the source marker when source metadata and the text marker are present', () => {
+  it('adds a selected quote citation from another conversation', async () => {
+    const onSubmitMessage = vi.fn(async () => undefined);
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+    const sourceMessage = {
+      ...message('source-message', 'Quoted source text'),
+      conversationId: sourceConversation.id
+    };
+
+    renderPane({
+      draft: '',
+      conversations: [conversation, sourceConversation],
+      messagesByConversation: {
+        [conversation.id]: [message('first', 'First'), message('second', 'Second')],
+        [sourceConversation.id]: [sourceMessage]
+      },
+      onSubmitMessage
+    });
+
+    fireEvent.click(screen.getByTitle('Cite text'));
+    fireEvent.click(screen.getByRole('button', { name: 'Source chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quoted source text' }));
+    fireEvent.select(screen.getByLabelText('Source message text'), {
+      target: { selectionStart: 0, selectionEnd: 6 }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Insert citation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(onSubmitMessage).toHaveBeenCalledWith(undefined, [], [
+        expect.objectContaining({
+          type: 'quote',
+          sourceConversationId: 'source-conversation',
+          sourceMessageId: 'source-message',
+          quoteText: 'Quoted',
+          startOffset: 0,
+          endOffset: 6
+        })
+      ]);
+    });
+  });
+
+  it('renders reference cards and navigates to their targets', () => {
     const props = renderPane({
       activeMessages: [
         {
-          ...message('first', 'Forwarded text <-source'),
-          forwardedFromConversationId: 'source-conversation',
-          forwardedFromMessageId: 'source-message'
+          ...message('first', 'Reference holder'),
+          references: [
+            {
+              id: 'reference-1',
+              type: 'quote',
+              sourceConversationId: conversation.id,
+              sourceConversationTitle: 'Inbox',
+              sourceMessageId: 'second',
+              quoteText: 'Second',
+              startOffset: 0,
+              endOffset: 6
+            }
+          ]
         }
       ]
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Source' }));
+    fireEvent.click(screen.getByRole('button', { name: /Inbox: "Second"/ }));
 
-    expect(props.onNavigateToSource).toHaveBeenCalledWith('source-conversation');
+    expect(props.onNavigateToReference).toHaveBeenCalledWith({
+      conversationId: conversation.id,
+      messageId: 'second',
+      range: { startOffset: 0, endOffset: 6 }
+    });
+  });
+
+  it('allows removing references while editing a block', () => {
+    const editingMessage = {
+      ...message('first', 'First'),
+      references: [
+        {
+          id: 'reference-1',
+          type: 'conversation' as const,
+          sourceConversationId: conversation.id,
+          sourceConversationTitle: 'Inbox'
+        }
+      ]
+    };
+    const onSaveEdit = vi.fn(async () => undefined);
+    renderPane({
+      editingMessage,
+      activeMessages: [editingMessage],
+      messagesByConversation: { [conversation.id]: [editingMessage] },
+      onSaveEdit
+    });
+
+    fireEvent.click(screen.getByTitle('Remove reference'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'First', [], []);
   });
 
   it('opens the English picker and defaults to the first option for each segment', async () => {

@@ -22,8 +22,9 @@ import {
 import { searchLoadedMessages } from './services/search';
 import { uploadMessageImages } from './services/storage';
 import { requestEnglishVersions } from './services/translation';
-import type { Conversation, Message } from './types';
+import type { Conversation, Message, MessageReference } from './types';
 import { moveMessageByDirection, moveMessageToDropTarget } from './utils/messageOrder';
+import type { MessageReferenceNavigationTarget } from './utils/messageReferences';
 
 type TransferAction = {
   mode: 'forward' | 'move';
@@ -46,6 +47,7 @@ export default function App() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [transferAction, setTransferAction] = useState<TransferAction | null>(null);
+  const [navigationTarget, setNavigationTarget] = useState<MessageReferenceNavigationTarget | null>(null);
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
@@ -78,23 +80,37 @@ export default function App() {
     setActiveConversationId((current) => (current === conversation.id ? conversations[0]?.id ?? null : current));
   }
 
-  async function handleSubmitMessage(textOverride?: string, imageFiles: File[] = []) {
+  async function handleSubmitMessage(textOverride?: string, imageFiles: File[] = [], references: MessageReference[] = []) {
     const messageText = textOverride ?? draft;
-    if (!user || !activeConversationId || (!messageText.trim() && imageFiles.length === 0)) return;
+    if (!user || !activeConversationId || (!messageText.trim() && imageFiles.length === 0 && references.length === 0)) return;
     const attachments =
       imageFiles.length > 0 ? await uploadMessageImages(user.uid, activeConversationId, imageFiles) : [];
-    await createMessage(user.uid, activeConversationId, messageText, attachments);
+    await createMessage(user.uid, activeConversationId, messageText, attachments, references);
     setDraft('');
   }
 
-  async function handleSaveEdit(message: Message, text: string, imageFiles: File[] = []) {
-    if (!user || (!text.trim() && (message.attachments?.length ?? 0) === 0 && imageFiles.length === 0)) return;
+  async function handleSaveEdit(
+    message: Message,
+    text: string,
+    imageFiles: File[] = [],
+    references: MessageReference[] = message.references ?? []
+  ) {
+    if (
+      !user ||
+      (!text.trim() && (message.attachments?.length ?? 0) === 0 && imageFiles.length === 0 && references.length === 0)
+    ) {
+      return;
+    }
     const newAttachments =
       imageFiles.length > 0 ? await uploadMessageImages(user.uid, message.conversationId, imageFiles) : [];
-    await editMessage(user.uid, message.conversationId, message.id, text, [
-      ...(message.attachments ?? []),
-      ...newAttachments
-    ]);
+    await editMessage(
+      user.uid,
+      message.conversationId,
+      message.id,
+      text,
+      [...(message.attachments ?? []), ...newAttachments],
+      references
+    );
     setEditingMessage(null);
   }
 
@@ -165,10 +181,11 @@ export default function App() {
     setEditingMessage(null);
   }
 
-  function handleNavigateToSource(conversationId: string) {
+  function handleNavigateToReference(target: MessageReferenceNavigationTarget) {
     setTransferAction(null);
     setSearchTerm('');
-    setActiveConversationId(conversationId);
+    setNavigationTarget(target);
+    setActiveConversationId(target.conversationId);
   }
 
   if (authLoading) {
@@ -200,7 +217,10 @@ export default function App() {
 
       <ConversationPane
         activeConversation={activeConversation}
+        conversations={conversations}
         activeMessages={activeMessages}
+        messagesByConversation={messagesByConversation}
+        navigationTarget={navigationTarget}
         draft={draft}
         editingMessage={editingMessage}
         onBack={() => setActiveConversationId(null)}
@@ -211,7 +231,8 @@ export default function App() {
         onSaveEdit={handleSaveEdit}
         onForwardMessage={(message) => setTransferAction({ mode: 'forward', message })}
         onMoveToConversation={(message) => setTransferAction({ mode: 'move', message })}
-        onNavigateToSource={handleNavigateToSource}
+        onNavigateToReference={handleNavigateToReference}
+        onNavigationHandled={() => setNavigationTarget(null)}
         onDeleteMessage={(message) => void handleDeleteMessage(message)}
         onMoveMessage={(messageIndex, direction) => void handleMoveMessage(messageIndex, direction)}
         onReorderMessage={(draggedMessageId, targetMessageId) =>

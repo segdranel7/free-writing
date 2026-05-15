@@ -39,7 +39,16 @@ vi.mock('../firebase', () => ({
 }));
 vi.mock('./conversations', () => conversationMocks);
 
-import { createMessage, createMessageAfter, forwardMessage, mergeMessages, moveMessage, reorderMessages } from './messages';
+import {
+  createMessage,
+  createMessageAfter,
+  editMessage,
+  forwardMessage,
+  listenForMessages,
+  mergeMessages,
+  moveMessage,
+  reorderMessages
+} from './messages';
 
 const timestamp = (millis: number) => ({ toMillis: () => millis }) as Message['createdAt'];
 
@@ -50,6 +59,7 @@ function sourceMessage(overrides: Partial<Message> = {}): Message {
     conversationId: 'source-conversation',
     text: 'Transfer this',
     searchText: 'transfer this',
+    references: [],
     createdAt: timestamp(1),
     updatedAt: null,
     sortOrder: 1000,
@@ -94,6 +104,7 @@ describe('message service writes', () => {
       conversationId: 'conversation-1',
       text: 'Hello There',
       searchText: 'hello there',
+      references: [],
       createdAt: 'SERVER_TIMESTAMP',
       updatedAt: null,
       sortOrder: 4000,
@@ -123,6 +134,7 @@ describe('message service writes', () => {
       text: '',
       searchText: '',
       attachments: [attachment],
+      references: [],
       createdAt: 'SERVER_TIMESTAMP',
       updatedAt: null,
       sortOrder: 1000,
@@ -134,6 +146,83 @@ describe('message service writes', () => {
     expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Image');
   });
 
+  it('creates reference-only messages with structured metadata', async () => {
+    await createMessage('user-1', 'conversation-1', '   ', [], [
+      {
+        id: 'reference-1',
+        type: 'conversation',
+        sourceConversationId: 'source-conversation',
+        sourceConversationTitle: 'Source chat'
+      }
+    ]);
+
+    expect(firestoreMocks.addDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages' }), {
+      userId: 'user-1',
+      conversationId: 'conversation-1',
+      text: '',
+      searchText: '',
+      references: [
+        {
+          id: 'reference-1',
+          type: 'conversation',
+          sourceConversationId: 'source-conversation',
+          sourceConversationTitle: 'Source chat'
+        }
+      ],
+      createdAt: 'SERVER_TIMESTAMP',
+      updatedAt: null,
+      sortOrder: 1000,
+      isForwarded: false,
+      transferType: null,
+      forwardedFromConversationId: null,
+      forwardedFromMessageId: null
+    });
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Reference');
+  });
+
+  it('edits message text while preserving provided references', async () => {
+    const references = [
+      {
+        id: 'reference-1',
+        type: 'quote' as const,
+        sourceConversationId: 'source-conversation',
+        sourceConversationTitle: 'Source chat',
+        sourceMessageId: 'source-message',
+        quoteText: 'Quoted source',
+        startOffset: 0,
+        endOffset: 13
+      }
+    ];
+
+    await editMessage('user-1', 'conversation-1', 'message-1', ' Edited text ', undefined, references);
+
+    expect(firestoreMocks.updateDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/message-1' }), {
+      text: 'Edited text',
+      searchText: 'edited text',
+      updatedAt: 'SERVER_TIMESTAMP',
+      references
+    });
+  });
+
+  it('normalizes older message records without references', () => {
+    const oldMessage = sourceMessage();
+    const { references: _references, ...legacyMessage } = oldMessage;
+    const onChange = vi.fn();
+    firestoreMocks.onSnapshot.mockImplementation((_query, callback) => {
+      callback(docsWithMessages([legacyMessage as Message]));
+      return vi.fn();
+    });
+
+    listenForMessages('user-1', 'conversation-1', onChange);
+
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'source-message',
+        references: []
+      })
+    ]);
+  });
+
   it('forwards a message as a new target message without deleting the source', async () => {
     await forwardMessage('user-1', sourceMessage(), 'target-conversation');
 
@@ -142,6 +231,7 @@ describe('message service writes', () => {
       conversationId: 'target-conversation',
       text: 'Transfer this',
       searchText: 'transfer this',
+      references: [],
       createdAt: 'SERVER_TIMESTAMP',
       updatedAt: null,
       sortOrder: 1000,
@@ -164,6 +254,7 @@ describe('message service writes', () => {
       conversationId: 'conversation-1',
       text: 'English text',
       searchText: 'english text',
+      references: [],
       createdAt: 'SERVER_TIMESTAMP',
       updatedAt: null,
       sortOrder: 2000,
@@ -203,6 +294,7 @@ describe('message service writes', () => {
       conversationId: 'target-conversation',
       text: 'Transfer this',
       searchText: 'transfer this',
+      references: [],
       createdAt: 'SERVER_TIMESTAMP',
       updatedAt: null,
       sortOrder: 1000,
@@ -226,6 +318,7 @@ describe('message service writes', () => {
       conversationId: 'conversation-1',
       text: 'Second block\n\nFirst block',
       searchText: 'second block\n\nfirst block',
+      references: [],
       createdAt: 'SERVER_TIMESTAMP',
       updatedAt: null,
       sortOrder: 1000,

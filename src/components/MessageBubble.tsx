@@ -1,9 +1,8 @@
 import { type ClipboardEvent, type DragEvent, type PointerEvent, type RefObject } from 'react';
-import { ArrowDown, ArrowUp, Copy, Edit3, Forward, Languages, MoveRight, Reply, Trash2, X } from 'lucide-react';
-import type { Message } from '../types';
+import { ArrowDown, ArrowUp, Copy, Edit3, Forward, Languages, Link2, MoveRight, Quote, Trash2, X } from 'lucide-react';
+import type { Message, MessageReference } from '../types';
 import { formatDate } from '../utils/date';
-
-const SOURCE_MARKER = '<-source';
+import { getReferenceNavigationTarget, truncateReferenceText, type MessageReferenceNavigationTarget } from '../utils/messageReferences';
 
 export type CopyFeedbackStatus = 'copied' | 'failed';
 
@@ -16,14 +15,18 @@ type MessageBubbleProps = {
   isDragOver: boolean;
   isEditing: boolean;
   editText: string;
+  editReferences: MessageReference[];
   editImagePreviews: Array<{ id: string; file: File; url: string }>;
+  activeReferenceTarget: MessageReferenceNavigationTarget | null;
   isSavingEdit: boolean;
   editTextareaRef: RefObject<HTMLTextAreaElement | null>;
   copyFeedbackStatus: CopyFeedbackStatus | null;
   onSelect: (messageId: string) => void;
-  onNavigateToSource: (conversationId: string) => void;
+  onNavigateToReference: (target: MessageReferenceNavigationTarget) => void;
+  canNavigateToReference: (reference: MessageReference) => boolean;
   onCancelEdit: () => void;
   onEditTextChange: (value: string) => void;
+  onRemoveEditReference: (referenceId: string) => void;
   onEditImagePaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onRemoveEditImage: (previewId: string) => void;
   onSaveEdit: (message: Message) => void;
@@ -55,8 +58,25 @@ function getCopyFeedbackLabel(status: CopyFeedbackStatus) {
   return status === 'copied' ? 'Copied' : 'Copy failed';
 }
 
-function shouldShowSourceLink(message: Message) {
-  return Boolean(message.forwardedFromConversationId && message.text.includes(SOURCE_MARKER));
+function isMessageTarget(message: Message, target: MessageReferenceNavigationTarget | null) {
+  return target?.messageId === message.id && target.conversationId === message.conversationId;
+}
+
+function renderMessageText(message: Message, target: MessageReferenceNavigationTarget | null) {
+  if (!message.text) return null;
+  const range = isMessageTarget(message, target) ? target?.range : null;
+  if (!range || range.endOffset <= range.startOffset) return <p>{message.text}</p>;
+
+  const start = Math.max(0, Math.min(range.startOffset, message.text.length));
+  const end = Math.max(start, Math.min(range.endOffset, message.text.length));
+
+  return (
+    <p>
+      {message.text.slice(0, start)}
+      <mark className="reference-highlight">{message.text.slice(start, end)}</mark>
+      {message.text.slice(end)}
+    </p>
+  );
 }
 
 export function MessageBubble({
@@ -68,14 +88,18 @@ export function MessageBubble({
   isDragOver,
   isEditing,
   editText,
+  editReferences,
   editImagePreviews,
+  activeReferenceTarget,
   isSavingEdit,
   editTextareaRef,
   copyFeedbackStatus,
   onSelect,
-  onNavigateToSource,
+  onNavigateToReference,
+  canNavigateToReference,
   onCancelEdit,
   onEditTextChange,
+  onRemoveEditReference,
   onEditImagePaste,
   onRemoveEditImage,
   onSaveEdit,
@@ -100,7 +124,8 @@ export function MessageBubble({
     'message-bubble',
     isSelected ? 'selected' : '',
     isDragging ? 'dragging' : '',
-    isDragOver ? 'drag-over' : ''
+    isDragOver ? 'drag-over' : '',
+    isMessageTarget(message, activeReferenceTarget) ? 'reference-target' : ''
   ]
     .filter(Boolean)
     .join(' ');
@@ -132,16 +157,6 @@ export function MessageBubble({
           />
         </label>
         {transferLabel && <span>{transferLabel}</span>}
-        {shouldShowSourceLink(message) && (
-          <button
-            className="source-link"
-            title="Open source conversation"
-            onClick={() => onNavigateToSource(message.forwardedFromConversationId as string)}
-          >
-            <Reply size={13} />
-            Source
-          </button>
-        )}
         {message.updatedAt && <span>edited</span>}
         <time>{formatDate(message.createdAt)}</time>
       </div>
@@ -168,6 +183,28 @@ export function MessageBubble({
               }
             }}
           />
+          {editReferences.length > 0 && (
+            <div className="message-reference-list" aria-label="Block references">
+              {editReferences.map((reference) => (
+                <div key={reference.id} className="message-reference-card">
+                  {reference.type === 'quote' ? <Quote size={15} /> : <Link2 size={15} />}
+                  <span>
+                    {reference.type === 'quote'
+                      ? `"${truncateReferenceText(reference.quoteText, 88)}"`
+                      : reference.sourceConversationTitle}
+                  </span>
+                  <button
+                    className="icon-button bare"
+                    type="button"
+                    title="Remove reference"
+                    onClick={() => onRemoveEditReference(reference.id)}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           {((message.attachments?.length ?? 0) > 0 || editImagePreviews.length > 0) && (
             <div className="message-edit-images" aria-label="Block images">
               {message.attachments?.map((attachment) => (
@@ -198,7 +235,10 @@ export function MessageBubble({
               className="primary-button"
               type="submit"
               disabled={
-                (!editText.trim() && (message.attachments?.length ?? 0) === 0 && editImagePreviews.length === 0) ||
+                (!editText.trim() &&
+                  (message.attachments?.length ?? 0) === 0 &&
+                  editImagePreviews.length === 0 &&
+                  editReferences.length === 0) ||
                 isSavingEdit
               }
             >
@@ -217,7 +257,29 @@ export function MessageBubble({
               ))}
             </div>
           )}
-          {message.text && <p>{message.text}</p>}
+          {renderMessageText(message, activeReferenceTarget)}
+          {message.references.length > 0 && (
+            <div className="message-reference-list" aria-label="Message references">
+              {message.references.map((reference) => (
+                <button
+                  key={reference.id}
+                  className="message-reference-card"
+                  type="button"
+                  disabled={!canNavigateToReference(reference)}
+                  title={canNavigateToReference(reference) ? 'Open reference' : 'Original reference is unavailable'}
+                  onClick={() => onNavigateToReference(getReferenceNavigationTarget(reference))}
+                >
+                  {reference.type === 'quote' ? <Quote size={15} /> : <Link2 size={15} />}
+                  <span>
+                    <strong>{reference.sourceConversationTitle}</strong>
+                    {reference.type === 'quote'
+                      ? `: "${truncateReferenceText(reference.quoteText)}"`
+                      : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="message-actions">
             <div className="reorder-actions" aria-label="Reorder message">
               <button

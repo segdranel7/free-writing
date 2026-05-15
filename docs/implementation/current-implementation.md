@@ -19,7 +19,7 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
-- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual up/down reorder, drag reorder on desktop and touch/pointer devices with message-list edge autoscroll, and selected-block merge.
+- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, structured conversation links and quote citations, search, manual up/down reorder, drag reorder on desktop and touch/pointer devices with message-list edge autoscroll, and selected-block merge.
 - Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
 - Image attachments are compressed in the browser and stored inline in Firestore message documents. Firebase Storage is intentionally not used so the app stays on the free Spark plan.
 - English conversion for saved messages and composer draft text. It segments text, presents three English options per segment, and can create a new message below a saved source, replace a saved source, or send selected draft English text directly as a new message.
@@ -114,13 +114,13 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context.
 
 src/components/ConversationPane.tsx
-  Active conversation view, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion orchestration, conversion picker state, and inline edit/image-paste state.
+  Active conversation view, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion orchestration, reference picker state, conversion picker state, and inline edit/image-paste state.
 
 src/components/MessageBubble.tsx
-  Per-message rendering and local action wiring. Owns message metadata display, inert image attachment previews, source-link visibility, inline edit form markup, copy feedback label, reorder buttons, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
+  Per-message rendering and local action wiring. Owns message metadata display, inert image attachment previews, structured reference cards, inline edit form markup, copy feedback label, reorder buttons, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
 
 src/components/MessageComposer.tsx
-  Draft composer rendering, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, and `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`.
+  Draft composer rendering, pending reference chips, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, and `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`.
 
 src/components/EnglishPickerModal.tsx
   English conversion dialog rendering. Receives picker state and callbacks from `ConversationPane`, renders loading/error/ready/saving states, option radios, preview, and saved-message or draft-specific actions.
@@ -214,7 +214,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/services/messages.ts` uses local write-payload helpers to keep normal, forwarded, moved, merged, and English-result message fields consistent.
 - Moved messages currently use `isForwarded: true`, `transferType: 'moved'`, `forwardedFromConversationId`, and `forwardedFromMessageId`.
 - `src/components/MessageBubble.tsx` includes a `Move to conversation` message action and displays `Moved` or `Forwarded` through `getTransferLabel`.
-- `src/components/MessageBubble.tsx` renders the `Source` navigation label only when the message has `forwardedFromConversationId` and its text contains the literal `<-source` marker. Source metadata alone is not enough to display that label.
+- `src/components/MessageBubble.tsx` renders user-visible source navigation through structured reference cards; forwarded and moved source metadata still drives transfer labels.
 - `src/components/MessageBubble.tsx` includes a `Copy text` message action with short-lived success/failure feedback; the copy action is browser clipboard API UI only and does not touch Firestore.
 - `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message }`.
 - `src/components/ForwardModal.tsx` receives `mode` and `sourceMessage`, changes its heading between `Forward to` and `Move to`, and excludes the source conversation from target choices.
@@ -263,6 +263,14 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - Search results clear the search term and open the result's conversation.
 - This is intentionally simple, but it means search coverage depends on the active subscriptions and local cache.
 - Message subscriptions query Firestore by `createdAt` and then normalize/sort by `sortOrder` in client code so older records without explicit ordering still display chronologically.
+
+### Cross-conversation references
+
+- Messages can store structured `references` separately from body text. Conversation references point to another conversation by ID with a title snapshot; quote references also point to a source message and selected text offsets.
+- `src/components/ConversationPane.tsx` opens composer-side pickers for conversation links and quote citations. Quote selection happens inside the modal without leaving the active conversation.
+- `src/components/MessageBubble.tsx` renders reference cards below message text. Conversation references navigate to the source conversation; quote references navigate to the source message and temporarily highlight the cited text range when the source is still loaded.
+- Inline editing can remove existing references from a saved message. Adding new references is composer-only.
+- Old messages without `references` are normalized to an empty reference list by the message subscription path.
 
 ### English conversion
 

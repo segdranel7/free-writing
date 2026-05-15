@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
-import { ClipboardPaste, ImagePlus, Languages, Send, X } from 'lucide-react';
+import { ClipboardPaste, ImagePlus, Languages, Link2, Quote, Send, X } from 'lucide-react';
+import type { MessageReference } from '../types';
+import { truncateReferenceText } from '../utils/messageReferences';
 
 type MessageComposerProps = {
   draft: string;
+  pendingReferences: MessageReference[];
   onDraftChange: (value: string) => void;
   onSubmitMessage: (imageFiles: File[]) => void | Promise<void>;
   onConvertDraftToEnglish: () => void;
+  onAddConversationReference: () => void;
+  onAddQuoteReference: () => void;
+  onRemoveReference: (referenceId: string) => void;
 };
 
 type ImagePreview = {
@@ -37,9 +43,13 @@ function getImageExtension(contentType: string) {
 
 export function MessageComposer({
   draft,
+  pendingReferences,
   onDraftChange,
   onSubmitMessage,
-  onConvertDraftToEnglish
+  onConvertDraftToEnglish,
+  onAddConversationReference,
+  onAddQuoteReference,
+  onRemoveReference
 }: MessageComposerProps) {
   const [imagePreviews, setImagePreviews] = useState<ImagePreview[]>([]);
   const [isSending, setIsSending] = useState(false);
@@ -47,7 +57,7 @@ export function MessageComposer({
   const [sendError, setSendError] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imagePreviewsRef = useRef<ImagePreview[]>([]);
-  const canSend = Boolean(draft.trim() || imagePreviews.length > 0);
+  const canSend = Boolean(draft.trim() || imagePreviews.length > 0 || pendingReferences.length > 0);
 
   useEffect(() => {
     return () => {
@@ -148,6 +158,27 @@ export function MessageComposer({
       }}
     >
       <div className="composer-inputs">
+        {pendingReferences.length > 0 && (
+          <div className="pending-references" aria-label="Pending references">
+            {pendingReferences.map((reference) => (
+              <div key={reference.id} className="pending-reference">
+                <span>
+                  {reference.type === 'quote'
+                    ? `"${truncateReferenceText(reference.quoteText, 72)}"`
+                    : reference.sourceConversationTitle}
+                </span>
+                <button
+                  className="icon-button bare"
+                  type="button"
+                  title="Remove reference"
+                  onClick={() => onRemoveReference(reference.id)}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {imagePreviews.length > 0 && (
           <div className="composer-images" aria-label="Selected images">
             {imagePreviews.map((preview) => (
@@ -211,6 +242,22 @@ export function MessageComposer({
           onClick={() => void pasteImagesFromClipboard()}
         >
           <ClipboardPaste size={17} />
+        </button>
+        <button
+          className="icon-button"
+          type="button"
+          title="Add conversation link"
+          onClick={onAddConversationReference}
+        >
+          <Link2 size={17} />
+        </button>
+        <button
+          className="icon-button"
+          type="button"
+          title="Cite text"
+          onClick={onAddQuoteReference}
+        >
+          <Quote size={17} />
         </button>
         <button
           className="icon-button"

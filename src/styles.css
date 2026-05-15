@@ -344,10 +344,20 @@ button {
   box-shadow: 0 0 0 2px #54d6bf, 0 10px 24px rgba(0, 0, 0, 0.28);
 }
 
+.message-bubble.reference-target {
+  box-shadow: 0 0 0 2px #f0c85a, 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
 .message-bubble p {
   margin: 6px 0 10px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.reference-highlight {
+  border-radius: 4px;
+  color: #251d08;
+  background: #f0c85a;
 }
 
 .message-attachments {
@@ -407,6 +417,48 @@ button {
   background: transparent;
   font-size: inherit;
   font-weight: 700;
+}
+
+.message-reference-list,
+.pending-references {
+  display: grid;
+  gap: 8px;
+}
+
+.message-reference-list {
+  margin: 8px 0 10px;
+}
+
+.message-reference-card,
+.pending-reference {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  gap: 8px;
+  border: 1px solid #315047;
+  border-radius: 8px;
+  color: #dff4ef;
+  background: #102a27;
+  text-align: left;
+}
+
+.message-reference-card span,
+.pending-reference span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-reference-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.pending-reference {
+  justify-content: space-between;
+  background: #1b282b;
 }
 
 .message-actions .icon-button:disabled {
@@ -698,6 +750,73 @@ button {
   margin: 0;
 }
 
+.modal h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.reference-picker {
+  display: flex;
+  width: min(760px, 100%);
+  max-height: 86vh;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.reference-picker-grid {
+  display: grid;
+  min-height: 360px;
+  grid-template-columns: minmax(160px, 240px) 1fr;
+}
+
+.reference-picker-list,
+.reference-picker-message-list,
+.reference-picker-detail {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.reference-picker-list {
+  border-right: 1px solid #263337;
+}
+
+.reference-picker-detail {
+  padding: 12px;
+  gap: 10px;
+}
+
+.reference-picker-row {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid #263337;
+  color: #e8eef2;
+  background: transparent;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reference-picker-row.active {
+  color: #06201d;
+  background: #54d6bf;
+}
+
+.reference-picker-detail textarea {
+  width: 100%;
+  min-height: 128px;
+  resize: vertical;
+  border: 1px solid #344246;
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: #e8eef2;
+  background: #101719;
+}
+
 .target-row {
   display: block;
   width: 100%;
@@ -755,16 +874,69 @@ button {
   }
 
   .send-button {
-    width: 100%;
-  }
-
-  .composer-actions {
-    align-items: stretch;
+    width: auto;
+    min-width: 88px;
   }
 
   .composer-actions {
     display: grid;
-    grid-template-columns: 40px 40px 40px minmax(0, 1fr);
+    grid-template-columns: repeat(5, 36px) minmax(88px, 1fr);
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .composer-actions .icon-button {
+    width: 36px;
+    height: 40px;
+  }
+
+  .reference-picker {
+    width: min(100%, 430px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .reference-picker-grid {
+    min-height: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .reference-picker-list {
+    max-height: 148px;
+    border-right: 0;
+    border-bottom: 1px solid #263337;
+  }
+
+  .reference-picker-detail {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .reference-picker-message-list {
+    flex: 0 0 auto;
+    max-height: 128px;
+    border: 1px solid #263337;
+    border-radius: 8px;
+    background: #101719;
+  }
+
+  .reference-picker-message-list .reference-picker-row {
+    min-height: 52px;
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  .reference-picker-detail textarea {
+    flex: 1 1 220px;
+    min-height: 220px;
+    resize: none;
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+
+  .reference-picker-detail .primary-button {
+    flex-shrink: 0;
   }
 
   .message-bubble {

@@ -28,6 +28,26 @@ export type MessageImageAttachment = {
 
 export type MessageAttachment = MessageImageAttachment;
 
+export type MessageReferenceBase = {
+  id: string;
+  sourceConversationId: string;
+  sourceConversationTitle: string;
+};
+
+export type ConversationMessageReference = MessageReferenceBase & {
+  type: 'conversation';
+};
+
+export type QuoteMessageReference = MessageReferenceBase & {
+  type: 'quote';
+  sourceMessageId: string;
+  quoteText: string;
+  startOffset: number;
+  endOffset: number;
+};
+
+export type MessageReference = ConversationMessageReference | QuoteMessageReference;
+
 export type Message = {
   id: string;
   userId: string;
@@ -35,6 +55,7 @@ export type Message = {
   text: string;
   searchText: string;
   attachments?: MessageAttachment[];
+  references: MessageReference[];
   createdAt: Timestamp;
   updatedAt: Timestamp | null;
   sortOrder: number;

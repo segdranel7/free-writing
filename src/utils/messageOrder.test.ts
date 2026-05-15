@@ -9,6 +9,7 @@ function message(id: string): Message {
     conversationId: 'conversation-1',
     text: id,
     searchText: id,
+    references: [],
     createdAt: { toDate: () => new Date('2026-05-12T12:00:00Z'), toMillis: () => 1 } as Message['createdAt'],
     updatedAt: null,
     sortOrder: 1000,

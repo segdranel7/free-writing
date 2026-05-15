@@ -7,27 +7,36 @@ import {
   type DragEvent,
   type PointerEvent
 } from 'react';
-import { ArrowLeft, Combine, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Combine, Link2, MoreVertical, Quote, X } from 'lucide-react';
 import { EnglishPickerModal, type EnglishPickerState } from './EnglishPickerModal';
 import { MessageComposer } from './MessageComposer';
 import { MessageBubble, type CopyFeedbackStatus } from './MessageBubble';
-import type { Conversation, EnglishConversion, Message } from '../types';
+import type { Conversation, EnglishConversion, Message, MessageReference } from '../types';
 import { assembleEnglishText } from '../utils/englishConversion';
+import {
+  createConversationReference,
+  createQuoteReference,
+  type MessageReferenceNavigationTarget
+} from '../utils/messageReferences';
 
 type ConversationPaneProps = {
   activeConversation: Conversation | null;
+  conversations: Conversation[];
   activeMessages: Message[];
+  messagesByConversation: Record<string, Message[]>;
+  navigationTarget: MessageReferenceNavigationTarget | null;
   draft: string;
   editingMessage: Message | null;
   onBack: () => void;
   onDraftChange: (value: string) => void;
-  onSubmitMessage: (textOverride?: string, imageFiles?: File[]) => void | Promise<void>;
+  onSubmitMessage: (textOverride?: string, imageFiles?: File[], references?: MessageReference[]) => void | Promise<void>;
   onCancelEdit: () => void;
   onEditMessage: (message: Message) => void;
-  onSaveEdit: (message: Message, text: string, imageFiles?: File[]) => void | Promise<void>;
+  onSaveEdit: (message: Message, text: string, imageFiles?: File[], references?: MessageReference[]) => void | Promise<void>;
   onForwardMessage: (message: Message) => void;
   onMoveToConversation: (message: Message) => void;
-  onNavigateToSource: (conversationId: string) => void;
+  onNavigateToReference: (target: MessageReferenceNavigationTarget) => void;
+  onNavigationHandled: () => void;
   onDeleteMessage: (message: Message) => void;
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
   onReorderMessage: (draggedMessageId: string, targetMessageId: string) => void;
@@ -61,6 +70,8 @@ type EditImagePreview = {
   url: string;
 };
 
+type ReferencePickerMode = 'conversation' | 'quote';
+
 function createPreviewId() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -77,7 +88,10 @@ function getImageFilesFromClipboardData(clipboardData: DataTransfer) {
 
 export function ConversationPane({
   activeConversation,
+  conversations,
   activeMessages,
+  messagesByConversation,
+  navigationTarget,
   draft,
   editingMessage,
   onBack,
@@ -88,7 +102,8 @@ export function ConversationPane({
   onSaveEdit,
   onForwardMessage,
   onMoveToConversation,
-  onNavigateToSource,
+  onNavigateToReference,
+  onNavigationHandled,
   onDeleteMessage,
   onMoveMessage,
   onReorderMessage,
@@ -100,11 +115,18 @@ export function ConversationPane({
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [englishPicker, setEnglishPicker] = useState<EnglishPickerState | null>(null);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [pendingReferences, setPendingReferences] = useState<MessageReference[]>([]);
+  const [referencePickerMode, setReferencePickerMode] = useState<ReferencePickerMode | null>(null);
+  const [referenceConversationId, setReferenceConversationId] = useState<string | null>(null);
+  const [referenceMessageId, setReferenceMessageId] = useState<string | null>(null);
+  const [referenceSelection, setReferenceSelection] = useState({ start: 0, end: 0 });
+  const [activeReferenceTarget, setActiveReferenceTarget] = useState<MessageReferenceNavigationTarget | null>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [draggedMessageId, setDraggedMessageId] = useState<string | null>(null);
   const [dragOverMessageId, setDragOverMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [editReferences, setEditReferences] = useState<MessageReference[]>([]);
   const [editImagePreviews, setEditImagePreviews] = useState<EditImagePreview[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -117,6 +139,9 @@ export function ConversationPane({
   });
 
   const selectedMessages = activeMessages.filter((message) => selectedMessageIds.includes(message.id));
+  const referenceConversation = conversations.find((conversation) => conversation.id === referenceConversationId) ?? null;
+  const referenceMessages = referenceConversationId ? messagesByConversation[referenceConversationId] ?? [] : [];
+  const referenceMessage = referenceMessages.find((message) => message.id === referenceMessageId) ?? null;
 
   useEffect(() => {
     if (!copyFeedback) return undefined;
@@ -140,6 +165,7 @@ export function ConversationPane({
 
   useEffect(() => {
     setEditText(editingMessage?.text ?? '');
+    setEditReferences(editingMessage?.references ?? []);
     setEditImagePreviews((currentPreviews) => {
       currentPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
       return [];
@@ -177,6 +203,28 @@ export function ConversationPane({
       stopDragAutoScroll();
     };
   }, [draggedMessageId]);
+
+  useEffect(() => {
+    if (!navigationTarget || navigationTarget.conversationId !== activeConversation?.id) return undefined;
+    const targetElement = navigationTarget.messageId
+      ? Array.from(messagesRef.current?.querySelectorAll<HTMLElement>('[data-message-id]') ?? []).find(
+          (element) => element.dataset.messageId === navigationTarget.messageId
+        ) ?? null
+      : null;
+
+    if (targetElement) {
+      targetElement.scrollIntoView?.({ block: 'center' });
+      setActiveReferenceTarget(navigationTarget);
+      const timeoutId = window.setTimeout(() => {
+        setActiveReferenceTarget(null);
+      }, 2400);
+      onNavigationHandled();
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    onNavigationHandled();
+    return undefined;
+  }, [activeConversation?.id, navigationTarget, onNavigationHandled]);
 
   function toggleMessageSelection(messageId: string) {
     setMergeError(null);
@@ -369,12 +417,18 @@ export function ConversationPane({
   }
 
   async function saveInlineEdit(message: Message) {
-    if ((!editText.trim() && (message.attachments?.length ?? 0) === 0 && editImagePreviews.length === 0) || isSavingEdit) {
+    if (
+      (!editText.trim() &&
+        (message.attachments?.length ?? 0) === 0 &&
+        editImagePreviews.length === 0 &&
+        editReferences.length === 0) ||
+      isSavingEdit
+    ) {
       return;
     }
     setIsSavingEdit(true);
     try {
-      await onSaveEdit(message, editText, editImagePreviews.map((preview) => preview.file));
+      await onSaveEdit(message, editText, editImagePreviews.map((preview) => preview.file), editReferences);
       setEditImagePreviews((currentPreviews) => {
         currentPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
         return [];
@@ -382,6 +436,56 @@ export function ConversationPane({
     } finally {
       setIsSavingEdit(false);
     }
+  }
+
+  async function submitComposerMessage(imageFiles: File[]) {
+    await onSubmitMessage(undefined, imageFiles, pendingReferences);
+    setPendingReferences([]);
+  }
+
+  function openReferencePicker(mode: ReferencePickerMode) {
+    const defaultConversation =
+      mode === 'quote'
+        ? conversations.find((conversation) => conversation.id !== activeConversation?.id)
+        : conversations[0];
+    setReferencePickerMode(mode);
+    setReferenceConversationId(defaultConversation?.id ?? null);
+    setReferenceMessageId(null);
+    setReferenceSelection({ start: 0, end: 0 });
+  }
+
+  function closeReferencePicker() {
+    setReferencePickerMode(null);
+    setReferenceConversationId(null);
+    setReferenceMessageId(null);
+    setReferenceSelection({ start: 0, end: 0 });
+  }
+
+  function addConversationReference() {
+    if (!referenceConversation) return;
+    setPendingReferences((current) => [...current, createConversationReference(referenceConversation)]);
+    closeReferencePicker();
+  }
+
+  function addQuoteReference() {
+    if (!referenceConversation || !referenceMessage) return;
+    const reference = createQuoteReference(
+      referenceConversation,
+      referenceMessage,
+      referenceSelection.start,
+      referenceSelection.end
+    );
+    if (!reference) return;
+    setPendingReferences((current) => [...current, reference]);
+    closeReferencePicker();
+  }
+
+  function canNavigateToReference(reference: MessageReference) {
+    if (!conversations.some((conversation) => conversation.id === reference.sourceConversationId)) return false;
+    if (reference.type === 'conversation') return true;
+    return Boolean(
+      messagesByConversation[reference.sourceConversationId]?.some((message) => message.id === reference.sourceMessageId)
+    );
   }
 
   function handleEditImagePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
@@ -552,14 +656,20 @@ export function ConversationPane({
                 isDragOver={dragOverMessageId === message.id}
                 isEditing={editingMessage?.id === message.id}
                 editText={editText}
+                editReferences={editReferences}
                 editImagePreviews={editImagePreviews}
+                activeReferenceTarget={activeReferenceTarget}
                 isSavingEdit={isSavingEdit}
                 editTextareaRef={editTextareaRef}
                 copyFeedbackStatus={copyFeedback?.messageId === message.id ? copyFeedback.status : null}
                 onSelect={toggleMessageSelection}
-                onNavigateToSource={onNavigateToSource}
+                onNavigateToReference={onNavigateToReference}
+                canNavigateToReference={canNavigateToReference}
                 onCancelEdit={onCancelEdit}
                 onEditTextChange={setEditText}
+                onRemoveEditReference={(referenceId) =>
+                  setEditReferences((current) => current.filter((reference) => reference.id !== referenceId))
+                }
                 onEditImagePaste={handleEditImagePaste}
                 onRemoveEditImage={removeEditImage}
                 onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
@@ -586,9 +696,15 @@ export function ConversationPane({
 
           <MessageComposer
             draft={draft}
+            pendingReferences={pendingReferences}
             onDraftChange={onDraftChange}
-            onSubmitMessage={(imageFiles) => onSubmitMessage(undefined, imageFiles)}
+            onSubmitMessage={(imageFiles) => void submitComposerMessage(imageFiles)}
             onConvertDraftToEnglish={() => void openDraftEnglishPicker()}
+            onAddConversationReference={() => openReferencePicker('conversation')}
+            onAddQuoteReference={() => openReferencePicker('quote')}
+            onRemoveReference={(referenceId) =>
+              setPendingReferences((current) => current.filter((reference) => reference.id !== referenceId))
+            }
           />
 
           {englishPicker && (
@@ -599,6 +715,108 @@ export function ConversationPane({
               onSelectionChange={updateEnglishSelection}
               onSave={(action) => void saveEnglishResult(action)}
             />
+          )}
+
+          {referencePickerMode && (
+            <div className="modal-backdrop" role="presentation">
+              <section
+                className="modal reference-picker"
+                role="dialog"
+                aria-modal="true"
+                aria-label={referencePickerMode === 'quote' ? 'Cite text' : 'Add conversation link'}
+              >
+                <header className="modal-header">
+                  <h3>{referencePickerMode === 'quote' ? 'Cite text' : 'Add conversation link'}</h3>
+                  <button className="icon-button bare" type="button" title="Close" onClick={closeReferencePicker}>
+                    <X size={18} />
+                  </button>
+                </header>
+
+                <div className="reference-picker-grid">
+                  <div className="reference-picker-list">
+                    {conversations
+                      .filter(
+                        (conversation) => referencePickerMode !== 'quote' || conversation.id !== activeConversation.id
+                      )
+                      .map((conversation) => (
+                        <button
+                          key={conversation.id}
+                          className={`reference-picker-row ${
+                            referenceConversationId === conversation.id ? 'active' : ''
+                          }`}
+                          type="button"
+                          onClick={() => {
+                            setReferenceConversationId(conversation.id);
+                            setReferenceMessageId(null);
+                            setReferenceSelection({ start: 0, end: 0 });
+                          }}
+                        >
+                          {conversation.title}
+                        </button>
+                      ))}
+                  </div>
+
+                  {referencePickerMode === 'quote' ? (
+                    <div className="reference-picker-detail">
+                      <div className="reference-picker-message-list">
+                        {referenceMessages
+                          .filter((message) => message.text.trim())
+                          .map((message) => (
+                            <button
+                              key={message.id}
+                              className={`reference-picker-row ${referenceMessageId === message.id ? 'active' : ''}`}
+                              type="button"
+                              onClick={() => {
+                                setReferenceMessageId(message.id);
+                                setReferenceSelection({ start: 0, end: 0 });
+                              }}
+                            >
+                              {message.text}
+                            </button>
+                          ))}
+                      </div>
+                      {referenceMessage ? (
+                        <textarea
+                          aria-label="Source message text"
+                          readOnly
+                          value={referenceMessage.text}
+                          onSelect={(event) => {
+                            setReferenceSelection({
+                              start: event.currentTarget.selectionStart,
+                              end: event.currentTarget.selectionEnd
+                            });
+                          }}
+                        />
+                      ) : (
+                        <p className="empty-state">Choose a text block.</p>
+                      )}
+                      <button
+                        className="primary-button"
+                        type="button"
+                        disabled={!referenceMessage || referenceSelection.end <= referenceSelection.start}
+                        onClick={addQuoteReference}
+                      >
+                        <Quote size={16} />
+                        Insert citation
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="reference-picker-detail">
+                      <p>{referenceConversation?.title ?? 'Choose a conversation.'}</p>
+                      <button
+                        className="primary-button"
+                        type="button"
+                        disabled={!referenceConversation}
+                        onClick={addConversationReference}
+                      >
+                        <Link2 size={16} />
+                        Insert link
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
           )}
         </>
       ) : (

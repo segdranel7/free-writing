@@ -19,6 +19,7 @@ The app should let the user:
 - Delete messages
 - Open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`
 - Forward text blocks between conversations
+- Add structured references to another conversation or a quoted message block.
 - Reorder text blocks inside a conversation with explicit controls and drag on desktop and touch/pointer devices
 - Merge multiple selected text blocks into one unified block
 - Convert saved text blocks or draft text to English by choosing from AI-generated variants
