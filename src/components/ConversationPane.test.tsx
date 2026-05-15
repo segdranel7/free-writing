@@ -283,6 +283,36 @@ describe('ConversationPane', () => {
     ]);
   });
 
+  it('does not show a source marker when the block text has no source marker', () => {
+    renderPane({
+      activeMessages: [
+        {
+          ...message('first', 'Forwarded text without a marker'),
+          forwardedFromConversationId: 'source-conversation',
+          forwardedFromMessageId: 'source-message'
+        }
+      ]
+    });
+
+    expect(screen.queryByRole('button', { name: 'Source' })).not.toBeInTheDocument();
+  });
+
+  it('shows the source marker when source metadata and the text marker are present', () => {
+    const props = renderPane({
+      activeMessages: [
+        {
+          ...message('first', 'Forwarded text <-source'),
+          forwardedFromConversationId: 'source-conversation',
+          forwardedFromMessageId: 'source-message'
+        }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Source' }));
+
+    expect(props.onNavigateToSource).toHaveBeenCalledWith('source-conversation');
+  });
+
   it('opens the English picker and defaults to the first option for each segment', async () => {
     const props = renderPane({
       onConvertToEnglish: vi.fn(async () => ({

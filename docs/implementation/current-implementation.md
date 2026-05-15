@@ -199,6 +199,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/services/messages.ts` has `moveMessage`, which writes the target message and deletes the source message in a Firestore batch.
 - Moved messages currently use `isForwarded: true`, `transferType: 'moved'`, `forwardedFromConversationId`, and `forwardedFromMessageId`.
 - `src/components/ConversationPane.tsx` includes a `Move to conversation` message action and displays `Moved` or `Forwarded` through `getTransferLabel`.
+- `src/components/ConversationPane.tsx` renders the `Source` navigation label only when the message has `forwardedFromConversationId` and its text contains the literal `<-source` marker. Source metadata alone is not enough to display that label.
 - `src/components/ConversationPane.tsx` includes a `Copy text` message action with short-lived success/failure feedback; the copy action is browser clipboard API UI only and does not touch Firestore.
 - `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message }`.
 - `src/components/ForwardModal.tsx` receives `mode` and `sourceMessage`, changes its heading between `Forward to` and `Move to`, and excludes the source conversation from target choices.

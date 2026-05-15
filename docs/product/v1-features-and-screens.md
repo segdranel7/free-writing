@@ -184,7 +184,7 @@ Intended behavior:
 - App shows the same conversation picker used for forwarding.
 - App creates a replacement message in the target conversation.
 - App deletes the original message from the source conversation in the same Firestore batch.
-- The moved message stores source metadata so the source conversation can be opened from the moved message.
+- The moved message stores source metadata; the source navigation label is displayed only when the block text explicitly includes the `<-source` marker.
 - The moved message displays a small `Moved` label.
 
 

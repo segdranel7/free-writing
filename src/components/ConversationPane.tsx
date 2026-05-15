@@ -28,6 +28,7 @@ type ConversationPaneProps = {
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
 const TOUCH_DRAG_THRESHOLD_PX = 8;
+const SOURCE_MARKER = '<-source';
 
 type CopyFeedback = {
   messageId: string;
@@ -58,6 +59,10 @@ function getTransferLabel(message: Message) {
 
 function getCopyFeedbackLabel(feedback: CopyFeedback) {
   return feedback.status === 'copied' ? 'Copied' : 'Copy failed';
+}
+
+function shouldShowSourceLink(message: Message) {
+  return Boolean(message.forwardedFromConversationId && message.text.includes(SOURCE_MARKER));
 }
 
 export function ConversationPane({
@@ -454,7 +459,7 @@ export function ConversationPane({
                       />
                     </label>
                     {getTransferLabel(message) && <span>{getTransferLabel(message)}</span>}
-                    {message.forwardedFromConversationId && (
+                    {shouldShowSourceLink(message) && (
                       <button
                         className="source-link"
                         title="Open source conversation"

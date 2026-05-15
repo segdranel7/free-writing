@@ -89,7 +89,7 @@ Expected result:
 - `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards opens draft English conversion from the composer and saves an inline edit from the message edit field.
 - Plain `Enter` inserts a newline in the composer.
 - Forwarded messages are labeled `Forwarded`; moved messages are labeled `Moved`.
-- Source links navigate back to the original conversation when source metadata exists.
+- Source links navigate back to the original conversation only when source metadata exists and the block text contains `<-source`; blocks without that text marker do not show the source label.
 - Reordered messages keep their order after reconnect and reload, whether reordered by explicit controls or drag on desktop and mobile/touch devices.
 - Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.
 - English conversion can keep the original message unchanged by creating a new block, or replace the original when `Replace block` is chosen.
