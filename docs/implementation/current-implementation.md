@@ -111,7 +111,10 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context.
 
 src/components/ConversationPane.tsx
-  Active conversation view, message list, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion controls, conversion picker state, inline edit state, and composer UI.
+  Active conversation view, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion orchestration, conversion picker state, inline edit state, and composer UI.
+
+src/components/MessageBubble.tsx
+  Per-message rendering and local action wiring. Owns message metadata display, source-link visibility, inline edit form markup, copy feedback label, reorder buttons, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
 
 src/components/EnglishPickerModal.tsx
   English conversion dialog rendering. Receives picker state and callbacks from `ConversationPane`, renders loading/error/ready/saving states, option radios, preview, and saved-message or draft-specific actions.
@@ -201,9 +204,9 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 - `src/services/messages.ts` has `moveMessage`, which writes the target message and deletes the source message in a Firestore batch.
 - Moved messages currently use `isForwarded: true`, `transferType: 'moved'`, `forwardedFromConversationId`, and `forwardedFromMessageId`.
-- `src/components/ConversationPane.tsx` includes a `Move to conversation` message action and displays `Moved` or `Forwarded` through `getTransferLabel`.
-- `src/components/ConversationPane.tsx` renders the `Source` navigation label only when the message has `forwardedFromConversationId` and its text contains the literal `<-source` marker. Source metadata alone is not enough to display that label.
-- `src/components/ConversationPane.tsx` includes a `Copy text` message action with short-lived success/failure feedback; the copy action is browser clipboard API UI only and does not touch Firestore.
+- `src/components/MessageBubble.tsx` includes a `Move to conversation` message action and displays `Moved` or `Forwarded` through `getTransferLabel`.
+- `src/components/MessageBubble.tsx` renders the `Source` navigation label only when the message has `forwardedFromConversationId` and its text contains the literal `<-source` marker. Source metadata alone is not enough to display that label.
+- `src/components/MessageBubble.tsx` includes a `Copy text` message action with short-lived success/failure feedback; the copy action is browser clipboard API UI only and does not touch Firestore.
 - `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message }`.
 - `src/components/ForwardModal.tsx` receives `mode` and `sourceMessage`, changes its heading between `Forward to` and `Move to`, and excludes the source conversation from target choices.
 - Moving touches the target conversation preview after the batch, but does not recompute the source conversation preview after deleting the original.
@@ -215,7 +218,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 ### Message editing
 
 - `src/App.tsx` tracks only which `Message` is currently being edited; it no longer copies edit text into the composer draft.
-- `src/components/ConversationPane.tsx` renders the active edit as an inline textarea inside the message bubble with `Save` and `Cancel` actions.
+- `src/components/MessageBubble.tsx` renders the active edit as an inline textarea inside the message bubble with `Save` and `Cancel` actions.
 - The inline edit textarea auto-expands to its content height with `useLayoutEffect`, so the full message remains visible while editing without an internal scrollbar.
 - The bottom composer remains available for creating new messages while a message is being edited.
 - Inline edit save calls `onSaveEdit(message, text)`, which routes to `editMessage` and clears `editingMessage` after the write.
@@ -223,7 +226,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 ### Reorder messages
 
 - `src/App.tsx` keeps reorder persistence centralized by optimistically updating `messagesByConversation` and then calling `reorderMessages`.
-- `src/components/ConversationPane.tsx` exposes up/down buttons, native desktop drag-and-drop, and mobile/touch pointer dragging on each message bubble.
+- `src/components/ConversationPane.tsx` owns drag/reorder state and persistence callbacks, while `src/components/MessageBubble.tsx` exposes up/down buttons, native desktop drag-and-drop bindings, and mobile/touch pointer bindings on each message bubble.
 - Dragging starts from the message bubble itself; interactive controls inside the bubble, such as buttons and checkboxes, cancel drag start so normal actions remain easy to click.
 - Touch/pen dragging tracks the pointer position with `document.elementFromPoint`, highlights the current target bubble, and reorders on pointer release after a small movement threshold.
 - Native desktop drag state is kept independent from touch/pen pointer state so browser pointer-cancel events during desktop drag do not clear the active desktop drop target.

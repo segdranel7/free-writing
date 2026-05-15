@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Combine, Copy, Edit3, Forward, Languages, MoreVertical, MoveRight, Reply, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, Combine, Languages, MoreVertical, Send } from 'lucide-react';
 import { EnglishPickerModal, type EnglishPickerState } from './EnglishPickerModal';
+import { MessageBubble, type CopyFeedbackStatus } from './MessageBubble';
 import type { Conversation, EnglishConversion, Message } from '../types';
-import { formatDate } from '../utils/date';
 import { assembleEnglishText } from '../utils/englishConversion';
 
 type ConversationPaneProps = {
@@ -30,11 +30,10 @@ type ConversationPaneProps = {
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
 const TOUCH_DRAG_THRESHOLD_PX = 8;
-const SOURCE_MARKER = '<-source';
 
 type CopyFeedback = {
   messageId: string;
-  status: 'copied' | 'failed';
+  status: CopyFeedbackStatus;
 };
 
 type TouchDragState = {
@@ -44,20 +43,6 @@ type TouchDragState = {
   startY: number;
   isDragging: boolean;
 };
-
-function getTransferLabel(message: Message) {
-  if (message.transferType === 'moved') return 'Moved';
-  if (message.transferType === 'forwarded' || message.isForwarded) return 'Forwarded';
-  return null;
-}
-
-function getCopyFeedbackLabel(feedback: CopyFeedback) {
-  return feedback.status === 'copied' ? 'Copied' : 'Copy failed';
-}
-
-function shouldShowSourceLink(message: Message) {
-  return Boolean(message.forwardedFromConversationId && message.text.includes(SOURCE_MARKER));
-}
 
 export function ConversationPane({
   activeConversation,
@@ -408,137 +393,43 @@ export function ConversationPane({
           </div>
 
           <div className="messages">
-            {activeMessages.map((message, messageIndex) => {
-              const messageClassName = [
-                'message-bubble',
-                selectedMessageIds.includes(message.id) ? 'selected' : '',
-                draggedMessageId === message.id ? 'dragging' : '',
-                dragOverMessageId === message.id ? 'drag-over' : ''
-              ]
-                .filter(Boolean)
-                .join(' ');
-
-              return (
-                <article
-                  className={messageClassName}
-                  draggable={activeMessages.length > 1}
-                  key={message.id}
-                  data-message-id={message.id}
-                  aria-grabbed={draggedMessageId === message.id}
-                  onDragStart={(event) => handleMessageDragStart(event, message.id)}
-                  onDragOver={(event) => handleMessageDragOver(event, message.id)}
-                  onDragLeave={(event) => handleMessageDragLeave(event, message.id)}
-                  onDrop={(event) => handleMessageDrop(event, message.id)}
-                  onDragEnd={handleMessageDragEnd}
-                  onPointerDown={(event) => handleMessagePointerDown(event, message.id)}
-                  onPointerMove={handleMessagePointerMove}
-                  onPointerUp={handleMessagePointerUp}
-                  onPointerCancel={handleMessagePointerCancel}
-                >
-                  <div className="message-meta">
-                    <label className="message-selector">
-                      <input
-                        type="checkbox"
-                        checked={selectedMessageIds.includes(message.id)}
-                        onChange={() => toggleMessageSelection(message.id)}
-                        aria-label={`Select block: ${message.text.slice(0, 48) || 'empty block'}`}
-                      />
-                    </label>
-                    {getTransferLabel(message) && <span>{getTransferLabel(message)}</span>}
-                    {shouldShowSourceLink(message) && (
-                      <button
-                        className="source-link"
-                        title="Open source conversation"
-                        onClick={() => onNavigateToSource(message.forwardedFromConversationId as string)}
-                      >
-                        <Reply size={13} />
-                        Source
-                      </button>
-                    )}
-                    {message.updatedAt && <span>edited</span>}
-                    <time>{formatDate(message.createdAt)}</time>
-                  </div>
-                  {editingMessage?.id === message.id ? (
-                    <form
-                      className="message-edit-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void saveInlineEdit(message);
-                      }}
-                    >
-                      <textarea
-                        aria-label="Edit message text"
-                        ref={editTextareaRef}
-                        value={editText}
-                        rows={1}
-                        onChange={(event) => setEditText(event.target.value)}
-                        onKeyDown={(event) => {
-                          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                            event.preventDefault();
-                            void saveInlineEdit(message);
-                          }
-                        }}
-                      />
-                      <div className="message-edit-actions">
-                        <button className="text-button" type="button" onClick={onCancelEdit}>
-                          Cancel
-                        </button>
-                        <button className="primary-button" type="submit" disabled={!editText.trim() || isSavingEdit}>
-                          {isSavingEdit ? 'Saving...' : 'Save'}
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <p>{message.text}</p>
-                      <div className="message-actions">
-                        <div className="reorder-actions" aria-label="Reorder message">
-                          <button
-                            className="icon-button bare"
-                            title="Move up"
-                            disabled={messageIndex === 0}
-                            onClick={() => onMoveMessage(messageIndex, -1)}
-                          >
-                            <ArrowUp size={16} />
-                          </button>
-                          <button
-                            className="icon-button bare"
-                            title="Move down"
-                            disabled={messageIndex === activeMessages.length - 1}
-                            onClick={() => onMoveMessage(messageIndex, 1)}
-                          >
-                            <ArrowDown size={16} />
-                          </button>
-                        </div>
-                        <button className="icon-button bare" title="Edit" onClick={() => onEditMessage(message)}>
-                          <Edit3 size={16} />
-                        </button>
-                        <button className="icon-button bare" title="Copy text" onClick={() => void copyMessageText(message)}>
-                          <Copy size={16} />
-                        </button>
-                        <button className="icon-button bare" title="Convert to English" onClick={() => void openMessageEnglishPicker(message)}>
-                          <Languages size={16} />
-                        </button>
-                        {copyFeedback?.messageId === message.id && (
-                          <span className="copy-status" aria-live="polite">
-                            {getCopyFeedbackLabel(copyFeedback)}
-                          </span>
-                        )}
-                        <button className="icon-button bare" title="Forward" onClick={() => onForwardMessage(message)}>
-                          <Forward size={16} />
-                        </button>
-                        <button className="icon-button bare" title="Move to conversation" onClick={() => onMoveToConversation(message)}>
-                          <MoveRight size={16} />
-                        </button>
-                        <button className="icon-button bare" title="Delete" onClick={() => onDeleteMessage(message)}>
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </article>
-              );
-            })}
+            {activeMessages.map((message, messageIndex) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                messageIndex={messageIndex}
+                messageCount={activeMessages.length}
+                isSelected={selectedMessageIds.includes(message.id)}
+                isDragging={draggedMessageId === message.id}
+                isDragOver={dragOverMessageId === message.id}
+                isEditing={editingMessage?.id === message.id}
+                editText={editText}
+                isSavingEdit={isSavingEdit}
+                editTextareaRef={editTextareaRef}
+                copyFeedbackStatus={copyFeedback?.messageId === message.id ? copyFeedback.status : null}
+                onSelect={toggleMessageSelection}
+                onNavigateToSource={onNavigateToSource}
+                onCancelEdit={onCancelEdit}
+                onEditTextChange={setEditText}
+                onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
+                onEditMessage={onEditMessage}
+                onCopyMessage={(messageToCopy) => void copyMessageText(messageToCopy)}
+                onConvertToEnglish={(messageToConvert) => void openMessageEnglishPicker(messageToConvert)}
+                onForwardMessage={onForwardMessage}
+                onMoveToConversation={onMoveToConversation}
+                onDeleteMessage={onDeleteMessage}
+                onMoveMessage={onMoveMessage}
+                onDragStart={handleMessageDragStart}
+                onDragOver={handleMessageDragOver}
+                onDragLeave={handleMessageDragLeave}
+                onDrop={handleMessageDrop}
+                onDragEnd={handleMessageDragEnd}
+                onPointerDown={handleMessagePointerDown}
+                onPointerMove={handleMessagePointerMove}
+                onPointerUp={handleMessagePointerUp}
+                onPointerCancel={handleMessagePointerCancel}
+              />
+            ))}
             {activeMessages.length === 0 && <p className="empty-state">Write the first message here.</p>}
           </div>
 
