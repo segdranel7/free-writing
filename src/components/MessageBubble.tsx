@@ -1,5 +1,5 @@
-import { type DragEvent, type PointerEvent, type RefObject } from 'react';
-import { ArrowDown, ArrowUp, Copy, Edit3, Forward, Languages, MoveRight, Reply, Trash2 } from 'lucide-react';
+import { type ClipboardEvent, type DragEvent, type PointerEvent, type RefObject } from 'react';
+import { ArrowDown, ArrowUp, Copy, Edit3, Forward, Languages, MoveRight, Reply, Trash2, X } from 'lucide-react';
 import type { Message } from '../types';
 import { formatDate } from '../utils/date';
 
@@ -16,6 +16,7 @@ type MessageBubbleProps = {
   isDragOver: boolean;
   isEditing: boolean;
   editText: string;
+  editImagePreviews: Array<{ id: string; file: File; url: string }>;
   isSavingEdit: boolean;
   editTextareaRef: RefObject<HTMLTextAreaElement | null>;
   copyFeedbackStatus: CopyFeedbackStatus | null;
@@ -23,6 +24,8 @@ type MessageBubbleProps = {
   onNavigateToSource: (conversationId: string) => void;
   onCancelEdit: () => void;
   onEditTextChange: (value: string) => void;
+  onEditImagePaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
+  onRemoveEditImage: (previewId: string) => void;
   onSaveEdit: (message: Message) => void;
   onEditMessage: (message: Message) => void;
   onCopyMessage: (message: Message) => void;
@@ -65,6 +68,7 @@ export function MessageBubble({
   isDragOver,
   isEditing,
   editText,
+  editImagePreviews,
   isSavingEdit,
   editTextareaRef,
   copyFeedbackStatus,
@@ -72,6 +76,8 @@ export function MessageBubble({
   onNavigateToSource,
   onCancelEdit,
   onEditTextChange,
+  onEditImagePaste,
+  onRemoveEditImage,
   onSaveEdit,
   onEditMessage,
   onCopyMessage,
@@ -122,7 +128,7 @@ export function MessageBubble({
             type="checkbox"
             checked={isSelected}
             onChange={() => onSelect(message.id)}
-            aria-label={`Select block: ${message.text.slice(0, 48) || 'empty block'}`}
+            aria-label={`Select block: ${message.text.slice(0, 48) || 'image block'}`}
           />
         </label>
         {transferLabel && <span>{transferLabel}</span>}
@@ -154,6 +160,7 @@ export function MessageBubble({
             value={editText}
             rows={1}
             onChange={(event) => onEditTextChange(event.target.value)}
+            onPaste={onEditImagePaste}
             onKeyDown={(event) => {
               if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                 event.preventDefault();
@@ -161,18 +168,56 @@ export function MessageBubble({
               }
             }}
           />
+          {((message.attachments?.length ?? 0) > 0 || editImagePreviews.length > 0) && (
+            <div className="message-edit-images" aria-label="Block images">
+              {message.attachments?.map((attachment) => (
+                <div key={attachment.id} className="composer-image-preview" title={attachment.name}>
+                  <img src={attachment.url} alt={attachment.name || 'Attached image'} />
+                </div>
+              ))}
+              {editImagePreviews.map((preview) => (
+                <figure key={preview.id} className="composer-image-preview">
+                  <img src={preview.url} alt={preview.file.name} />
+                  <button
+                    className="icon-button bare remove-image-button"
+                    type="button"
+                    title="Remove image"
+                    onClick={() => onRemoveEditImage(preview.id)}
+                  >
+                    <X size={15} />
+                  </button>
+                </figure>
+              ))}
+            </div>
+          )}
           <div className="message-edit-actions">
             <button className="text-button" type="button" onClick={onCancelEdit}>
               Cancel
             </button>
-            <button className="primary-button" type="submit" disabled={!editText.trim() || isSavingEdit}>
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={
+                (!editText.trim() && (message.attachments?.length ?? 0) === 0 && editImagePreviews.length === 0) ||
+                isSavingEdit
+              }
+            >
               {isSavingEdit ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>
       ) : (
         <>
-          <p>{message.text}</p>
+          {(message.attachments?.length ?? 0) > 0 && (
+            <div className="message-attachments">
+              {message.attachments?.map((attachment) => (
+                <div key={attachment.id} className="message-image-preview" title={attachment.name}>
+                  <img src={attachment.url} alt={attachment.name || 'Attached image'} loading="lazy" />
+                </div>
+              ))}
+            </div>
+          )}
+          {message.text && <p>{message.text}</p>}
           <div className="message-actions">
             <div className="reorder-actions" aria-label="Reorder message">
               <button
@@ -195,10 +240,20 @@ export function MessageBubble({
             <button className="icon-button bare" title="Edit" onClick={() => onEditMessage(message)}>
               <Edit3 size={16} />
             </button>
-            <button className="icon-button bare" title="Copy text" onClick={() => onCopyMessage(message)}>
+            <button
+              className="icon-button bare"
+              title="Copy text"
+              disabled={!message.text.trim()}
+              onClick={() => onCopyMessage(message)}
+            >
               <Copy size={16} />
             </button>
-            <button className="icon-button bare" title="Convert to English" onClick={() => onConvertToEnglish(message)}>
+            <button
+              className="icon-button bare"
+              title="Convert to English"
+              disabled={!message.text.trim()}
+              onClick={() => onConvertToEnglish(message)}
+            >
               <Languages size={16} />
             </button>
             {copyFeedbackStatus && (

@@ -20,6 +20,7 @@ import {
   reorderMessages
 } from './services/messages';
 import { searchLoadedMessages } from './services/search';
+import { uploadMessageImages } from './services/storage';
 import { requestEnglishVersions } from './services/translation';
 import type { Conversation, Message } from './types';
 import { moveMessageByDirection, moveMessageToDropTarget } from './utils/messageOrder';
@@ -77,16 +78,23 @@ export default function App() {
     setActiveConversationId((current) => (current === conversation.id ? conversations[0]?.id ?? null : current));
   }
 
-  async function handleSubmitMessage(textOverride?: string) {
+  async function handleSubmitMessage(textOverride?: string, imageFiles: File[] = []) {
     const messageText = textOverride ?? draft;
-    if (!user || !activeConversationId || !messageText.trim()) return;
-    await createMessage(user.uid, activeConversationId, messageText);
+    if (!user || !activeConversationId || (!messageText.trim() && imageFiles.length === 0)) return;
+    const attachments =
+      imageFiles.length > 0 ? await uploadMessageImages(user.uid, activeConversationId, imageFiles) : [];
+    await createMessage(user.uid, activeConversationId, messageText, attachments);
     setDraft('');
   }
 
-  async function handleSaveEdit(message: Message, text: string) {
-    if (!user || !text.trim()) return;
-    await editMessage(user.uid, message.conversationId, message.id, text);
+  async function handleSaveEdit(message: Message, text: string, imageFiles: File[] = []) {
+    if (!user || (!text.trim() && (message.attachments?.length ?? 0) === 0 && imageFiles.length === 0)) return;
+    const newAttachments =
+      imageFiles.length > 0 ? await uploadMessageImages(user.uid, message.conversationId, imageFiles) : [];
+    await editMessage(user.uid, message.conversationId, message.id, text, [
+      ...(message.attachments ?? []),
+      ...newAttachments
+    ]);
     setEditingMessage(null);
   }
 

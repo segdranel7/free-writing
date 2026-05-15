@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Message } from '../types';
+import type { Message, MessageImageAttachment } from '../types';
 
 const firestoreMocks = vi.hoisted(() => {
   const batch = {
@@ -103,6 +103,35 @@ describe('message service writes', () => {
       forwardedFromMessageId: null
     });
     expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Hello There');
+  });
+
+  it('creates image-only messages with attachment metadata and an image preview', async () => {
+    const attachment: MessageImageAttachment = {
+      id: 'image-1',
+      type: 'image',
+      url: 'https://example.com/image.png',
+      name: 'image.png',
+      contentType: 'image/png',
+      size: 2048
+    };
+
+    await createMessage('user-1', 'conversation-1', '   ', [attachment]);
+
+    expect(firestoreMocks.addDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages' }), {
+      userId: 'user-1',
+      conversationId: 'conversation-1',
+      text: '',
+      searchText: '',
+      attachments: [attachment],
+      createdAt: 'SERVER_TIMESTAMP',
+      updatedAt: null,
+      sortOrder: 1000,
+      isForwarded: false,
+      transferType: null,
+      forwardedFromConversationId: null,
+      forwardedFromMessageId: null
+    });
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Image');
   });
 
   it('forwards a message as a new target message without deleting the source', async () => {

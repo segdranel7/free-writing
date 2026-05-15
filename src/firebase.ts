@@ -23,7 +23,13 @@ function isRealConfigValue(value: unknown) {
   return trimmed.length > 0 && !placeholderPatterns.some((pattern) => pattern.test(trimmed));
 }
 
-export const hasFirebaseConfig = Object.values(firebaseConfig).every(isRealConfigValue);
+export const hasFirebaseConfig = [
+  firebaseConfig.apiKey,
+  firebaseConfig.authDomain,
+  firebaseConfig.projectId,
+  firebaseConfig.messagingSenderId,
+  firebaseConfig.appId
+].every(isRealConfigValue);
 
 export const app = hasFirebaseConfig ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;

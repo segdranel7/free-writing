@@ -57,12 +57,14 @@ Inside each conversation, the user can create messages.
 Each message should show:
 
 - Text
+- Image attachments, when present
 - Created date/time
 - Edited indicator, if edited
 
 Required message actions:
 
 - Create message
+- Add small image attachments from the file picker or copied image paste
 - Edit message
 - Copy message text
 - Delete message
@@ -87,10 +89,32 @@ Requirements:
 - `Cmd+Enter` opens draft English conversion on macOS and iPad hardware keyboards.
 - The visible Send button sends the current draft.
 - Empty or whitespace-only messages should not be sent.
+- Image-only messages may be sent when at least one image is attached.
 - While editing a message inline, `Ctrl+Enter` / `Cmd+Enter` should save the edit.
 - The visible Send and inline Save buttons remain available for touch users.
 
-### 7.3.2 Convert text to English
+### 7.3.2 Image attachments
+
+The user can add small images to message blocks while staying compatible with the free Firebase Spark plan.
+
+Version 1 behavior:
+
+- The composer supports selecting image files.
+- The composer supports pasting copied images from normal paste events.
+- Touch devices have a visible paste-image action that uses the browser clipboard API when available and falls back to file selection when not available.
+- The inline edit field supports pasting images while editing an existing block.
+- Pasted or selected images show previews before saving.
+- New images added during editing are appended to the existing block attachments.
+- Saved image previews are inert; clicking them should not open a new tab or viewer.
+- Image-only blocks are allowed.
+
+Requirements:
+
+- Images are compressed client-side and stored inline in the Firestore message document instead of Firebase Storage, so no paid Firebase Storage bucket is required.
+- If an image or set of images is too large for inline storage, the app should show a clear error and keep the draft/edit content intact.
+- Search and English conversion operate on message text, not image contents.
+
+### 7.3.3 Convert text to English
 
 The user can convert saved text blocks or draft composer text into English.
 
@@ -127,6 +151,7 @@ Requirements:
 - The inline edit field expands to show the whole text while editing instead of requiring scrolling inside the field.
 - User can save or cancel.
 - After saving, update the message text.
+- Pasted images while editing should be appended to the block on save.
 - Store `updatedAt` timestamp.
 - Show a small `edited` label when a message has been changed.
 - The bottom composer remains reserved for creating new messages while a block is being edited.
@@ -231,6 +256,7 @@ Version 1 behavior:
 - A merge control is disabled until at least two messages are selected.
 - Merging creates one new message containing the selected messages in their current display order.
 - The merged text keeps the original block boundaries with blank lines between blocks.
+- The merged block keeps image attachments from the selected blocks in display order.
 - The original selected messages are deleted after the new unified block is created.
 - The new merged message appears at the first selected message's display position.
 - Merging affects only messages in the current conversation.
@@ -240,6 +266,7 @@ Requirements:
 
 - Merge should be a single Firestore batch so the app does not leave duplicate/orphaned originals after a partial write.
 - Empty selected block text should not create empty content in the merged result.
+- Image-only selected blocks may still contribute attachments to a merged block.
 - After a successful merge, selected-message UI state should clear.
 - Merge failures should show a clear error without clearing the selection.
 
@@ -340,6 +367,7 @@ Content:
 - Back button on mobile
 - Message list
 - Message input fixed at the bottom of the visible conversation pane
+- Image preview strip in the composer when images are selected or pasted
 - Message actions: edit, delete, forward
 - Message action: move to another conversation
 - Message action: convert to English
@@ -385,9 +413,12 @@ Content:
 ### Messages
 
 - User can create a message.
+- User can create an image-only message.
+- User can add image attachments by file selection, paste, or touch paste action where supported.
 - User can open draft English conversion from the composer with `Ctrl+Enter` / `Cmd+Enter`.
 - User can save an inline edit with `Ctrl+Enter` / `Cmd+Enter`.
 - User can edit a message.
+- User can paste images while editing a message and save them onto that block.
 - User can delete a message.
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
@@ -448,6 +479,9 @@ Version 1 is complete when:
 - I can sign in with Google/Gmail.
 - I can create conversations.
 - I can write messages inside conversations.
+- I can add a small image to a new block by file selection or paste.
+- I can paste an image while editing an existing block and save it onto that block.
+- Clicking a saved image preview does nothing.
 - I can refresh the page and still see my messages.
 - I can open the same account on another device and see the same messages.
 - I can edit a message.

@@ -350,6 +350,28 @@ button {
   overflow-wrap: anywhere;
 }
 
+.message-attachments {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin: 8px 0 10px;
+  gap: 8px;
+}
+
+.message-image-preview {
+  display: block;
+  overflow: hidden;
+  border: 1px solid rgba(232, 238, 242, 0.14);
+  border-radius: 8px;
+  background: #0d1719;
+}
+
+.message-image-preview img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+}
+
 .message-meta,
 .message-actions {
   display: flex;
@@ -396,6 +418,12 @@ button {
   display: grid;
   margin-top: 10px;
   gap: 10px;
+}
+
+.message-edit-images {
+  display: flex;
+  overflow-x: auto;
+  gap: 8px;
 }
 
 .message-edit-form textarea {
@@ -465,6 +493,45 @@ button {
   background: #151f22;
 }
 
+.composer-inputs {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.composer-images {
+  display: flex;
+  overflow-x: auto;
+  gap: 8px;
+}
+
+.composer-image-preview {
+  position: relative;
+  flex: 0 0 86px;
+  height: 86px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #344246;
+  border-radius: 8px;
+  background: #101719;
+}
+
+.composer-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-image-button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  color: #eff6f4;
+  background: rgba(3, 8, 10, 0.72);
+}
+
 .composer textarea {
   width: 100%;
   min-height: 48px;
@@ -474,6 +541,12 @@ button {
   border-radius: 8px;
   padding: 11px 12px;
   background: #101719;
+}
+
+.composer-error {
+  margin: 0;
+  color: #ffc5bf;
+  font-size: 0.86rem;
 }
 
 .send-button {
@@ -687,6 +760,11 @@ button {
 
   .composer-actions {
     align-items: stretch;
+  }
+
+  .composer-actions {
+    display: grid;
+    grid-template-columns: 40px 40px 40px minmax(0, 1fr);
   }
 
   .message-bubble {

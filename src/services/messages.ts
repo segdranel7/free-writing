@@ -12,7 +12,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { requireDb } from '../firebase';
-import type { Message } from '../types';
+import type { Message, MessageAttachment } from '../types';
 import { touchConversation } from './conversations';
 
 const messagesPath = (userId: string, conversationId: string) =>
@@ -28,6 +28,7 @@ type MessageWriteInput = {
   conversationId: string;
   text: string;
   searchText?: string;
+  attachments?: MessageAttachment[];
   sortOrder: number;
   isForwarded?: boolean;
   transferType?: Message['transferType'];
@@ -44,13 +45,14 @@ function buildMessageWrite({
   conversationId,
   text,
   searchText,
+  attachments = [],
   sortOrder,
   isForwarded = false,
   transferType = null,
   forwardedFromConversationId = null,
   forwardedFromMessageId = null
 }: MessageWriteInput) {
-  return {
+  const message = {
     userId,
     conversationId,
     text,
@@ -63,6 +65,8 @@ function buildMessageWrite({
     forwardedFromConversationId,
     forwardedFromMessageId
   };
+
+  return attachments.length > 0 ? { ...message, attachments } : message;
 }
 
 function buildTransferredMessageWrite(
@@ -77,6 +81,7 @@ function buildTransferredMessageWrite(
     conversationId: targetConversationId,
     text: source.text,
     searchText: source.searchText,
+    attachments: source.attachments ?? [],
     sortOrder,
     isForwarded: true,
     transferType,
@@ -89,6 +94,7 @@ function normalizeMessages(messages: Message[]) {
   return messages
     .map((message, index) => ({
       ...message,
+      attachments: message.attachments ?? [],
       sortOrder: typeof message.sortOrder === 'number' ? message.sortOrder : (index + 1) * sortStep,
       transferType: message.transferType ?? (message.isForwarded ? 'forwarded' : null)
     }))
@@ -115,16 +121,27 @@ export function listenForMessages(
   });
 }
 
-export async function createMessage(userId: string, conversationId: string, text: string) {
+function getMessagePreview(text: string, attachments: MessageAttachment[]) {
+  return text || (attachments.length === 1 ? 'Image' : `${attachments.length} images`);
+}
+
+export async function createMessage(
+  userId: string,
+  conversationId: string,
+  text: string,
+  attachments: MessageAttachment[] = []
+) {
   const cleanText = text.trim();
+  if (!cleanText && attachments.length === 0) return null;
   const sortOrder = await getNextSortOrder(userId, conversationId);
   const message = await addDoc(messagesPath(userId, conversationId), buildMessageWrite({
     userId,
     conversationId,
     text: cleanText,
+    attachments,
     sortOrder
   }));
-  await touchConversation(userId, conversationId, cleanText);
+  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments));
   return message;
 }
 
@@ -197,15 +214,23 @@ export async function editMessage(
   userId: string,
   conversationId: string,
   messageId: string,
-  text: string
+  text: string,
+  attachments?: MessageAttachment[]
 ) {
   const cleanText = text.trim();
-  await updateDoc(messagePath(userId, conversationId, messageId), {
+  const updates: {
+    text: string;
+    searchText: string;
+    updatedAt: ReturnType<typeof serverTimestamp>;
+    attachments?: MessageAttachment[];
+  } = {
     text: cleanText,
     searchText: cleanText.toLowerCase(),
     updatedAt: serverTimestamp()
-  });
-  await touchConversation(userId, conversationId, cleanText);
+  };
+  if (attachments) updates.attachments = attachments;
+  await updateDoc(messagePath(userId, conversationId, messageId), updates);
+  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments ?? []));
 }
 
 export function deleteMessage(userId: string, conversationId: string, messageId: string) {
@@ -244,7 +269,8 @@ export async function moveMessage(
 export async function mergeMessages(userId: string, conversationId: string, messages: Message[]) {
   const selectedMessages = normalizeMessages(messages);
   const mergedText = selectedMessages.map((message) => message.text.trim()).filter(Boolean).join('\n\n').trim();
-  if (selectedMessages.length < 2 || !mergedText) return null;
+  const mergedAttachments = selectedMessages.flatMap((message) => message.attachments ?? []);
+  if (selectedMessages.length < 2 || (!mergedText && mergedAttachments.length === 0)) return null;
 
   const targetMessage = doc(messagesPath(userId, conversationId));
   const batch = writeBatch(requireDb());
@@ -252,13 +278,14 @@ export async function mergeMessages(userId: string, conversationId: string, mess
     userId,
     conversationId,
     text: mergedText,
+    attachments: mergedAttachments,
     sortOrder: selectedMessages[0].sortOrder
   }));
   selectedMessages.forEach((message) => {
     batch.delete(messagePath(userId, conversationId, message.id));
   });
   await batch.commit();
-  await touchConversation(userId, conversationId, mergedText);
+  await touchConversation(userId, conversationId, getMessagePreview(mergedText, mergedAttachments));
   return targetMessage;
 }
 

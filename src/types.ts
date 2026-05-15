@@ -17,12 +17,24 @@ export type Conversation = {
 
 export type MessageTransferType = 'forwarded' | 'moved' | null;
 
+export type MessageImageAttachment = {
+  id: string;
+  type: 'image';
+  url: string;
+  name: string;
+  contentType: string;
+  size: number;
+};
+
+export type MessageAttachment = MessageImageAttachment;
+
 export type Message = {
   id: string;
   userId: string;
   conversationId: string;
   text: string;
   searchText: string;
+  attachments?: MessageAttachment[];
   createdAt: Timestamp;
   updatedAt: Timestamp | null;
   sortOrder: number;

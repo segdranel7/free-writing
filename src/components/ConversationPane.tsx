@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type PointerEvent
+} from 'react';
 import { ArrowLeft, Combine, MoreVertical } from 'lucide-react';
 import { EnglishPickerModal, type EnglishPickerState } from './EnglishPickerModal';
 import { MessageComposer } from './MessageComposer';
@@ -13,10 +21,10 @@ type ConversationPaneProps = {
   editingMessage: Message | null;
   onBack: () => void;
   onDraftChange: (value: string) => void;
-  onSubmitMessage: (textOverride?: string) => void | Promise<void>;
+  onSubmitMessage: (textOverride?: string, imageFiles?: File[]) => void | Promise<void>;
   onCancelEdit: () => void;
   onEditMessage: (message: Message) => void;
-  onSaveEdit: (message: Message, text: string) => void | Promise<void>;
+  onSaveEdit: (message: Message, text: string, imageFiles?: File[]) => void | Promise<void>;
   onForwardMessage: (message: Message) => void;
   onMoveToConversation: (message: Message) => void;
   onNavigateToSource: (conversationId: string) => void;
@@ -44,6 +52,26 @@ type TouchDragState = {
   startY: number;
   isDragging: boolean;
 };
+
+type EditImagePreview = {
+  id: string;
+  file: File;
+  url: string;
+};
+
+function createPreviewId() {
+  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getImageFilesFromClipboardData(clipboardData: DataTransfer) {
+  const itemFiles = Array.from(clipboardData.items)
+    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file));
+
+  if (itemFiles.length > 0) return itemFiles;
+  return Array.from(clipboardData.files).filter((file) => file.type.startsWith('image/'));
+}
 
 export function ConversationPane({
   activeConversation,
@@ -75,8 +103,10 @@ export function ConversationPane({
   const [draggedMessageId, setDraggedMessageId] = useState<string | null>(null);
   const [dragOverMessageId, setDragOverMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [editImagePreviews, setEditImagePreviews] = useState<EditImagePreview[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editImagePreviewsRef = useRef<EditImagePreview[]>([]);
   const touchDrag = useRef<TouchDragState | null>(null);
 
   const selectedMessages = activeMessages.filter((message) => selectedMessageIds.includes(message.id));
@@ -103,8 +133,22 @@ export function ConversationPane({
 
   useEffect(() => {
     setEditText(editingMessage?.text ?? '');
+    setEditImagePreviews((currentPreviews) => {
+      currentPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+      return [];
+    });
     setIsSavingEdit(false);
   }, [editingMessage?.id, editingMessage?.text]);
+
+  useEffect(() => {
+    editImagePreviewsRef.current = editImagePreviews;
+  }, [editImagePreviews]);
+
+  useEffect(() => {
+    return () => {
+      editImagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const textarea = editTextareaRef.current;
@@ -251,13 +295,42 @@ export function ConversationPane({
   }
 
   async function saveInlineEdit(message: Message) {
-    if (!editText.trim() || isSavingEdit) return;
+    if ((!editText.trim() && (message.attachments?.length ?? 0) === 0 && editImagePreviews.length === 0) || isSavingEdit) {
+      return;
+    }
     setIsSavingEdit(true);
     try {
-      await onSaveEdit(message, editText);
+      await onSaveEdit(message, editText, editImagePreviews.map((preview) => preview.file));
+      setEditImagePreviews((currentPreviews) => {
+        currentPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+        return [];
+      });
     } finally {
       setIsSavingEdit(false);
     }
+  }
+
+  function handleEditImagePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const imageFiles = getImageFilesFromClipboardData(event.clipboardData);
+    if (imageFiles.length === 0) return;
+
+    event.preventDefault();
+    setEditImagePreviews((currentPreviews) => [
+      ...currentPreviews,
+      ...imageFiles.map((file) => ({
+        id: createPreviewId(),
+        file,
+        url: URL.createObjectURL(file)
+      }))
+    ]);
+  }
+
+  function removeEditImage(previewId: string) {
+    setEditImagePreviews((currentPreviews) => {
+      const preview = currentPreviews.find((item) => item.id === previewId);
+      if (preview) URL.revokeObjectURL(preview.url);
+      return currentPreviews.filter((item) => item.id !== previewId);
+    });
   }
 
   async function openMessageEnglishPicker(message: Message) {
@@ -405,6 +478,7 @@ export function ConversationPane({
                 isDragOver={dragOverMessageId === message.id}
                 isEditing={editingMessage?.id === message.id}
                 editText={editText}
+                editImagePreviews={editImagePreviews}
                 isSavingEdit={isSavingEdit}
                 editTextareaRef={editTextareaRef}
                 copyFeedbackStatus={copyFeedback?.messageId === message.id ? copyFeedback.status : null}
@@ -412,6 +486,8 @@ export function ConversationPane({
                 onNavigateToSource={onNavigateToSource}
                 onCancelEdit={onCancelEdit}
                 onEditTextChange={setEditText}
+                onEditImagePaste={handleEditImagePaste}
+                onRemoveEditImage={removeEditImage}
                 onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
                 onEditMessage={onEditMessage}
                 onCopyMessage={(messageToCopy) => void copyMessageText(messageToCopy)}
@@ -437,7 +513,7 @@ export function ConversationPane({
           <MessageComposer
             draft={draft}
             onDraftChange={onDraftChange}
-            onSubmitMessage={() => onSubmitMessage()}
+            onSubmitMessage={(imageFiles) => onSubmitMessage(undefined, imageFiles)}
             onConvertDraftToEnglish={() => void openDraftEnglishPicker()}
           />
 

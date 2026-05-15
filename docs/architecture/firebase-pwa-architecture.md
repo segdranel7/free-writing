@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -43,6 +43,7 @@ Why this is recommended:
 - Cloudflare Workers keep third-party AI API keys out of browser code while Firebase remains on the no-cost Spark plan.
 - A service worker can cache the app shell so the app itself opens offline.
 - Firebase Hosting is the chosen hosting target because it fits the existing Firebase Auth and Firestore stack, provides HTTPS, and serves the Vite PWA build directly from `dist/`.
+- Small image attachments are stored inline in Firestore message documents after client-side compression. Firebase Storage is intentionally not used because it requires a paid project upgrade for this app.
 
 Important note:
 
@@ -112,6 +113,16 @@ Useful user fields:
   "conversationId": "conversation-id",
   "text": "Message content",
   "searchText": "message content",
+  "attachments": [
+    {
+      "id": "attachment-id",
+      "type": "image",
+      "url": "data:image/jpeg;base64,...",
+      "name": "pasted-image.png",
+      "contentType": "image/jpeg",
+      "size": 123456
+    }
+  ],
   "createdAt": "2026-05-11T12:00:00.000Z",
   "updatedAt": null,
   "sortOrder": 1000,
@@ -139,6 +150,9 @@ Useful user fields:
 `searchText`
 : Lowercase version of message content for simple search.
 
+`attachments`
+: Optional array of message attachments. Current supported attachment type is `image`. Images are compressed client-side and stored as inline data URLs in Firestore message documents, so they must stay small enough for Firestore document limits.
+
 `createdAt`
 : When message was created.
 
@@ -164,7 +178,7 @@ Source metadata can exist without a visible source label. The UI only renders th
 
 English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. Replacing a source block with English text updates the same message through the normal edit path. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft.
 
-Merged text blocks are stored as normal messages. Merging does not require extra fields; the app creates a replacement message with unified text and deletes the selected original messages in the same batch.
+Merged text/image blocks are stored as normal messages. Merging does not require extra fields beyond `attachments`; the app creates a replacement message with unified text plus selected attachments in display order and deletes the selected original messages in the same batch.
 
 ---
 
@@ -221,6 +235,7 @@ Expected behavior:
 - Offline edits/deletes are saved locally first.
 - Offline reorder actions are saved locally first.
 - Offline merge actions are saved locally first when the selected messages are cached.
+- Inline image attachments are cached and synced as part of the Firestore message document. Large images may be rejected before writing if client-side compression cannot keep the document small enough.
 - Changes sync to the cloud when the device is online again.
 
 Important limitation:
@@ -244,6 +259,7 @@ When online:
 - Moved messages should sync to the cloud.
 - Merged replacement messages and deletion of their originals should sync to the cloud.
 - English conversion result messages and replacement edits should sync to the cloud.
+- Inline image attachments should sync as part of their message documents.
 - Other signed-in devices should receive the updates.
 
 When offline:
@@ -276,6 +292,7 @@ Allow access only when request.auth.uid equals the userId in the path.
 Important privacy note:
 
 - Cloud sync means messages are stored in a cloud database.
+- Inline image attachments are stored in Firestore message documents, not Firebase Storage.
 - English conversion sends the selected source text to a third-party AI provider through the server-side proxy.
 - This is different from a local-only app.
 - For very sensitive content, future encryption should be considered.

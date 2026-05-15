@@ -1,6 +1,6 @@
 # Free Writing
 
-A private, Firebase-backed messaging-style PWA for saving and organizing your own text conversations across devices.
+A private, Firebase-backed messaging-style PWA for saving and organizing your own text/image conversations across devices.
 
 ## Current state
 
@@ -11,8 +11,9 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 - Conversation create, rename, open, and delete.
 - Conversation list rows show the conversation title and last updated time, without message previews.
 - Message create, edit, copy-to-clipboard, delete, forward, move between conversations, search, and manual reorder.
+- Small image attachments through file selection, copied-image paste, and inline edit paste. Images are compressed client-side and stored inline in Firestore to stay on the free Firebase Spark plan.
 - Per-message English conversion through a server-side Groq proxy, using Cloudflare Workers for the free hosted deployment.
-- `Ctrl+Enter` / `Cmd+Enter` sends a new message or saves an edit; plain `Enter` inserts a newline.
+- `Ctrl+Enter` / `Cmd+Enter` opens draft English conversion from the composer or saves an inline edit; plain `Enter` inserts a newline.
 - PWA manifest and generated service worker.
 - Dark visual theme, including matching browser/PWA theme colors.
 - Firestore persistent local cache for cached data and queued offline writes.
@@ -35,10 +36,10 @@ The React app is split by responsibility:
 - `src/App.tsx` coordinates app state, derived data, and user actions.
 - `src/components/SignInScreen.tsx` renders the logged-out Firebase sign-in flow.
 - `src/components/Sidebar.tsx` renders search and conversation navigation.
-- `src/components/ConversationPane.tsx` renders the active conversation, messages, copy/edit/transfer/reorder controls, and composer.
+- `src/components/ConversationPane.tsx` renders the active conversation, messages, copy/edit/transfer/reorder controls, inline edit image paste state, and composer.
 - `src/components/ForwardModal.tsx` renders the transfer target picker for forwarding or moving messages.
 - `src/hooks/useMessagingData.ts` owns auth, conversation, and message subscriptions; it currently subscribes to every conversation's messages to support loaded-message search.
-- `src/services/` contains Firebase auth, conversation, message, and search operations.
+- `src/services/` contains Firebase auth, conversation, message, image preparation, and search operations.
 - `workers/translation/` contains the secured Cloudflare Worker used for hosted English conversion.
 - `functions/` contains the legacy Firebase Function version of the English conversion proxy, but Firebase Functions require the Blaze plan and are not the default free hosted path.
 - `src/utils/` contains small shared formatting and error helpers.
@@ -69,7 +70,7 @@ VITE_FIREBASE_APP_ID=
 VITE_TRANSLATION_API_URL=
 ```
 
-If any required value is missing or still looks like a placeholder, the sign-in screen shows a setup notice and disables Google sign-in until `.env` is fixed and the dev server is restarted.
+If any required value is missing or still looks like a placeholder, the sign-in screen shows a setup notice and disables Google sign-in until `.env` is fixed and the dev server is restarted. `VITE_FIREBASE_STORAGE_BUCKET` may be left blank because images are compressed and stored inline in Firestore messages to keep the app on the free Firebase Spark plan.
 
 `VITE_TRANSLATION_API_URL` is optional for local Vite dev, where `/api/to-english` is handled by local middleware. For the free hosted app, set it to the deployed Cloudflare Worker URL before building production.
 
@@ -145,6 +146,9 @@ Messages should include:
 - `transferType`
 - `forwardedFromConversationId`
 - `forwardedFromMessageId`
+- `attachments`
+
+The only current attachment type is `image`. Images are compressed in the browser and stored as inline Firestore data URLs, not uploaded to Firebase Storage.
 
 Existing messages without `sortOrder` are displayed in chronological order until a reorder action persists explicit order values.
 

@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for message service writes, loaded-message search, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior, multi-block merge, English conversion UI/service/helper behavior, and the shared forward/move modal.
+- Focused Vitest coverage for message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior, multi-block merge, English conversion UI/service/helper behavior, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -20,6 +20,8 @@ Implemented:
 - Conversation create, rename, open, and delete.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
 - Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual up/down reorder, drag reorder on desktop and touch/pointer devices, and selected-block merge.
+- Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
+- Image attachments are compressed in the browser and stored inline in Firestore message documents. Firebase Storage is intentionally not used so the app stays on the free Spark plan.
 - English conversion for saved messages and composer draft text. It segments text, presents three English options per segment, and can create a new message below a saved source, replace a saved source, or send selected draft English text directly as a new message.
 - Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
 - Composer `Ctrl+Enter` / `Cmd+Enter` opens draft English conversion, while plain `Enter` inserts a newline. Inline message edits use `Ctrl+Enter` / `Cmd+Enter` to save.
@@ -42,6 +44,7 @@ Known development follow-ups:
 - Consider loading only the active conversation's messages or adding a search index if large conversation lists become slow; this would require revisiting current loaded-message search behavior.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.
 - Recompute or clear stored conversation previews after message delete, merge-original deletion, and move-source deletion if `lastMessagePreview` is reused in UI later.
+- Watch Firestore document size if image usage grows. Inline images keep the app free, but they are bounded by Firestore document limits and are intended for small screenshots/images rather than large media libraries.
 - Add explicit loading/error UI around Firestore subscriptions if snapshot failures need to be surfaced beyond console/dev tooling.
 - Keep `docs/ai-maintenance/` prompt files current when the recurring AI maintenance workflows change.
 
@@ -78,7 +81,7 @@ VITE_FIREBASE_APP_ID=
 VITE_TRANSLATION_API_URL=
 ```
 
-The `.env` file should stay local and must not be committed.
+The `.env` file should stay local and must not be committed. `VITE_FIREBASE_STORAGE_BUCKET` can be blank; image attachments are compressed client-side and stored inline in Firestore message documents so the app stays compatible with the free Firebase Spark plan.
 
 `VITE_TRANSLATION_API_URL` is optional for local Vite dev. Leave it blank locally to use the same-origin `/api/to-english` middleware in `vite.config.ts`. For the hosted app, set it to the deployed Cloudflare Worker URL before building production.
 
@@ -111,13 +114,13 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context.
 
 src/components/ConversationPane.tsx
-  Active conversation view, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion orchestration, conversion picker state, and inline edit state.
+  Active conversation view, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion orchestration, conversion picker state, and inline edit/image-paste state.
 
 src/components/MessageBubble.tsx
-  Per-message rendering and local action wiring. Owns message metadata display, source-link visibility, inline edit form markup, copy feedback label, reorder buttons, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
+  Per-message rendering and local action wiring. Owns message metadata display, inert image attachment previews, source-link visibility, inline edit form markup, copy feedback label, reorder buttons, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
 
 src/components/MessageComposer.tsx
-  Draft composer rendering and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, and `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`.
+  Draft composer rendering, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, and `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`.
 
 src/components/EnglishPickerModal.tsx
   English conversion dialog rendering. Receives picker state and callbacks from `ConversationPane`, renders loading/error/ready/saving states, option radios, preview, and saved-message or draft-specific actions.
@@ -132,8 +135,9 @@ src/hooks/useMessagingData.ts
   It does not currently expose per-subscription loading or error states to the UI.
 
 src/services/
-  Firebase auth, conversation, message, search, and translation request operations.
-  `messages.ts` keeps Firestore message write payload construction in small local helpers so create, transfer, merge, and English-result writes share the same field defaults.
+  Firebase auth, conversation, message, image preparation, search, and translation request operations.
+  `messages.ts` keeps Firestore message write payload construction in small local helpers so create, transfer, merge, image attachment, and English-result writes share the same field defaults.
+  `storage.ts` is named for historical upload intent but currently performs free-plan client-side image compression and inline attachment construction; it does not call Firebase Storage.
 
 workers/translation/index.ts
   Cloudflare Worker for authenticated English conversion requests. Verifies Firebase ID tokens through Google Identity Toolkit, calls Groq with the `GROQ_API_KEY` secret, validates the JSON shape, and returns segment/options data.
@@ -215,7 +219,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message }`.
 - `src/components/ForwardModal.tsx` receives `mode` and `sourceMessage`, changes its heading between `Forward to` and `Move to`, and excludes the source conversation from target choices.
 - Moving touches the target conversation preview after the batch, but does not recompute the source conversation preview after deleting the original.
-- `src/services/messages.ts` has `mergeMessages`, which normalizes the selected messages into display order, joins trimmed block text with blank lines, creates one replacement message at the first selected message's `sortOrder`, and deletes the selected originals in the same Firestore batch.
+- `src/services/messages.ts` has `mergeMessages`, which normalizes the selected messages into display order, joins trimmed block text with blank lines, carries selected attachments forward in display order, creates one replacement message at the first selected message's `sortOrder`, and deletes the selected originals in the same Firestore batch.
 - Merged replacement blocks are normal messages with `isForwarded: false`, `transferType: null`, and no source metadata.
 - `src/components/ConversationPane.tsx` tracks selected message IDs, prunes selections when messages/conversations change, highlights selected bubbles, and enables the merge action only when at least two current messages are selected.
 - Successful merge clears the current selection. Failed merge keeps the selection and shows an inline error in the selection toolbar.
@@ -226,7 +230,19 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/components/MessageBubble.tsx` renders the active edit as an inline textarea inside the message bubble with `Save` and `Cancel` actions.
 - The inline edit textarea auto-expands to its content height with `useLayoutEffect`, so the full message remains visible while editing without an internal scrollbar.
 - The bottom composer remains available for creating new messages while a message is being edited.
-- Inline edit save calls `onSaveEdit(message, text)`, which routes to `editMessage` and clears `editingMessage` after the write.
+- Pasting copied images into the inline edit textarea adds removable previews inside the edit form. Saving appends the prepared image attachments to the existing block; existing attachments remain visible while editing.
+- Inline edit save calls `onSaveEdit(message, text, imageFiles)`, which prepares any new image files, routes to `editMessage`, and clears `editingMessage` after the write.
+
+### Image attachments
+
+- `src/types.ts` models optional `attachments` on messages. The only current attachment type is `image`.
+- `src/services/storage.ts` compresses images client-side to JPEG data URLs, enforces per-image and per-message inline size limits, and returns message attachment metadata. The service name is historical; there is no Firebase Storage upload path.
+- `src/App.tsx` prepares image files before message create/edit writes by calling `uploadMessageImages`, then passes inline attachments into `createMessage` or `editMessage`.
+- `src/components/MessageComposer.tsx` supports image file selection, normal paste events, and a visible paste-image button for touch devices. Clipboard read support is browser-dependent; when it is unavailable, the button falls back to file selection.
+- `src/components/MessageBubble.tsx` renders saved image previews as inert elements, not links. Clicking a saved image intentionally does nothing.
+- Image-only messages are allowed. Conversation previews use `Image` or `{n} images` when a message has no text.
+- Search and English conversion use message text only; image contents are not OCR-indexed or sent to the AI conversion endpoint.
+- Inline Firestore image storage avoids paid Firebase Storage but is not suitable for large original media. If compression cannot keep images within the configured limits, the composer/editor shows an error and preserves the unsent content.
 
 ### Reorder messages
 

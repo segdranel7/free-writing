@@ -13,7 +13,7 @@ npm run build
 
 Expected result:
 
-- Vitest passes for search, message service writes, message copy feedback, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
+- Vitest passes for search, message service writes, image-only messages, composer image selection/paste, inline edit image paste, message copy feedback, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
 - The production build completes without TypeScript or Vite errors.
 
 ## English conversion setup
@@ -60,34 +60,42 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 2. Create two conversations.
 3. Create several messages in the first conversation.
 4. Confirm the conversation list shows conversation titles and last updated times without message previews.
-5. Edit one message inline inside its message block; confirm the bottom composer keeps any new-message draft unchanged and the edit field expands to show the whole text without an internal scrollbar.
-6. Copy one message and confirm clipboard feedback appears.
-7. Delete one message.
-8. Forward one message to the second conversation.
-9. Move one message to the second conversation.
-10. Reorder messages with the up/down controls.
-11. On desktop, drag one text block onto another text block and confirm the visible order changes.
-12. On a phone or touch emulator, drag one text block onto another text block and confirm the visible order changes.
-13. Select at least two messages, merge them, and confirm one unified block replaces the originals.
-14. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
-15. Confirm the active conversation header shows the conversation title without a message-count subtitle.
-16. Convert one message to English, choose non-default options for at least one segment, and create the English block.
-17. Confirm the English block appears directly below the original and remains after reload.
-18. Convert another message to English and replace the source block with the selected English text.
-19. Enter draft text in the composer, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message without first placing it in the composer.
-20. Search for text that exists in loaded messages.
-21. Disconnect the browser from the network.
-22. Reload the app.
-23. Confirm the app shell opens and cached conversations/messages remain readable.
-24. While offline, create, edit, copy, delete, forward, move, reorder by controls, reorder by drag where supported, and merge messages.
-25. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
-26. Reconnect to the network.
-27. Confirm all queued changes sync and remain visible after another reload.
+5. Add an image to a new block with the file picker.
+6. Paste a copied image into the composer and confirm the preview appears.
+7. If testing on a touch device/browser with clipboard support, use the paste-image button and confirm the preview appears; if clipboard read is unavailable, confirm it falls back to file selection.
+8. Send an image-only block and confirm it remains visible after reload.
+9. Click a saved image preview and confirm nothing opens.
+10. Edit one message inline inside its message block; confirm the bottom composer keeps any new-message draft unchanged and the edit field expands to show the whole text without an internal scrollbar.
+11. Paste a copied image while editing a block, save, and confirm the image is appended to that same block.
+12. Copy one text message and confirm clipboard feedback appears.
+13. Delete one message.
+14. Forward one message to the second conversation.
+15. Move one message to the second conversation.
+16. Reorder messages with the up/down controls.
+17. On desktop, drag one text block onto another text block and confirm the visible order changes.
+18. On a phone or touch emulator, drag one text block onto another text block and confirm the visible order changes.
+19. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments.
+20. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
+21. Confirm the active conversation header shows the conversation title without a message-count subtitle.
+22. Convert one message to English, choose non-default options for at least one segment, and create the English block.
+23. Confirm the English block appears directly below the original and remains after reload.
+24. Convert another message to English and replace the source block with the selected English text.
+25. Enter draft text in the composer, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message without first placing it in the composer.
+26. Search for text that exists in loaded messages.
+27. Disconnect the browser from the network.
+28. Reload the app.
+29. Confirm the app shell opens and cached conversations/messages remain readable.
+30. While offline, create, edit, paste or select a small image where supported, copy, delete, forward, move, reorder by controls, reorder by drag where supported, and merge messages.
+31. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
+32. Reconnect to the network.
+33. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 
 - `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards opens draft English conversion from the composer and saves an inline edit from the message edit field.
 - Plain `Enter` inserts a newline in the composer.
+- Small images can be added without Firebase Storage; if an image is too large for inline Firestore storage, the UI shows a clear error and keeps the unsent draft/edit.
+- Saved image previews are inert when clicked.
 - Forwarded messages are labeled `Forwarded`; moved messages are labeled `Moved`.
 - Source links navigate back to the original conversation only when source metadata exists and the block text contains `<-source`; blocks without that text marker do not show the source label.
 - Reordered messages keep their order after reconnect and reload, whether reordered by explicit controls or drag on desktop and mobile/touch devices.

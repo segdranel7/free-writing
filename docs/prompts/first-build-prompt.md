@@ -11,7 +11,7 @@ Use this prompt when asking an AI builder to create the first version:
 ```text
 Build a simple multi-device offline-capable PWA called "Free Writing".
 
-The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing, searching, editing, deleting, merging, converting to English, and forwarding my own text messages between private conversations.
+The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing, searching, editing, deleting, merging, converting to English, attaching small images, and forwarding my own message blocks between private conversations.
 
 Target devices:
 - iPhone 8
@@ -44,10 +44,13 @@ Conversations:
 
 Messages:
 - User can create text messages inside a conversation.
+- User can attach small images to messages by selecting image files or pasting copied images.
+- User can create image-only blocks.
 - Enter should insert a newline in the composer.
 - Ctrl+Enter should open draft English conversion on Windows/Linux.
 - Cmd+Enter should open draft English conversion on macOS and iPad hardware keyboards.
 - User can edit messages inline inside the message block, without moving the text into the composer.
+- User can paste images while editing a message, preview them, and save them onto that block.
 - User can delete messages with confirmation.
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
@@ -58,6 +61,7 @@ Messages:
 - Forwarding creates a new message in the target conversation with the same text.
 - Moving creates a message in the target conversation and removes the original from the source conversation.
 - Merging creates one normal replacement message from the selected blocks in display order and removes the selected originals.
+- Merging preserves selected image attachments in display order.
 - English conversion breaks the source text into a small number of larger logical segments, offers three selectable English versions for each segment, and can create the selected English result as a new message below the original.
 - For saved messages, English conversion can also replace the source block with the selected English text.
 - For draft text, English conversion sends the selected English text directly as a new message.
@@ -96,13 +100,21 @@ Message fields:
 - transferType
 - forwardedFromConversationId
 - forwardedFromMessageId
+- attachments
 
 English conversion:
 - Use a server-side endpoint such as a Cloudflare Worker so the AI provider key is not exposed in browser code.
 - Require the signed-in Firebase user for conversion requests.
 - Store created English results as normal messages with `sortOrder` immediately after the source message.
 
-Keep the app simple. Do not add contacts, group chat, phone numbers, push notifications, media uploads, voice notes, read receipts, or real messaging between different people.
+Image attachment constraints:
+- Keep the app on the free Firebase Spark plan.
+- Do not use Firebase Storage for Version 1.
+- Compress images in the browser and store small image data inline in Firestore message documents.
+- Show a clear error if an image is too large for inline storage.
+- Saved image previews should be inert when clicked.
+
+Keep the app simple. Do not add contacts, group chat, phone numbers, push notifications, paid media storage, audio/video uploads, voice notes, read receipts, or real messaging between different people.
 ```
 
 ---
@@ -119,23 +131,24 @@ Build in this order:
 6. Create conversation
 7. Open conversation
 8. Create message
-9. Add `Ctrl+Enter` / `Cmd+Enter` draft English conversion behavior
-10. Sync messages across devices
-11. Edit message
-12. Delete message
-13. Forward message to another conversation
-14. Move message to another conversation
-15. Reorder text blocks
-16. Merge selected text blocks
-17. Add English conversion through a server-side proxy
-18. Search messages
-19. Add PWA manifest
-20. Add service worker
-21. Enable Firestore offline persistence
-22. Test on iPhone 8
-23. Test on desktop
-24. Test on tablet
-25. Test offline behavior
-26. Test authenticated English conversion
+9. Add small inline image attachments through file selection and paste
+10. Add `Ctrl+Enter` / `Cmd+Enter` draft English conversion behavior
+11. Sync messages across devices
+12. Edit message
+13. Delete message
+14. Forward message to another conversation
+15. Move message to another conversation
+16. Reorder text blocks
+17. Merge selected text blocks
+18. Add English conversion through a server-side proxy
+19. Search messages
+20. Add PWA manifest
+21. Add service worker
+22. Enable Firestore offline persistence
+23. Test on iPhone 8
+24. Test on desktop
+25. Test on tablet
+26. Test offline behavior
+27. Test authenticated English conversion
 
 ---

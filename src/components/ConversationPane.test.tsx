@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConversationPane } from './ConversationPane';
@@ -71,7 +71,113 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
   return props;
 }
 
+function mockObjectUrls() {
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+  const createObjectURL = vi.fn(() => 'blob:image-preview');
+  const revokeObjectURL = vi.fn();
+  Object.assign(URL, {
+    createObjectURL,
+    revokeObjectURL
+  });
+
+  return {
+    createObjectURL,
+    revokeObjectURL,
+    restore: () => {
+      Object.assign(URL, {
+        createObjectURL: originalCreateObjectURL,
+        revokeObjectURL: originalRevokeObjectURL
+      });
+    }
+  };
+}
+
 describe('ConversationPane', () => {
+  it('adds image files to a message from the composer', async () => {
+    const objectUrls = mockObjectUrls();
+    const image = new File(['image-bytes'], 'draft.png', { type: 'image/png' });
+    const onSubmitMessage = vi.fn(async () => undefined);
+
+    renderPane({ draft: '', onSubmitMessage });
+
+    fireEvent.change(screen.getByLabelText('Add images'), {
+      target: { files: [image] }
+    });
+
+    expect(await screen.findByAltText('draft.png')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(onSubmitMessage).toHaveBeenCalledWith(undefined, [image]);
+    });
+    expect(objectUrls.revokeObjectURL).toHaveBeenCalledWith('blob:image-preview');
+
+    objectUrls.restore();
+  });
+
+  it('adds copied images when pasted into the composer', async () => {
+    const objectUrls = mockObjectUrls();
+    const image = new File(['image-bytes'], 'copied.png', { type: 'image/png' });
+    const composer = renderPane({ draft: '' });
+
+    fireEvent.paste(screen.getByPlaceholderText('Write a message'), {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => image
+          }
+        ],
+        files: []
+      }
+    });
+
+    expect(await screen.findByAltText('copied.png')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(composer.onSubmitMessage).toHaveBeenCalledWith(undefined, [image]);
+    });
+
+    objectUrls.restore();
+  });
+
+  it('pastes copied images from the clipboard button for touch devices', async () => {
+    const objectUrls = mockObjectUrls();
+    const originalClipboard = navigator.clipboard;
+    const read = vi.fn(async () => [
+      {
+        types: ['image/png'],
+        getType: vi.fn(async () => new Blob(['image-bytes'], { type: 'image/png' }))
+      }
+    ]);
+    Object.assign(navigator, {
+      clipboard: { read }
+    });
+    const composer = renderPane({ draft: '' });
+
+    fireEvent.click(screen.getByTitle('Paste image'));
+
+    expect(await screen.findByAltText('pasted-image.png')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(composer.onSubmitMessage).toHaveBeenCalledWith(undefined, [
+        expect.objectContaining({ name: 'pasted-image.png', type: 'image/png' })
+      ]);
+    });
+
+    Object.assign(navigator, {
+      clipboard: originalClipboard
+    });
+    objectUrls.restore();
+  });
+
   it('copies message text with one click', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, {
@@ -143,8 +249,40 @@ describe('ConversationPane', () => {
     fireEvent.change(editor, { target: { value: 'Edited first block' } });
     fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true });
 
-    expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'Edited first block');
+    expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'Edited first block', []);
     expect(props.onSubmitMessage).not.toHaveBeenCalled();
+  });
+
+  it('adds pasted images while editing a block inline', async () => {
+    const objectUrls = mockObjectUrls();
+    const editingMessage = message('first', 'First');
+    const image = new File(['image-bytes'], 'edited.png', { type: 'image/png' });
+    const onSaveEdit = vi.fn(async () => undefined);
+    renderPane({ editingMessage, onSaveEdit });
+    const editor = screen.getByLabelText('Edit message text');
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => image
+          }
+        ],
+        files: []
+      }
+    });
+
+    expect(await screen.findByAltText('edited.png')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'First', [image]);
+    });
+
+    objectUrls.restore();
   });
 
   it('shows edit mode and allows canceling an edit', () => {
