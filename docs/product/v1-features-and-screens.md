@@ -68,7 +68,7 @@ Required message actions:
 - Delete message
 - Forward message to another conversation
 - Move message to another conversation
-- Reorder message within the current conversation with explicit controls or desktop drag-and-drop
+- Reorder message within the current conversation with explicit controls or drag on desktop and touch/pointer devices
 - Merge multiple selected messages into one unified block
 - Convert message to English
 
@@ -195,9 +195,10 @@ The user can manually reorder text blocks inside a conversation.
 Recommended Version 1 behavior:
 
 - Each message has simple move up/down reorder controls.
-- On touch devices, use explicit move up/down controls rather than drag-only behavior.
+- Touch-friendly move up/down controls should remain available.
 - On desktop, the user can click and drag a text block onto another block to move it to that position.
-- Drag-and-drop is an enhancement; keyboard/touch-friendly move controls should still exist.
+- On mobile/touch devices, the user can drag a text block onto another block to move it to that position.
+- Drag-and-drop is an enhancement; explicit move controls should still exist for predictable accessibility and fallback behavior.
 - Reordering changes the display order of messages in that conversation only.
 - Reordering does not change `createdAt`; creation time remains historical metadata.
 - Reordering syncs across signed-in devices.
@@ -340,7 +341,7 @@ Content:
 - Message actions: edit, delete, forward
 - Message action: move to another conversation
 - Message action: convert to English
-- Reorder controls for moving text blocks, plus desktop drag-and-drop between blocks
+- Reorder controls for moving text blocks, plus drag-and-drop between blocks on desktop and touch/pointer devices
 - Selection controls and a merge action for combining multiple selected blocks
 - English conversion picker modal with segment options and assembled preview
 
@@ -387,7 +388,7 @@ Content:
 - User can delete a message.
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
-- User can reorder messages inside a conversation with move controls or desktop drag-and-drop.
+- User can reorder messages inside a conversation with move controls or drag-and-drop on desktop and touch/pointer devices.
 - User can merge multiple selected messages inside a conversation.
 - User can convert a message to English and either create a new result block or replace the source block.
 - User can convert draft composer text to English before sending.
@@ -452,7 +453,7 @@ Version 1 is complete when:
 - I can search messages.
 - I can forward a message from one conversation to another.
 - I can move a message from one conversation to another.
-- I can reorder text blocks with move controls or desktop drag-and-drop and see the same order after refresh.
+- I can reorder text blocks with move controls or drag-and-drop on desktop and touch/pointer devices and see the same order after refresh.
 - I can select multiple text blocks, merge them into one block, and confirm the originals are removed.
 - I can convert a text block to English, select variants, and create the English result below the original.
 - I can replace a source text block with selected English text.

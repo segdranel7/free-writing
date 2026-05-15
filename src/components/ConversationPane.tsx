@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, Combine, Copy, Edit3, Forward, Languages, MoreVertical, MoveRight, Reply, Send, Trash2, X } from 'lucide-react';
 import type { Conversation, EnglishConversion, Message } from '../types';
 import { formatDate } from '../utils/date';
@@ -26,6 +26,7 @@ type ConversationPaneProps = {
 };
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
+const TOUCH_DRAG_THRESHOLD_PX = 8;
 
 type CopyFeedback = {
   messageId: string;
@@ -38,6 +39,14 @@ type EnglishPickerState = {
   conversion: EnglishConversion | null;
   selections: number[];
   error: string | null;
+};
+
+type TouchDragState = {
+  messageId: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  isDragging: boolean;
 };
 
 function getTransferLabel(message: Message) {
@@ -78,6 +87,7 @@ export function ConversationPane({
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [draggedMessageId, setDraggedMessageId] = useState<string | null>(null);
   const [dragOverMessageId, setDragOverMessageId] = useState<string | null>(null);
+  const touchDrag = useRef<TouchDragState | null>(null);
 
   const selectedMessages = activeMessages.filter((message) => selectedMessageIds.includes(message.id));
 
@@ -150,6 +160,63 @@ export function ConversationPane({
   function handleMessageDragEnd() {
     setDraggedMessageId(null);
     setDragOverMessageId(null);
+  }
+
+  function findMessageIdAtPoint(clientX: number, clientY: number) {
+    const target = document.elementFromPoint(clientX, clientY);
+    if (!(target instanceof Element)) return null;
+    return target.closest<HTMLElement>('[data-message-id]')?.dataset.messageId ?? null;
+  }
+
+  function clearTouchDrag() {
+    touchDrag.current = null;
+    setDraggedMessageId(null);
+    setDragOverMessageId(null);
+  }
+
+  function handleMessagePointerDown(event: PointerEvent<HTMLElement>, messageId: string) {
+    if (event.pointerType === 'mouse' || activeMessages.length < 2 || isInteractiveDragTarget(event.target)) return;
+
+    touchDrag.current = {
+      messageId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      isDragging: false
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function handleMessagePointerMove(event: PointerEvent<HTMLElement>) {
+    const currentDrag = touchDrag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+
+    const moveX = event.clientX - currentDrag.startX;
+    const moveY = event.clientY - currentDrag.startY;
+    const hasPassedThreshold = Math.hypot(moveX, moveY) >= TOUCH_DRAG_THRESHOLD_PX;
+    if (!currentDrag.isDragging && !hasPassedThreshold) return;
+
+    event.preventDefault();
+
+    if (!currentDrag.isDragging) {
+      touchDrag.current = { ...currentDrag, isDragging: true };
+      setDraggedMessageId(currentDrag.messageId);
+    }
+
+    const targetMessageId = findMessageIdAtPoint(event.clientX, event.clientY);
+    setDragOverMessageId(
+      targetMessageId && targetMessageId !== currentDrag.messageId ? targetMessageId : null
+    );
+  }
+
+  function handleMessagePointerUp(event: PointerEvent<HTMLElement>) {
+    const currentDrag = touchDrag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+
+    const targetMessageId = findMessageIdAtPoint(event.clientX, event.clientY);
+    const shouldReorder = currentDrag.isDragging && targetMessageId && targetMessageId !== currentDrag.messageId;
+    clearTouchDrag();
+    if (shouldReorder) onReorderMessage(currentDrag.messageId, targetMessageId);
   }
 
   async function mergeSelectedMessages() {
@@ -333,12 +400,17 @@ export function ConversationPane({
                   className={messageClassName}
                   draggable={activeMessages.length > 1}
                   key={message.id}
+                  data-message-id={message.id}
                   aria-grabbed={draggedMessageId === message.id}
                   onDragStart={(event) => handleMessageDragStart(event, message.id)}
                   onDragOver={(event) => handleMessageDragOver(event, message.id)}
                   onDragLeave={(event) => handleMessageDragLeave(event, message.id)}
                   onDrop={(event) => handleMessageDrop(event, message.id)}
                   onDragEnd={handleMessageDragEnd}
+                  onPointerDown={(event) => handleMessagePointerDown(event, message.id)}
+                  onPointerMove={handleMessagePointerMove}
+                  onPointerUp={handleMessagePointerUp}
+                  onPointerCancel={clearTouchDrag}
                 >
                   <div className="message-meta">
                     <label className="message-selector">

@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for message service writes, loaded-message search, composer keyboard sending, reorder controls, drag-to-reorder behavior, multi-block merge, English conversion UI/service behavior, and the shared forward/move modal.
+- Focused Vitest coverage for message service writes, loaded-message search, composer keyboard sending, reorder controls, desktop and touch drag-to-reorder behavior, multi-block merge, English conversion UI/service behavior, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -19,7 +19,7 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
-- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual up/down reorder, desktop drag-and-drop reorder, and selected-block merge.
+- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual up/down reorder, drag reorder on desktop and touch/pointer devices, and selected-block merge.
 - English conversion for saved messages and composer draft text. It segments text, presents three English options per segment, and can create a new message below a saved source, replace a saved source, or place the selected English text back into the draft.
 - Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
 - Composer keyboard send/save with `Ctrl+Enter` / `Cmd+Enter`, while plain `Enter` inserts a newline.
@@ -38,7 +38,7 @@ Known development follow-ups:
 
 - Keep `docs/qa-v1-verification.md` current as Firebase/offline behavior changes.
 - Add emulator-backed Firestore rules tests if rule complexity grows beyond the current per-user UID isolation model.
-- Verify offline create, edit, delete, forward, move, reorder by controls, reorder by desktop drag-and-drop, and merge behavior in a real browser against Firebase/Firestore.
+- Verify offline create, edit, delete, forward, move, reorder by controls, reorder by drag on desktop and mobile/touch devices, and merge behavior in a real browser against Firebase/Firestore.
 - Consider loading only the active conversation's messages or adding a search index if large conversation lists become slow; this would require revisiting current loaded-message search behavior.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.
 - Recompute or clear stored conversation previews after message delete, merge-original deletion, and move-source deletion if `lastMessagePreview` is reused in UI later.
@@ -211,8 +211,9 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 ### Reorder messages
 
 - `src/App.tsx` keeps reorder persistence centralized by optimistically updating `messagesByConversation` and then calling `reorderMessages`.
-- `src/components/ConversationPane.tsx` exposes both up/down buttons and native desktop drag-and-drop on each message bubble.
+- `src/components/ConversationPane.tsx` exposes up/down buttons, native desktop drag-and-drop, and mobile/touch pointer dragging on each message bubble.
 - Dragging starts from the message bubble itself; interactive controls inside the bubble, such as buttons and checkboxes, cancel drag start so normal actions remain easy to click.
+- Touch/pen dragging tracks the pointer position with `document.elementFromPoint`, highlights the current target bubble, and reorders on pointer release after a small movement threshold.
 - Dropping one message on another asks `App.tsx` to move the dragged message to the target message's current position.
 - `src/services/messages.ts` persists the final visible order by rewriting numeric `sortOrder` values in a Firestore batch.
 

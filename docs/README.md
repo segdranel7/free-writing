@@ -6,7 +6,7 @@ This is the entry point for the Free Writing PWA documentation. The detailed bas
 
 ## App summary
 
-Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual up/down and desktop drag-and-drop reordering, multi-block merging, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
+Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual up/down and drag reordering on desktop and touch/pointer devices, multi-block merging, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
 
 Target devices:
 

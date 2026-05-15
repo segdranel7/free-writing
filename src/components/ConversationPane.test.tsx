@@ -168,6 +168,49 @@ describe('ConversationPane', () => {
     expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second');
   });
 
+  it('reorders blocks with touch pointer dragging', () => {
+    const props = renderPane();
+    const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
+    const originalElementFromPoint = document.elementFromPoint;
+    const elementFromPoint = vi.fn(() => secondBlock);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: elementFromPoint
+    });
+
+    fireEvent.pointerDown(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 12,
+      clientY: 12
+    });
+    fireEvent.pointerMove(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 14,
+      clientY: 38
+    });
+    fireEvent.pointerUp(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 14,
+      clientY: 38
+    });
+
+    expect(elementFromPoint).toHaveBeenCalledWith(14, 38);
+    expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second');
+
+    if (originalElementFromPoint) {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint
+      });
+    } else {
+      Reflect.deleteProperty(document, 'elementFromPoint');
+    }
+  });
+
   it('selects multiple blocks and merges them in visible order', async () => {
     const onMergeMessages = vi.fn(async () => undefined);
     renderPane({ onMergeMessages });

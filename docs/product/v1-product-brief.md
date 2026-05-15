@@ -1,6 +1,6 @@
 # Version 1 Product Brief
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
 Related docs: [features and screens](v1-features-and-screens.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -18,7 +18,7 @@ The app should let the user:
 - Delete messages
 - Send a text block with `Ctrl+Enter` / `Cmd+Enter`
 - Forward text blocks between conversations
-- Reorder text blocks inside a conversation with explicit controls and desktop drag-and-drop
+- Reorder text blocks inside a conversation with explicit controls and drag on desktop and touch/pointer devices
 - Merge multiple selected text blocks into one unified block
 - Convert saved text blocks or draft text to English by choosing from AI-generated variants
 - Access the same content from iPhone, desktop, and tablet
@@ -83,7 +83,7 @@ The user should be able to:
 8. Search messages.
 9. Forward/copy text blocks from one conversation to another.
 10. Send a block of text from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
-11. Reorder text blocks inside a conversation with touch-friendly controls and desktop drag-and-drop.
+11. Reorder text blocks inside a conversation with touch-friendly controls and drag on desktop and touch/pointer devices.
 12. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
 13. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
 14. Access the same content from iPhone, desktop, and tablet.
