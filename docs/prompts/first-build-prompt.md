@@ -1,6 +1,6 @@
 # First Build Prompt
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
 Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md).
 
@@ -9,7 +9,7 @@ Related docs: [documentation overview](../README.md), [product brief](../product
 Use this prompt when asking an AI builder to create the first version:
 
 ```text
-Build a simple multi-device offline-capable PWA called "My Messages".
+Build a simple multi-device offline-capable PWA called "Free Writing".
 
 The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing, searching, editing, deleting, merging, converting to English, and forwarding my own text messages between private conversations.
 
@@ -40,7 +40,7 @@ Conversations:
 - User can create conversations.
 - User can rename conversations.
 - User can delete conversations with confirmation.
-- Conversation list should show title, latest message preview, and last updated time.
+- Conversation list should show title and last updated time, without message previews.
 
 Messages:
 - User can create text messages inside a conversation.

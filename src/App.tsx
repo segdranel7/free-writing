@@ -170,7 +170,7 @@ export default function App() {
   }
 
   if (authLoading) {
-    return <div className="loading">Loading My Messages...</div>;
+    return <div className="loading">Loading Free Writing...</div>;
   }
 
   if (!user) {

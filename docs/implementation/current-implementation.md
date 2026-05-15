@@ -1,12 +1,12 @@
 # Current Implementation
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
 Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [QA checklist](../qa-v1-verification.md).
 
 ## Current implementation snapshot
 
-The current app state is a working Firebase-backed React PWA named `My Messages`.
+The current app state is a working Firebase-backed React PWA named `Free Writing`.
 
 Implemented:
 
@@ -18,6 +18,7 @@ Implemented:
 - Firestore cloud storage under `users/{userId}/conversations/{conversationId}/messages/{messageId}`.
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
+- Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
 - Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual up/down reorder, desktop drag-and-drop reorder, and selected-block merge.
 - English conversion for saved messages and composer draft text. It segments text, presents three English options per segment, and can create a new message below a saved source, replace a saved source, or place the selected English text back into the draft.
 - Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
@@ -40,7 +41,7 @@ Known development follow-ups:
 - Verify offline create, edit, delete, forward, move, reorder by controls, reorder by desktop drag-and-drop, and merge behavior in a real browser against Firebase/Firestore.
 - Consider loading only the active conversation's messages or adding a search index if large conversation lists become slow; this would require revisiting current loaded-message search behavior.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.
-- Recompute or clear source conversation previews after message delete and move actions if stale `lastMessagePreview` values become confusing.
+- Recompute or clear stored conversation previews after message delete, merge-original deletion, and move-source deletion if `lastMessagePreview` is reused in UI later.
 - Add explicit loading/error UI around Firestore subscriptions if snapshot failures need to be surfaced beyond console/dev tooling.
 - Keep `docs/ai-maintenance/` prompt files current when the recurring AI maintenance workflows change.
 
@@ -107,7 +108,7 @@ src/components/SignInScreen.tsx
   Logged-out Firebase sign-in screen.
 
 src/components/Sidebar.tsx
-  Search, conversation list, create, rename, delete, and navigation UI.
+  Search, conversation list, create, rename, delete, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context.
 
 src/components/ConversationPane.tsx
   Active conversation view, message list, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion controls, conversion picker state, edit state, and composer UI.
@@ -243,7 +244,11 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Sync behavior
 
-Conversation `lastMessagePreview` is updated on create, edit, forward, move target writes, merge result creation, English conversion result creation, and English replacement edits. It is not currently recalculated after deleting a message, deleting originals during merge, or removing a moved message from its source conversation.
+Conversation `lastMessagePreview` is still stored and updated for possible future use, but the current conversation list does not render it. It is updated on create, edit, forward, move target writes, merge result creation, English conversion result creation, and English replacement edits. It is not currently recalculated after deleting a message, deleting originals during merge, or removing a moved message from its source conversation.
+
+### Header display
+
+- `src/components/ConversationPane.tsx` shows the active conversation title in the pane header, without the previous message-count subtitle.
 
 ### Performance
 

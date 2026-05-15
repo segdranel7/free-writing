@@ -22,7 +22,7 @@ export function SignInScreen() {
         <div className="brand-mark">
           <MessageCirclePlus size={34} />
         </div>
-        <h1>My Messages</h1>
+        <h1>Free Writing</h1>
         <p>Private conversations for your own notes and text blocks.</p>
         {!hasFirebaseConfig && (
           <div className="notice">

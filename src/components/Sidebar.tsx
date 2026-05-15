@@ -46,7 +46,7 @@ export function Sidebar({
       <header className="app-header">
         <div>
           <p className="eyebrow">Private notebook</p>
-          <h1>My Messages</h1>
+          <h1>Free Writing</h1>
         </div>
         <button className="icon-button" title="Sign out" onClick={() => void signOutUser()}>
           <LogOut size={19} />
@@ -112,7 +112,6 @@ export function Sidebar({
               ) : (
                 <button className="conversation-main" onClick={() => onSelectConversation(conversation.id)}>
                   <strong>{conversation.title}</strong>
-                  <span>{conversation.lastMessagePreview || 'No messages yet'}</span>
                   <time>{formatDate(conversation.updatedAt)}</time>
                 </button>
               )}

@@ -1,12 +1,12 @@
-# Simple Multi-Device Messaging PWA Documentation
+# Free Writing Documentation
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
-This is the entry point for the Simple Multi-Device Messaging PWA documentation. The detailed base document has been split into smaller files so product intent, architecture, implementation status, and reusable prompts can be updated independently.
+This is the entry point for the Free Writing PWA documentation. The detailed base document has been split into smaller files so product intent, architecture, implementation status, and reusable prompts can be updated independently.
 
 ## App summary
 
-The app is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual up/down and desktop drag-and-drop reordering, multi-block merging, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
+Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, saved text blocks, search, copy-to-clipboard, editing, deletion, forwarding, moving, manual up/down and desktop drag-and-drop reordering, multi-block merging, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
 
 Target devices:
 

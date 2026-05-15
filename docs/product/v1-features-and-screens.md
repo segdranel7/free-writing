@@ -1,6 +1,6 @@
 # Version 1 Features and Screens
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
 Related docs: [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -43,7 +43,6 @@ Conversation features:
 - Create a new conversation
 - Rename a conversation
 - Open a conversation
-- See latest message preview
 - See last updated time
 - Delete a conversation, with confirmation
 
@@ -290,7 +289,7 @@ Content:
 Example text:
 
 ```text
-My Messages
+Free Writing
 Private conversations for your own notes and text blocks.
 
 [Continue with Google]
@@ -313,7 +312,6 @@ Content:
 Each conversation row should show:
 
 - Conversation title
-- Last message preview
 - Last updated time
 
 Phone layout:

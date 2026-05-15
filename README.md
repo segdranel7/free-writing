@@ -1,4 +1,4 @@
-# My Messages
+# Free Writing
 
 A private, Firebase-backed messaging-style PWA for saving and organizing your own text conversations across devices.
 
@@ -9,6 +9,7 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 - Firestore-backed conversations and messages.
 - Firestore rules scoped to the signed-in user's `uid`.
 - Conversation create, rename, open, and delete.
+- Conversation list rows show the conversation title and last updated time, without message previews.
 - Message create, edit, copy-to-clipboard, delete, forward, move between conversations, search, and manual reorder.
 - Per-message English conversion through a server-side Groq proxy, using Cloudflare Workers for the free hosted deployment.
 - `Ctrl+Enter` / `Cmd+Enter` sends a new message or saves an edit; plain `Enter` inserts a newline.
@@ -149,7 +150,7 @@ Existing messages without `sortOrder` are displayed in chronological order until
 
 Message listeners query Firestore by `createdAt` and then normalize/sort by `sortOrder` in client code, preserving chronological fallback behavior for older records.
 
-Conversation `lastMessagePreview` is updated on create, edit, forward, and the target side of a move. It is not currently recalculated after message delete or after removing a moved message from its source conversation.
+Conversation `lastMessagePreview` is still stored and updated for possible future use, but the current conversation list does not render message previews. It is updated on create, edit, forward, merge result creation, English conversion result creation, English replacement edits, and the target side of a move. It is not currently recalculated after message delete, deleting originals during merge, or after removing a moved message from its source conversation.
 
 ## Scripts
 

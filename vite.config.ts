@@ -188,8 +188,8 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'pwa-192.svg', 'pwa-512.svg'],
         manifest: {
-          name: 'My Messages',
-          short_name: 'Messages',
+          name: 'Free Writing',
+          short_name: 'Free Writing',
           description: 'Private conversations for your own notes and text blocks.',
           theme_color: '#101719',
           background_color: '#101719',

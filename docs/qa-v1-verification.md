@@ -59,27 +59,29 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 1. Sign in with Google.
 2. Create two conversations.
 3. Create several messages in the first conversation.
-4. Edit one message.
-5. Copy one message and confirm clipboard feedback appears.
-6. Delete one message.
-7. Forward one message to the second conversation.
-8. Move one message to the second conversation.
-9. Reorder messages with the up/down controls.
-10. On desktop, drag one text block onto another text block and confirm the visible order changes.
-11. Select at least two messages, merge them, and confirm one unified block replaces the originals.
-12. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
-13. Convert one message to English, choose non-default options for at least one segment, and create the English block.
-14. Confirm the English block appears directly below the original and remains after reload.
-15. Convert another message to English and replace the source block with the selected English text.
-16. Enter draft text in the composer, convert the draft to English, choose an option, and confirm the draft updates before sending.
-17. Search for text that exists in loaded messages.
-18. Disconnect the browser from the network.
-19. Reload the app.
-20. Confirm the app shell opens and cached conversations/messages remain readable.
-21. While offline, create, edit, copy, delete, forward, move, reorder, and merge messages.
-22. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, or changing draft text.
-23. Reconnect to the network.
-24. Confirm all queued changes sync and remain visible after another reload.
+4. Confirm the conversation list shows conversation titles and last updated times without message previews.
+5. Edit one message.
+6. Copy one message and confirm clipboard feedback appears.
+7. Delete one message.
+8. Forward one message to the second conversation.
+9. Move one message to the second conversation.
+10. Reorder messages with the up/down controls.
+11. On desktop, drag one text block onto another text block and confirm the visible order changes.
+12. Select at least two messages, merge them, and confirm one unified block replaces the originals.
+13. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
+14. Confirm the active conversation header shows the conversation title without a message-count subtitle.
+15. Convert one message to English, choose non-default options for at least one segment, and create the English block.
+16. Confirm the English block appears directly below the original and remains after reload.
+17. Convert another message to English and replace the source block with the selected English text.
+18. Enter draft text in the composer, convert the draft to English, choose an option, and confirm the draft updates before sending.
+19. Search for text that exists in loaded messages.
+20. Disconnect the browser from the network.
+21. Reload the app.
+22. Confirm the app shell opens and cached conversations/messages remain readable.
+23. While offline, create, edit, copy, delete, forward, move, reorder, and merge messages.
+24. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, or changing draft text.
+25. Reconnect to the network.
+26. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 

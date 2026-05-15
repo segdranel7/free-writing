@@ -295,7 +295,6 @@ export function ConversationPane({
             </button>
             <div>
               <h2>{activeConversation.title}</h2>
-              <p>{activeMessages.length} messages</p>
             </div>
           </header>
 
