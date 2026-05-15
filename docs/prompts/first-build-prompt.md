@@ -55,6 +55,7 @@ Messages:
 - User can forward a message to another conversation.
 - User can move a message to another conversation.
 - User can reorder text blocks inside a conversation with touch-friendly controls and drag on desktop and touch/pointer devices.
+- Drag reordering should auto-scroll the visible message list when the user drags near the top or bottom edge so off-screen drop targets remain reachable.
 - User can select multiple text blocks inside a conversation and merge them into one unified block.
 - User can convert a text block to English.
 - User can convert draft composer text to English and send the selected English result directly.

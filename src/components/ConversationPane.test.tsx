@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConversationPane } from './ConversationPane';
@@ -362,6 +362,78 @@ describe('ConversationPane', () => {
     expect(secondBlock).toHaveClass('drag-over');
   });
 
+  it('autoscrolls the message list when desktop dragging near the lower edge', () => {
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    let hasAnimationFrame = false;
+    let animationFrame: FrameRequestCallback = () => {
+      throw new Error('Expected drag autoscroll to request an animation frame.');
+    };
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      hasAnimationFrame = true;
+      animationFrame = callback;
+      return 123;
+    });
+    const cancelAnimationFrame = vi.fn();
+    Object.assign(window, { requestAnimationFrame, cancelAnimationFrame });
+
+    renderPane();
+    const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
+    const messages = firstBlock.parentElement as HTMLElement;
+    const scrollBy = vi.fn();
+    Object.defineProperty(messages, 'scrollBy', {
+      configurable: true,
+      value: scrollBy
+    });
+    Object.defineProperty(messages, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 0,
+        bottom: 200,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 200,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined
+      })
+    });
+
+    fireEvent.dragStart(firstBlock, {
+      clientY: 12,
+      dataTransfer: {
+        effectAllowed: '',
+        setData: vi.fn(),
+        getData: vi.fn(() => 'first')
+      }
+    });
+    const dragOver = createEvent.dragOver(secondBlock);
+    Object.defineProperties(dragOver, {
+      clientY: { value: 195 },
+      dataTransfer: {
+        value: {
+          dropEffect: ''
+        }
+      }
+    });
+    fireEvent(secondBlock, dragOver);
+    expect(hasAnimationFrame).toBe(true);
+    animationFrame(0);
+
+    expect(requestAnimationFrame).toHaveBeenCalled();
+    expect(scrollBy).toHaveBeenCalledWith({ top: 17 });
+
+    fireEvent.dragEnd(firstBlock);
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(123);
+
+    Object.assign(window, {
+      requestAnimationFrame: originalRequestAnimationFrame,
+      cancelAnimationFrame: originalCancelAnimationFrame
+    });
+  });
+
   it('reorders blocks with touch pointer dragging', () => {
     const props = renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
@@ -403,6 +475,83 @@ describe('ConversationPane', () => {
     } else {
       Reflect.deleteProperty(document, 'elementFromPoint');
     }
+  });
+
+  it('autoscrolls the message list when touch dragging near the upper edge', () => {
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    let hasAnimationFrame = false;
+    let animationFrame: FrameRequestCallback = () => {
+      throw new Error('Expected drag autoscroll to request an animation frame.');
+    };
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      hasAnimationFrame = true;
+      animationFrame = callback;
+      return 456;
+    });
+    Object.assign(window, {
+      requestAnimationFrame,
+      cancelAnimationFrame: vi.fn()
+    });
+
+    renderPane();
+    const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
+    const messages = firstBlock.parentElement as HTMLElement;
+    const scrollBy = vi.fn();
+    Object.defineProperty(messages, 'scrollBy', {
+      configurable: true,
+      value: scrollBy
+    });
+    Object.defineProperty(messages, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 20,
+        bottom: 220,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 200,
+        x: 0,
+        y: 20,
+        toJSON: () => undefined
+      })
+    });
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => secondBlock)
+    });
+
+    fireEvent.pointerDown(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 12,
+      clientY: 120
+    });
+    fireEvent.pointerMove(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 12,
+      clientY: 16
+    });
+    expect(hasAnimationFrame).toBe(true);
+    animationFrame(0);
+
+    expect(requestAnimationFrame).toHaveBeenCalled();
+    expect(scrollBy).toHaveBeenCalledWith({ top: -18 });
+
+    fireEvent.pointerUp(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 12,
+      clientY: 16
+    });
+
+    Object.assign(window, {
+      requestAnimationFrame: originalRequestAnimationFrame,
+      cancelAnimationFrame: originalCancelAnimationFrame
+    });
+    Reflect.deleteProperty(document, 'elementFromPoint');
   });
 
   it('selects multiple blocks and merges them in visible order', async () => {

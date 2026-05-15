@@ -39,6 +39,8 @@ type ConversationPaneProps = {
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
 const TOUCH_DRAG_THRESHOLD_PX = 8;
+const DRAG_AUTOSCROLL_EDGE_PX = 72;
+const DRAG_AUTOSCROLL_MAX_PX = 18;
 
 type CopyFeedback = {
   messageId: string;
@@ -108,6 +110,11 @@ export function ConversationPane({
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const editImagePreviewsRef = useRef<EditImagePreview[]>([]);
   const touchDrag = useRef<TouchDragState | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const dragAutoScroll = useRef<{ speedY: number; animationId: number | null }>({
+    speedY: 0,
+    animationId: null
+  });
 
   const selectedMessages = activeMessages.filter((message) => selectedMessageIds.includes(message.id));
 
@@ -157,6 +164,20 @@ export function ConversationPane({
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, [editText, editingMessage?.id]);
 
+  useEffect(() => {
+    if (!draggedMessageId) return undefined;
+
+    function handleWindowDragOver(event: globalThis.DragEvent) {
+      updateDragAutoScroll(event.clientY);
+    }
+
+    window.addEventListener('dragover', handleWindowDragOver);
+    return () => {
+      window.removeEventListener('dragover', handleWindowDragOver);
+      stopDragAutoScroll();
+    };
+  }, [draggedMessageId]);
+
   function toggleMessageSelection(messageId: string) {
     setMergeError(null);
     setSelectedMessageIds((currentIds) =>
@@ -179,6 +200,7 @@ export function ConversationPane({
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', messageId);
     setDraggedMessageId(messageId);
+    updateDragAutoScroll(event.clientY);
   }
 
   function handleMessageDragOver(event: DragEvent<HTMLElement>, messageId: string) {
@@ -186,6 +208,7 @@ export function ConversationPane({
     if (isSameMessage) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
+    updateDragAutoScroll(event.clientY);
     setDragOverMessageId(messageId);
   }
 
@@ -198,6 +221,7 @@ export function ConversationPane({
   function handleMessageDrop(event: DragEvent<HTMLElement>, targetMessageId: string) {
     event.preventDefault();
     const droppedMessageId = event.dataTransfer.getData('text/plain') || draggedMessageId;
+    stopDragAutoScroll();
     setDraggedMessageId(null);
     setDragOverMessageId(null);
     if (!droppedMessageId || droppedMessageId === targetMessageId) return;
@@ -205,8 +229,56 @@ export function ConversationPane({
   }
 
   function handleMessageDragEnd() {
+    stopDragAutoScroll();
     setDraggedMessageId(null);
     setDragOverMessageId(null);
+  }
+
+  function stopDragAutoScroll() {
+    const currentAutoScroll = dragAutoScroll.current;
+    if (currentAutoScroll.animationId !== null) {
+      window.cancelAnimationFrame(currentAutoScroll.animationId);
+    }
+    dragAutoScroll.current = { speedY: 0, animationId: null };
+  }
+
+  function runDragAutoScroll() {
+    const container = messagesRef.current;
+    const currentAutoScroll = dragAutoScroll.current;
+    if (!container || currentAutoScroll.speedY === 0) {
+      stopDragAutoScroll();
+      return;
+    }
+
+    container.scrollBy({ top: currentAutoScroll.speedY });
+    currentAutoScroll.animationId = window.requestAnimationFrame(runDragAutoScroll);
+  }
+
+  function updateDragAutoScroll(clientY: number) {
+    const container = messagesRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const topDistance = clientY - rect.top;
+    const bottomDistance = rect.bottom - clientY;
+    const topIntensity = (DRAG_AUTOSCROLL_EDGE_PX - topDistance) / DRAG_AUTOSCROLL_EDGE_PX;
+    const bottomIntensity = (DRAG_AUTOSCROLL_EDGE_PX - bottomDistance) / DRAG_AUTOSCROLL_EDGE_PX;
+    const nextSpeedY =
+      topIntensity > 0
+        ? -Math.min(DRAG_AUTOSCROLL_MAX_PX, Math.ceil(topIntensity * DRAG_AUTOSCROLL_MAX_PX))
+        : bottomIntensity > 0
+          ? Math.min(DRAG_AUTOSCROLL_MAX_PX, Math.ceil(bottomIntensity * DRAG_AUTOSCROLL_MAX_PX))
+          : 0;
+
+    dragAutoScroll.current.speedY = nextSpeedY;
+    if (nextSpeedY === 0) {
+      stopDragAutoScroll();
+      return;
+    }
+
+    if (dragAutoScroll.current.animationId === null) {
+      dragAutoScroll.current.animationId = window.requestAnimationFrame(runDragAutoScroll);
+    }
   }
 
   function findMessageIdAtPoint(clientX: number, clientY: number) {
@@ -217,6 +289,7 @@ export function ConversationPane({
 
   function clearTouchDrag() {
     touchDrag.current = null;
+    stopDragAutoScroll();
     setDraggedMessageId(null);
     setDragOverMessageId(null);
   }
@@ -250,6 +323,7 @@ export function ConversationPane({
       setDraggedMessageId(currentDrag.messageId);
     }
 
+    updateDragAutoScroll(event.clientY);
     const targetMessageId = findMessageIdAtPoint(event.clientX, event.clientY);
     setDragOverMessageId(
       targetMessageId && targetMessageId !== currentDrag.messageId ? targetMessageId : null
@@ -466,7 +540,7 @@ export function ConversationPane({
             </button>
           </div>
 
-          <div className="messages">
+          <div className="messages" ref={messagesRef}>
             {activeMessages.map((message, messageIndex) => (
               <MessageBubble
                 key={message.id}

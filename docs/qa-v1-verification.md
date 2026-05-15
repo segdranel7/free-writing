@@ -13,7 +13,7 @@ npm run build
 
 Expected result:
 
-- Vitest passes for search, message service writes, image-only messages, composer image selection/paste, inline edit image paste, message copy feedback, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
+- Vitest passes for search, message service writes, image-only messages, composer image selection/paste, inline edit image paste, message copy feedback, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior including edge autoscroll, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
 - The production build completes without TypeScript or Vite errors.
 
 ## English conversion setup
@@ -73,22 +73,24 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 15. Move one message to the second conversation.
 16. Reorder messages with the up/down controls.
 17. On desktop, drag one text block onto another text block and confirm the visible order changes.
-18. On a phone or touch emulator, drag one text block onto another text block and confirm the visible order changes.
-19. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments.
-20. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
-21. Confirm the active conversation header shows the conversation title without a message-count subtitle.
-22. Convert one message to English, choose non-default options for at least one segment, and create the English block.
-23. Confirm the English block appears directly below the original and remains after reload.
-24. Convert another message to English and replace the source block with the selected English text.
-25. Enter draft text in the composer, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message without first placing it in the composer.
-26. Search for text that exists in loaded messages.
-27. Disconnect the browser from the network.
-28. Reload the app.
-29. Confirm the app shell opens and cached conversations/messages remain readable.
-30. While offline, create, edit, paste or select a small image where supported, copy, delete, forward, move, reorder by controls, reorder by drag where supported, and merge messages.
-31. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
-32. Reconnect to the network.
-33. Confirm all queued changes sync and remain visible after another reload.
+18. In a long conversation on desktop, drag a block near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
+19. On a phone or touch emulator, drag one text block onto another text block and confirm the visible order changes.
+20. In a long conversation on a touch device or emulator, drag a block near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
+21. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments.
+22. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
+23. Confirm the active conversation header shows the conversation title without a message-count subtitle.
+24. Convert one message to English, choose non-default options for at least one segment, and create the English block.
+25. Confirm the English block appears directly below the original and remains after reload.
+26. Convert another message to English and replace the source block with the selected English text.
+27. Enter draft text in the composer, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message without first placing it in the composer.
+28. Search for text that exists in loaded messages.
+29. Disconnect the browser from the network.
+30. Reload the app.
+31. Confirm the app shell opens and cached conversations/messages remain readable.
+32. While offline, create, edit, paste or select a small image where supported, copy, delete, forward, move, reorder by controls, reorder by drag where supported, and merge messages.
+33. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
+34. Reconnect to the network.
+35. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 
@@ -99,6 +101,7 @@ Expected result:
 - Forwarded messages are labeled `Forwarded`; moved messages are labeled `Moved`.
 - Source links navigate back to the original conversation only when source metadata exists and the block text contains `<-source`; blocks without that text marker do not show the source label.
 - Reordered messages keep their order after reconnect and reload, whether reordered by explicit controls or drag on desktop and mobile/touch devices.
+- Drag reordering continues smoothly when the intended drop target starts off-screen by auto-scrolling the message list near its top or bottom edge.
 - Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.
 - English conversion can keep the original message unchanged by creating a new block, or replace the original when `Replace block` is chosen.
 - Draft English conversion sends the selected English result directly as a new message and leaves the composer out of that send step.

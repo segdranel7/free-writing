@@ -225,6 +225,7 @@ Recommended Version 1 behavior:
 - Touch-friendly move up/down controls should remain available.
 - On desktop, the user can click and drag a text block onto another block to move it to that position.
 - On mobile/touch devices, the user can drag a text block onto another block to move it to that position.
+- When a drag reaches the top or bottom edge of the visible message list, the list should auto-scroll so off-screen drop targets can be reached without ending the drag.
 - Drag-and-drop is an enhancement; explicit move controls should still exist for predictable accessibility and fallback behavior.
 - Reordering changes the display order of messages in that conversation only.
 - Reordering does not change `createdAt`; creation time remains historical metadata.

@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior, multi-block merge, English conversion UI/service/helper behavior, and the shared forward/move modal.
+- Focused Vitest coverage for message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior including edge autoscroll, multi-block merge, English conversion UI/service/helper behavior, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -19,7 +19,7 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
-- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual up/down reorder, drag reorder on desktop and touch/pointer devices, and selected-block merge.
+- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, search, manual up/down reorder, drag reorder on desktop and touch/pointer devices with message-list edge autoscroll, and selected-block merge.
 - Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
 - Image attachments are compressed in the browser and stored inline in Firestore message documents. Firebase Storage is intentionally not used so the app stays on the free Spark plan.
 - English conversion for saved messages and composer draft text. It segments text, presents three English options per segment, and can create a new message below a saved source, replace a saved source, or send selected draft English text directly as a new message.
@@ -251,6 +251,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/components/ConversationPane.tsx` owns drag/reorder state and persistence callbacks, while `src/components/MessageBubble.tsx` exposes up/down buttons, native desktop drag-and-drop bindings, and mobile/touch pointer bindings on each message bubble.
 - Dragging starts from the message bubble itself; interactive controls inside the bubble, such as buttons and checkboxes, cancel drag start so normal actions remain easy to click.
 - Touch/pen dragging tracks the pointer position with `document.elementFromPoint`, highlights the current target bubble, and reorders on pointer release after a small movement threshold.
+- Dragging near the top or bottom edge of the `.messages` scroll container starts a `requestAnimationFrame` autoscroll loop so desktop and touch/pen drags can reach off-screen drop targets without releasing the block. The loop is stopped on drop, drag end, pointer release, pointer cancel, or leaving the edge zone.
 - Native desktop drag state is kept independent from touch/pen pointer state so browser pointer-cancel events during desktop drag do not clear the active desktop drop target.
 - Dropping one message on another asks `App.tsx` to move the dragged message to the target message's current position.
 - `src/services/messages.ts` persists the final visible order by rewriting numeric `sortOrder` values in a Firestore batch.
