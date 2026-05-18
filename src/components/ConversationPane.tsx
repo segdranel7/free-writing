@@ -61,7 +61,15 @@ type TouchDragState = {
   pointerId: number;
   startX: number;
   startY: number;
+  width: number;
   isDragging: boolean;
+};
+
+type DragPreview = {
+  messageId: string;
+  x: number;
+  y: number;
+  width: number;
 };
 
 type EditImagePreview = {
@@ -125,6 +133,7 @@ export function ConversationPane({
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [draggedMessageId, setDraggedMessageId] = useState<string | null>(null);
   const [dragOverMessageId, setDragOverMessageId] = useState<string | null>(null);
+  const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [editText, setEditText] = useState('');
   const [editReferences, setEditReferences] = useState<MessageReference[]>([]);
   const [editImagePreviews, setEditImagePreviews] = useState<EditImagePreview[]>([]);
@@ -139,6 +148,9 @@ export function ConversationPane({
   });
 
   const selectedMessages = activeMessages.filter((message) => selectedMessageIds.includes(message.id));
+  const draggedMessage = dragPreview
+    ? activeMessages.find((message) => message.id === dragPreview.messageId) ?? null
+    : null;
   const referenceConversation = conversations.find((conversation) => conversation.id === referenceConversationId) ?? null;
   const referenceMessages = referenceConversationId ? messagesByConversation[referenceConversationId] ?? [] : [];
   const referenceMessage = referenceMessages.find((message) => message.id === referenceMessageId) ?? null;
@@ -195,6 +207,7 @@ export function ConversationPane({
 
     function handleWindowDragOver(event: globalThis.DragEvent) {
       updateDragAutoScroll(event.clientY);
+      updateDragPreview(event.clientX, event.clientY);
     }
 
     window.addEventListener('dragover', handleWindowDragOver);
@@ -235,18 +248,26 @@ export function ConversationPane({
     );
   }
 
-  function isInteractiveDragTarget(target: EventTarget | null) {
-    return target instanceof Element && Boolean(target.closest('button, input, label, a, textarea, select'));
-  }
-
   function handleMessageDragStart(event: DragEvent<HTMLElement>, messageId: string) {
-    if (isInteractiveDragTarget(event.target)) {
-      event.preventDefault();
-      return;
-    }
-
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', messageId);
+    const messageElement = event.currentTarget.closest<HTMLElement>('[data-message-id]');
+    const rect = messageElement?.getBoundingClientRect();
+    if (rect) {
+      setDragPreview({
+        messageId,
+        x: event.clientX,
+        y: event.clientY,
+        width: rect.width
+      });
+    }
+    const dragImage = document.createElement('div');
+    dragImage.style.width = '1px';
+    dragImage.style.height = '1px';
+    dragImage.style.opacity = '0';
+    document.body.appendChild(dragImage);
+    event.dataTransfer.setDragImage?.(dragImage, 0, 0);
+    window.setTimeout(() => dragImage.remove(), 0);
     setDraggedMessageId(messageId);
     updateDragAutoScroll(event.clientY);
   }
@@ -257,6 +278,7 @@ export function ConversationPane({
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
     updateDragAutoScroll(event.clientY);
+    updateDragPreview(event.clientX, event.clientY);
     setDragOverMessageId(messageId);
   }
 
@@ -272,6 +294,7 @@ export function ConversationPane({
     stopDragAutoScroll();
     setDraggedMessageId(null);
     setDragOverMessageId(null);
+    setDragPreview(null);
     if (!droppedMessageId || droppedMessageId === targetMessageId) return;
     onReorderMessage(droppedMessageId, targetMessageId);
   }
@@ -280,6 +303,7 @@ export function ConversationPane({
     stopDragAutoScroll();
     setDraggedMessageId(null);
     setDragOverMessageId(null);
+    setDragPreview(null);
   }
 
   function stopDragAutoScroll() {
@@ -329,6 +353,12 @@ export function ConversationPane({
     }
   }
 
+  function updateDragPreview(clientX: number, clientY: number) {
+    setDragPreview((currentPreview) =>
+      currentPreview ? { ...currentPreview, x: clientX, y: clientY } : currentPreview
+    );
+  }
+
   function findMessageIdAtPoint(clientX: number, clientY: number) {
     const target = document.elementFromPoint(clientX, clientY);
     if (!(target instanceof Element)) return null;
@@ -340,16 +370,21 @@ export function ConversationPane({
     stopDragAutoScroll();
     setDraggedMessageId(null);
     setDragOverMessageId(null);
+    setDragPreview(null);
   }
 
   function handleMessagePointerDown(event: PointerEvent<HTMLElement>, messageId: string) {
-    if (event.pointerType === 'mouse' || activeMessages.length < 2 || isInteractiveDragTarget(event.target)) return;
+    if (event.pointerType === 'mouse' || activeMessages.length < 2) return;
+
+    const messageElement = event.currentTarget.closest<HTMLElement>('[data-message-id]');
+    const rect = messageElement?.getBoundingClientRect();
 
     touchDrag.current = {
       messageId,
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      width: rect?.width ?? 280,
       isDragging: false
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -369,9 +404,16 @@ export function ConversationPane({
     if (!currentDrag.isDragging) {
       touchDrag.current = { ...currentDrag, isDragging: true };
       setDraggedMessageId(currentDrag.messageId);
+      setDragPreview({
+        messageId: currentDrag.messageId,
+        x: event.clientX,
+        y: event.clientY,
+        width: currentDrag.width
+      });
     }
 
     updateDragAutoScroll(event.clientY);
+    updateDragPreview(event.clientX, event.clientY);
     const targetMessageId = findMessageIdAtPoint(event.clientX, event.clientY);
     setDragOverMessageId(
       targetMessageId && targetMessageId !== currentDrag.messageId ? targetMessageId : null
@@ -693,6 +735,27 @@ export function ConversationPane({
             ))}
             {activeMessages.length === 0 && <p className="empty-state">Write the first message here.</p>}
           </div>
+
+          {dragPreview && draggedMessage && (
+            <div
+              className="message-drag-preview"
+              style={{
+                left: dragPreview.x,
+                top: dragPreview.y,
+                width: dragPreview.width
+              }}
+              aria-hidden="true"
+            >
+              {(draggedMessage.attachments?.length ?? 0) > 0 && (
+                <div className="message-drag-preview-images">
+                  {draggedMessage.attachments?.slice(0, 2).map((attachment) => (
+                    <img key={attachment.id} src={attachment.url} alt="" />
+                  ))}
+                </div>
+              )}
+              {draggedMessage.text && <p>{draggedMessage.text}</p>}
+            </div>
+          )}
 
           <MessageComposer
             draft={draft}

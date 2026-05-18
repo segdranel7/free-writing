@@ -1,5 +1,18 @@
 import { type ClipboardEvent, type DragEvent, type PointerEvent, type RefObject } from 'react';
-import { ArrowDown, ArrowUp, Copy, Edit3, Forward, Languages, Link2, MoveRight, Quote, Trash2, X } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  Edit3,
+  Forward,
+  GripVertical,
+  Languages,
+  Link2,
+  MoveRight,
+  Quote,
+  Trash2,
+  X
+} from 'lucide-react';
 import type { Message, MessageReference } from '../types';
 import { formatDate } from '../utils/date';
 import { getReferenceNavigationTarget, truncateReferenceText, type MessageReferenceNavigationTarget } from '../utils/messageReferences';
@@ -134,18 +147,11 @@ export function MessageBubble({
   return (
     <article
       className={messageClassName}
-      draggable={messageCount > 1}
       data-message-id={message.id}
       aria-grabbed={isDragging}
-      onDragStart={(event) => onDragStart(event, message.id)}
       onDragOver={(event) => onDragOver(event, message.id)}
       onDragLeave={(event) => onDragLeave(event, message.id)}
       onDrop={(event) => onDrop(event, message.id)}
-      onDragEnd={onDragEnd}
-      onPointerDown={(event) => onPointerDown(event, message.id)}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
     >
       <div className="message-meta">
         <label className="message-selector">
@@ -297,6 +303,20 @@ export function MessageBubble({
                 onClick={() => onMoveMessage(messageIndex, 1)}
               >
                 <ArrowDown size={16} />
+              </button>
+              <button
+                className="icon-button bare drag-handle"
+                title="Drag to reorder"
+                draggable={messageCount > 1}
+                disabled={messageCount < 2}
+                onDragStart={(event) => onDragStart(event, message.id)}
+                onDragEnd={onDragEnd}
+                onPointerDown={(event) => onPointerDown(event, message.id)}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerCancel}
+              >
+                <GripVertical size={16} />
               </button>
             </div>
             <button className="icon-button bare" title="Edit" onClick={() => onEditMessage(message)}>

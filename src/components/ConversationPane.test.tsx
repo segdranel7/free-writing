@@ -320,10 +320,10 @@ describe('ConversationPane', () => {
 
   it('reorders blocks by dragging one block onto another', () => {
     const props = renderPane();
-    const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
 
-    fireEvent.dragStart(firstBlock, {
+    fireEvent.dragStart(firstBlockHandle, {
       dataTransfer: {
         effectAllowed: '',
         setData: vi.fn(),
@@ -347,9 +347,10 @@ describe('ConversationPane', () => {
   it('keeps desktop drag active if the browser cancels the pointer during native drag', () => {
     renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
 
-    fireEvent.dragStart(firstBlock, {
+    fireEvent.dragStart(firstBlockHandle, {
       dataTransfer: {
         effectAllowed: '',
         setData: vi.fn(),
@@ -386,6 +387,7 @@ describe('ConversationPane', () => {
 
     renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const messages = firstBlock.parentElement as HTMLElement;
     const scrollBy = vi.fn();
@@ -408,7 +410,7 @@ describe('ConversationPane', () => {
       })
     });
 
-    fireEvent.dragStart(firstBlock, {
+    fireEvent.dragStart(firstBlockHandle, {
       clientY: 12,
       dataTransfer: {
         effectAllowed: '',
@@ -432,7 +434,7 @@ describe('ConversationPane', () => {
     expect(requestAnimationFrame).toHaveBeenCalled();
     expect(scrollBy).toHaveBeenCalledWith({ top: 17 });
 
-    fireEvent.dragEnd(firstBlock);
+    fireEvent.dragEnd(firstBlockHandle);
     expect(cancelAnimationFrame).toHaveBeenCalledWith(123);
 
     Object.assign(window, {
@@ -444,6 +446,7 @@ describe('ConversationPane', () => {
   it('reorders blocks with touch pointer dragging', () => {
     const props = renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const originalElementFromPoint = document.elementFromPoint;
     const elementFromPoint = vi.fn(() => secondBlock);
@@ -452,19 +455,19 @@ describe('ConversationPane', () => {
       value: elementFromPoint
     });
 
-    fireEvent.pointerDown(firstBlock, {
+    fireEvent.pointerDown(firstBlockHandle, {
       pointerId: 1,
       pointerType: 'touch',
       clientX: 12,
       clientY: 12
     });
-    fireEvent.pointerMove(firstBlock, {
+    fireEvent.pointerMove(firstBlockHandle, {
       pointerId: 1,
       pointerType: 'touch',
       clientX: 14,
       clientY: 38
     });
-    fireEvent.pointerUp(firstBlock, {
+    fireEvent.pointerUp(firstBlockHandle, {
       pointerId: 1,
       pointerType: 'touch',
       clientX: 14,
@@ -482,6 +485,38 @@ describe('ConversationPane', () => {
     } else {
       Reflect.deleteProperty(document, 'elementFromPoint');
     }
+  });
+
+  it('keeps touch scrolling on the block body from starting reorder drag', () => {
+    const props = renderPane();
+    const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => secondBlock)
+    });
+
+    fireEvent.pointerDown(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 12,
+      clientY: 12
+    });
+    fireEvent.pointerMove(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 12,
+      clientY: 82
+    });
+    fireEvent.pointerUp(firstBlock, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 12,
+      clientY: 82
+    });
+
+    expect(props.onReorderMessage).not.toHaveBeenCalled();
+    Reflect.deleteProperty(document, 'elementFromPoint');
   });
 
   it('autoscrolls the message list when touch dragging near the upper edge', () => {
@@ -503,6 +538,7 @@ describe('ConversationPane', () => {
 
     renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const messages = firstBlock.parentElement as HTMLElement;
     const scrollBy = vi.fn();
@@ -529,13 +565,13 @@ describe('ConversationPane', () => {
       value: vi.fn(() => secondBlock)
     });
 
-    fireEvent.pointerDown(firstBlock, {
+    fireEvent.pointerDown(firstBlockHandle, {
       pointerId: 1,
       pointerType: 'touch',
       clientX: 12,
       clientY: 120
     });
-    fireEvent.pointerMove(firstBlock, {
+    fireEvent.pointerMove(firstBlockHandle, {
       pointerId: 1,
       pointerType: 'touch',
       clientX: 12,
@@ -547,7 +583,7 @@ describe('ConversationPane', () => {
     expect(requestAnimationFrame).toHaveBeenCalled();
     expect(scrollBy).toHaveBeenCalledWith({ top: -18 });
 
-    fireEvent.pointerUp(firstBlock, {
+    fireEvent.pointerUp(firstBlockHandle, {
       pointerId: 1,
       pointerType: 'touch',
       clientX: 12,

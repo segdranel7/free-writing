@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior including edge autoscroll, multi-block merge, English conversion UI/service/helper behavior, and the shared forward/move modal.
+- Focused Vitest coverage for message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection and edge autoscroll, multi-block merge, English conversion UI/service/helper behavior, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -19,7 +19,7 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, and delete.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
-- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, structured conversation links and quote citations, search, manual up/down reorder, drag reorder on desktop and touch/pointer devices with message-list edge autoscroll, and selected-block merge.
+- Message create, edit, copy-to-clipboard, delete, forward, move to another conversation, structured conversation links and quote citations, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, and selected-block merge.
 - Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
 - Image attachments are compressed in the browser and stored inline in Firestore message documents. Firebase Storage is intentionally not used so the app stays on the free Spark plan.
 - English conversion for saved messages and composer draft text. It segments text, presents three English options per segment, and can create a new message below a saved source, replace a saved source, or send selected draft English text directly as a new message.
@@ -40,7 +40,7 @@ Known development follow-ups:
 
 - Keep `docs/qa-v1-verification.md` current as Firebase/offline behavior changes.
 - Add emulator-backed Firestore rules tests if rule complexity grows beyond the current per-user UID isolation model.
-- Verify offline create, edit, delete, forward, move, reorder by controls, reorder by drag on desktop and mobile/touch devices, and merge behavior in a real browser against Firebase/Firestore.
+- Verify offline create, edit, delete, forward, move, reorder by controls, reorder by drag handle on desktop and mobile/touch devices, and merge behavior in a real browser against Firebase/Firestore.
 - Consider loading only the active conversation's messages or adding a search index if large conversation lists become slow; this would require revisiting current loaded-message search behavior.
 - Consider code-splitting Firebase-heavy client code if the production bundle warning becomes a deployment concern.
 - Recompute or clear stored conversation previews after message delete, merge-original deletion, and move-source deletion if `lastMessagePreview` is reused in UI later.
@@ -117,7 +117,7 @@ src/components/ConversationPane.tsx
   Active conversation view, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion orchestration, reference picker state, conversion picker state, and inline edit/image-paste state.
 
 src/components/MessageBubble.tsx
-  Per-message rendering and local action wiring. Owns message metadata display, inert image attachment previews, structured reference cards, inline edit form markup, copy feedback label, reorder buttons, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
+  Per-message rendering and local action wiring. Owns message metadata display, inert image attachment previews, structured reference cards, inline edit form markup, copy feedback label, reorder buttons and drag handle, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
 
 src/components/MessageComposer.tsx
   Draft composer rendering, pending reference chips, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, and `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`.
@@ -248,9 +248,9 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 - `src/App.tsx` keeps reorder persistence centralized by optimistically updating `messagesByConversation` and then calling `reorderMessages`.
 - `src/utils/messageOrder.ts` keeps the pure reorder-array calculations outside `App.tsx`, with focused tests for up/down moves and drag/drop target moves.
-- `src/components/ConversationPane.tsx` owns drag/reorder state and persistence callbacks, while `src/components/MessageBubble.tsx` exposes up/down buttons, native desktop drag-and-drop bindings, and mobile/touch pointer bindings on each message bubble.
-- Dragging starts from the message bubble itself; interactive controls inside the bubble, such as buttons and checkboxes, cancel drag start so normal actions remain easy to click.
-- Touch/pen dragging tracks the pointer position with `document.elementFromPoint`, highlights the current target bubble, and reorders on pointer release after a small movement threshold.
+- `src/components/ConversationPane.tsx` owns drag/reorder state, floating preview state, autoscroll, and persistence callbacks, while `src/components/MessageBubble.tsx` exposes up/down buttons and a dedicated drag handle with native desktop drag-and-drop and mobile/touch pointer bindings.
+- Dragging starts only from the drag handle. The message bubble body is no longer draggable and keeps normal touch scrolling available for long text.
+- Desktop and touch/pen dragging show a floating preview of the dragged block, dim the source bubble, and highlight the current target bubble. Touch/pen dragging tracks the pointer position with `document.elementFromPoint` and reorders on pointer release after a small movement threshold.
 - Dragging near the top or bottom edge of the `.messages` scroll container starts a `requestAnimationFrame` autoscroll loop so desktop and touch/pen drags can reach off-screen drop targets without releasing the block. The loop is stopped on drop, drag end, pointer release, pointer cancel, or leaving the edge zone.
 - Native desktop drag state is kept independent from touch/pen pointer state so browser pointer-cancel events during desktop drag do not clear the active desktop drop target.
 - Dropping one message on another asks `App.tsx` to move the dragged message to the target message's current position.

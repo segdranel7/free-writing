@@ -321,13 +321,7 @@ button {
   color: #eff6f4;
   background: #163b36;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
-  cursor: grab;
-  touch-action: none;
-  transition: opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
-}
-
-.message-bubble:active {
-  cursor: grabbing;
+  transition: opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease, outline-color 0.16s ease;
 }
 
 .message-bubble.selected {
@@ -336,12 +330,13 @@ button {
 }
 
 .message-bubble.dragging {
-  opacity: 0.55;
+  opacity: 0.36;
+  box-shadow: inset 0 0 0 2px rgba(84, 214, 191, 0.5);
 }
 
 .message-bubble.drag-over {
-  transform: translateY(2px);
-  box-shadow: 0 0 0 2px #54d6bf, 0 10px 24px rgba(0, 0, 0, 0.28);
+  transform: translateY(4px);
+  box-shadow: 0 -4px 0 #54d6bf, 0 0 0 2px rgba(84, 214, 191, 0.72), 0 10px 24px rgba(0, 0, 0, 0.28);
 }
 
 .message-bubble.reference-target {
@@ -509,6 +504,55 @@ button {
   display: flex;
   margin-right: auto;
   gap: 2px;
+}
+
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.message-drag-preview {
+  position: fixed;
+  z-index: 40;
+  max-width: min(680px, calc(100vw - 28px));
+  max-height: 34vh;
+  padding: 12px;
+  border: 1px solid rgba(84, 214, 191, 0.72);
+  border-radius: 8px;
+  color: #eff6f4;
+  background: rgba(22, 59, 54, 0.94);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
+  opacity: 0.95;
+  pointer-events: none;
+  overflow: hidden;
+  transform: translate(-50%, -50%) scale(0.94);
+}
+
+.message-drag-preview p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+
+.message-drag-preview-images {
+  display: flex;
+  margin-bottom: 8px;
+  gap: 6px;
+}
+
+.message-drag-preview-images img {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  object-fit: cover;
 }
 
 .selection-toolbar {

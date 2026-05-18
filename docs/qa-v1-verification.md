@@ -13,7 +13,7 @@ npm run build
 
 Expected result:
 
-- Vitest passes for search, message service writes, image-only messages, composer image selection/paste, inline edit image paste, message copy feedback, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-to-reorder behavior including edge autoscroll, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
+- Vitest passes for search, message service writes, image-only messages, composer image selection/paste, inline edit image paste, message copy feedback, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection and edge autoscroll, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
 - The production build completes without TypeScript or Vite errors.
 
 ## English conversion setup
@@ -72,25 +72,26 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 14. Forward one message to the second conversation.
 15. Move one message to the second conversation.
 16. Reorder messages with the up/down controls.
-17. On desktop, drag one text block onto another text block and confirm the visible order changes.
-18. In a long conversation on desktop, drag a block near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
-19. On a phone or touch emulator, drag one text block onto another text block and confirm the visible order changes.
-20. In a long conversation on a touch device or emulator, drag a block near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
-21. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments.
-22. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
-23. Confirm the active conversation header shows the conversation title without a message-count subtitle.
-24. Convert one message to English, choose non-default options for at least one segment, and create the English block.
-25. Confirm the English block appears directly below the original and remains after reload.
-26. Convert another message to English and replace the source block with the selected English text.
-27. Enter draft text in the composer, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message without first placing it in the composer.
-28. Search for text that exists in loaded messages.
-29. Disconnect the browser from the network.
-30. Reload the app.
-31. Confirm the app shell opens and cached conversations/messages remain readable.
-32. While offline, create, edit, paste or select a small image where supported, copy, delete, forward, move, reorder by controls, reorder by drag where supported, and merge messages.
-33. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
-34. Reconnect to the network.
-35. Confirm all queued changes sync and remain visible after another reload.
+17. On desktop, use the block's drag handle to drag one text block onto another text block and confirm the visible order changes, the dragged block follows the pointer, and the target block highlights.
+18. In a long conversation on desktop, drag a block handle near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
+19. On a phone or touch emulator, scroll by swiping the body of a long text block and confirm it scrolls normally without starting a reorder.
+20. On a phone or touch emulator, use the block's drag handle to drag one text block onto another text block and confirm the visible order changes, the dragged block follows the pointer, and the target block highlights.
+21. In a long conversation on a touch device or emulator, drag a block handle near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
+22. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments.
+23. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
+24. Confirm the active conversation header shows the conversation title without a message-count subtitle.
+25. Convert one message to English, choose non-default options for at least one segment, and create the English block.
+26. Confirm the English block appears directly below the original and remains after reload.
+27. Convert another message to English and replace the source block with the selected English text.
+28. Enter draft text in the composer, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message without first placing it in the composer.
+29. Search for text that exists in loaded messages.
+30. Disconnect the browser from the network.
+31. Reload the app.
+32. Confirm the app shell opens and cached conversations/messages remain readable.
+33. While offline, create, edit, paste or select a small image where supported, copy, delete, forward, move, reorder by controls, reorder by drag handle where supported, and merge messages.
+34. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
+35. Reconnect to the network.
+36. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 
@@ -100,7 +101,7 @@ Expected result:
 - Saved image previews are inert when clicked.
 - Forwarded messages are labeled `Forwarded`; moved messages are labeled `Moved`.
 - Structured conversation and quote reference cards navigate to their source conversation or source text block when the source is still loaded; unavailable sources remain readable from their stored snapshot.
-- Reordered messages keep their order after reconnect and reload, whether reordered by explicit controls or drag on desktop and mobile/touch devices.
+- Reordered messages keep their order after reconnect and reload, whether reordered by explicit controls or the drag handle on desktop and mobile/touch devices.
 - Drag reordering continues smoothly when the intended drop target starts off-screen by auto-scrolling the message list near its top or bottom edge.
 - Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.
 - English conversion can keep the original message unchanged by creating a new block, or replace the original when `Replace block` is chosen.

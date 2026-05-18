@@ -20,7 +20,7 @@ The app should let the user:
 - Open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`
 - Forward text blocks between conversations
 - Add structured references to another conversation or a quoted message block.
-- Reorder text blocks inside a conversation with explicit controls and drag on desktop and touch/pointer devices
+- Reorder text blocks inside a conversation with explicit controls and a drag handle on desktop and touch/pointer devices
 - Merge multiple selected text blocks into one unified block
 - Convert saved text blocks or draft text to English by choosing from AI-generated variants
 - Access the same content from iPhone, desktop, and tablet
@@ -86,7 +86,7 @@ The user should be able to:
 9. Attach small images to message blocks by selecting files or pasting copied images.
 10. Forward/copy text blocks from one conversation to another.
 11. Open draft English conversion from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
-12. Reorder text blocks inside a conversation with touch-friendly controls and drag on desktop and touch/pointer devices.
+12. Reorder text blocks inside a conversation with touch-friendly controls and a drag handle on desktop and touch/pointer devices.
 13. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
 14. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
 15. Access the same content from iPhone, desktop, and tablet.
