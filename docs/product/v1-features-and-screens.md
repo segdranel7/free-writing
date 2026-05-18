@@ -129,7 +129,7 @@ Version 1 behavior:
 - The picker focuses on the segment option list and does not show a separate assembled preview.
 - For a saved message, `Create block` inserts the assembled English text as a new message directly below the original.
 - For a saved message, `Replace block` updates the original block with the assembled English text.
-- For draft text, `Send English` sends the assembled English text directly as a new message.
+- For draft text, `Send English` sends the assembled English text directly as a new message while preserving any current composer image attachments and structured references.
 
 Requirements:
 
@@ -449,7 +449,7 @@ Content:
 - User can reorder messages inside a conversation with move controls or drag-handle drop on desktop and touch/pointer devices.
 - User can merge multiple selected messages inside a conversation.
 - User can convert a message to English and either create a new result block or replace the source block.
-- User can convert draft composer text to English and send the selected English result directly.
+- User can convert draft composer text to English and send the selected English result directly with any current composer image attachments and references.
 - User can search messages.
 
 ### Multi-device
@@ -519,7 +519,7 @@ Version 1 is complete when:
 - I can select multiple text blocks, merge them into one block, and confirm the originals are removed.
 - I can convert a text block to English, select variants, and create the English result below the original.
 - I can replace a source text block with selected English text.
-- I can convert draft composer text to English and send the selected English result directly.
+- I can convert draft composer text to English and send the selected English result directly with any current composer image attachments and references.
 - I can open the app offline after it was previously loaded.
 - I can read cached content offline.
 - I can create or edit messages offline and have them sync when back online.

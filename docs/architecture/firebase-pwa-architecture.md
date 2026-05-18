@@ -191,7 +191,7 @@ Useful user fields:
 
 Forwarded and moved source metadata is kept for transfer labeling and compatibility. User-visible cross-conversation links and quote citations are rendered from structured `references` instead of text markers.
 
-English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. Replacing a source block with English text updates the same message through the normal edit path. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft.
+English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. Replacing a source block with English text updates the same message through the normal edit path. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments and structured references on that new message.
 
 Merged text/image blocks are stored as normal messages. Merging does not require extra fields beyond `attachments`; the app creates a replacement message with unified text plus selected attachments in display order and deletes the selected original messages in the same batch.
 

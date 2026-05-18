@@ -13,7 +13,7 @@ npm run build
 
 Expected result:
 
-- Vitest passes for search, message service writes, image-only messages, composer image selection/paste, inline edit image paste, message copy feedback, composer keyboard conversion behavior, inline editing, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection and edge autoscroll, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
+- Vitest passes for search, message service writes, image-only messages, composer image selection/paste, inline edit image paste, message copy feedback, composer keyboard conversion behavior including draft English sends with pasted images, inline editing, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection and edge autoscroll, selected-block merge, English conversion UI/service behavior, and the forward/move modal.
 - The production build completes without TypeScript or Vite errors.
 
 ## English conversion setup
@@ -83,7 +83,7 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 25. Convert one message to English, choose non-default options for at least one segment, confirm the picker shows only the scrollable segment option list without a separate assembled preview, and create the English block.
 26. Confirm the English block appears directly below the original and remains after reload.
 27. Convert another message to English and replace the source block with the selected English text.
-28. Enter draft text in the composer, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message without first placing it in the composer.
+28. Enter draft text in the composer, paste or select a small image, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message with the image attached, clears the composer image preview, and does not first place the English text in the composer.
 29. Search for text that exists in loaded messages.
 30. Disconnect the browser from the network.
 31. Reload the app.
@@ -105,7 +105,7 @@ Expected result:
 - Drag reordering continues smoothly when the intended drop target starts off-screen by auto-scrolling the message list near its top or bottom edge.
 - Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.
 - English conversion can keep the original message unchanged by creating a new block, or replace the original when `Replace block` is chosen.
-- Draft English conversion sends the selected English result directly as a new message and leaves the composer out of that send step.
+- Draft English conversion sends the selected English result directly as a new message, preserves current composer image attachments and references, clears sent previews, and leaves the composer out of that send step.
 - Long conversations keep the composer and merge action reachable without scrolling the whole page.
 
 ## Known follow-up if a step fails

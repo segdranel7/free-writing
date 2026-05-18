@@ -840,8 +840,52 @@ describe('ConversationPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send English' }));
 
     expect(onConvertToEnglish).toHaveBeenCalledWith('Pronto para enviar');
-    expect(onSubmitMessage).toHaveBeenCalledWith('Ready to submit');
+    expect(onSubmitMessage).toHaveBeenCalledWith('Ready to submit', [], []);
     expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
+  it('sends pasted composer images with selected draft English text', async () => {
+    const objectUrls = mockObjectUrls();
+    const image = new File(['image-bytes'], 'copied.png', { type: 'image/png' });
+    const onSubmitMessage = vi.fn(async () => undefined);
+    const onConvertToEnglish = vi.fn(async () => ({
+      segments: [
+        {
+          original: 'Pronto para enviar',
+          options: ['Ready to send', 'Ready to submit', 'Prepared to send'] as [string, string, string]
+        }
+      ]
+    }));
+    renderPane({ draft: 'Pronto para enviar', onSubmitMessage, onConvertToEnglish });
+
+    fireEvent.paste(screen.getByPlaceholderText('Write a message'), {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => image
+          }
+        ],
+        files: []
+      }
+    });
+
+    expect(await screen.findByAltText('copied.png')).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByPlaceholderText('Write a message'), { key: 'Enter', ctrlKey: true });
+    fireEvent.click(await screen.findByLabelText('Ready to submit'));
+    fireEvent.click(screen.getByRole('button', { name: 'Send English' }));
+
+    await waitFor(() => {
+      expect(onSubmitMessage).toHaveBeenCalledWith('Ready to submit', [image], []);
+    });
+    await waitFor(() => {
+      expect(screen.queryByAltText('copied.png')).not.toBeInTheDocument();
+    });
+    expect(objectUrls.revokeObjectURL).toHaveBeenCalledWith('blob:image-preview');
+
+    objectUrls.restore();
   });
 
   it('shows a clear error when English conversion fails', async () => {

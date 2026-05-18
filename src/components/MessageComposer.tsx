@@ -8,7 +8,8 @@ type MessageComposerProps = {
   pendingReferences: MessageReference[];
   onDraftChange: (value: string) => void;
   onSubmitMessage: (imageFiles: File[]) => void | Promise<void>;
-  onConvertDraftToEnglish: () => void;
+  onConvertDraftToEnglish: (imageFiles: File[]) => void;
+  clearImagePreviewsSignal: number;
   onAddConversationReference: () => void;
   onAddQuoteReference: () => void;
   onRemoveReference: (referenceId: string) => void;
@@ -47,6 +48,7 @@ export function MessageComposer({
   onDraftChange,
   onSubmitMessage,
   onConvertDraftToEnglish,
+  clearImagePreviewsSignal,
   onAddConversationReference,
   onAddQuoteReference,
   onRemoveReference
@@ -57,6 +59,7 @@ export function MessageComposer({
   const [sendError, setSendError] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imagePreviewsRef = useRef<ImagePreview[]>([]);
+  const lastClearImagePreviewsSignal = useRef(clearImagePreviewsSignal);
   const canSend = Boolean(draft.trim() || imagePreviews.length > 0 || pendingReferences.length > 0);
 
   useEffect(() => {
@@ -68,6 +71,24 @@ export function MessageComposer({
   useEffect(() => {
     imagePreviewsRef.current = imagePreviews;
   }, [imagePreviews]);
+
+  useEffect(() => {
+    if (clearImagePreviewsSignal === lastClearImagePreviewsSignal.current) return;
+    lastClearImagePreviewsSignal.current = clearImagePreviewsSignal;
+    clearImagePreviews();
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [clearImagePreviewsSignal]);
+
+  function getImageFiles() {
+    return imagePreviewsRef.current.map((preview) => preview.file);
+  }
+
+  function clearImagePreviews() {
+    setImagePreviews((current) => {
+      current.forEach((preview) => URL.revokeObjectURL(preview.url));
+      return [];
+    });
+  }
 
   function addImageFiles(files: FileList | File[] | null) {
     if (!files) return;
@@ -134,11 +155,8 @@ export function MessageComposer({
     setIsSending(true);
     setSendError('');
     try {
-      await onSubmitMessage(imagePreviews.map((preview) => preview.file));
-      setImagePreviews((current) => {
-        current.forEach((preview) => URL.revokeObjectURL(preview.url));
-        return [];
-      });
+      await onSubmitMessage(getImageFiles());
+      clearImagePreviews();
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (error) {
       console.error('Unable to send message.', error);
@@ -202,7 +220,7 @@ export function MessageComposer({
           onKeyDown={(event) => {
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
               event.preventDefault();
-              onConvertDraftToEnglish();
+              onConvertDraftToEnglish(getImageFiles());
             }
           }}
           placeholder="Write a message"
@@ -264,7 +282,7 @@ export function MessageComposer({
           type="button"
           title="Convert draft to English"
           disabled={!draft.trim()}
-          onClick={onConvertDraftToEnglish}
+          onClick={() => onConvertDraftToEnglish(getImageFiles())}
         >
           <Languages size={17} />
         </button>

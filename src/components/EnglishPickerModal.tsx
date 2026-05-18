@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
 import type { EnglishConversion, Message } from '../types';
 
-export type EnglishPickerSource = { type: 'message'; message: Message } | { type: 'draft' };
+export type EnglishPickerSource = { type: 'message'; message: Message } | { type: 'draft'; imageFiles: File[] };
 
 export type EnglishPickerState = {
   source: EnglishPickerSource;

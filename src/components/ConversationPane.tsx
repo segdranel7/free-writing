@@ -122,6 +122,7 @@ export function ConversationPane({
 }: ConversationPaneProps) {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [englishPicker, setEnglishPicker] = useState<EnglishPickerState | null>(null);
+  const [clearComposerImagePreviewsSignal, setClearComposerImagePreviewsSignal] = useState(0);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [pendingReferences, setPendingReferences] = useState<MessageReference[]>([]);
   const [referencePickerMode, setReferencePickerMode] = useState<ReferencePickerMode | null>(null);
@@ -582,10 +583,11 @@ export function ConversationPane({
     }
   }
 
-  async function openDraftEnglishPicker() {
+  async function openDraftEnglishPicker(imageFiles: File[] = []) {
     if (!draft.trim()) return;
+    const draftImageFiles = [...imageFiles];
     setEnglishPicker({
-      source: { type: 'draft' },
+      source: { type: 'draft', imageFiles: draftImageFiles },
       status: 'loading',
       conversion: null,
       selections: [],
@@ -595,7 +597,7 @@ export function ConversationPane({
     try {
       const conversion = await onConvertToEnglish(draft);
       setEnglishPicker({
-        source: { type: 'draft' },
+        source: { type: 'draft', imageFiles: draftImageFiles },
         status: 'ready',
         conversion,
         selections: conversion.segments.map(() => 0),
@@ -603,7 +605,7 @@ export function ConversationPane({
       });
     } catch (error) {
       setEnglishPicker({
-        source: { type: 'draft' },
+        source: { type: 'draft', imageFiles: draftImageFiles },
         status: 'error',
         conversion: null,
         selections: [],
@@ -631,7 +633,10 @@ export function ConversationPane({
     setEnglishPicker({ ...englishPicker, status: nextStatus, error: null });
     try {
       if (action === 'draft') {
-        await onSubmitMessage(englishText);
+        const draftImageFiles = englishPicker.source.type === 'draft' ? englishPicker.source.imageFiles : [];
+        await onSubmitMessage(englishText, draftImageFiles, pendingReferences);
+        setPendingReferences([]);
+        setClearComposerImagePreviewsSignal((signal) => signal + 1);
       } else if (englishPicker.source.type === 'message') {
         if (action === 'create') {
           await onCreateEnglishBlock(englishPicker.source.message, englishText);
@@ -762,7 +767,8 @@ export function ConversationPane({
             pendingReferences={pendingReferences}
             onDraftChange={onDraftChange}
             onSubmitMessage={(imageFiles) => void submitComposerMessage(imageFiles)}
-            onConvertDraftToEnglish={() => void openDraftEnglishPicker()}
+            onConvertDraftToEnglish={(imageFiles) => void openDraftEnglishPicker(imageFiles)}
+            clearImagePreviewsSignal={clearComposerImagePreviewsSignal}
             onAddConversationReference={() => openReferencePicker('conversation')}
             onAddQuoteReference={() => openReferencePicker('quote')}
             onRemoveReference={(referenceId) =>
