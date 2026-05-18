@@ -13,6 +13,7 @@ export type Conversation = {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   lastMessagePreview: string;
+  sortOrder?: number;
 };
 
 export type MessageTransferType = 'forwarded' | 'moved' | null;

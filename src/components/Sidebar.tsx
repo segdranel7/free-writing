@@ -1,4 +1,5 @@
-import { Edit3, LogOut, Plus, Search, Trash2, X } from 'lucide-react';
+import { useRef, useState, type PointerEvent } from 'react';
+import { Edit3, GripVertical, LogOut, Plus, Search, Trash2, X } from 'lucide-react';
 import { signOutUser } from '../services/auth';
 import type { Conversation, Message } from '../types';
 import { formatDate } from '../utils/date';
@@ -23,6 +24,19 @@ type SidebarProps = {
   onRenameDraftChange: (value: string) => void;
   onRenameConversation: (conversation: Conversation) => void;
   onDeleteConversation: (conversation: Conversation) => void;
+  onReorderConversation: (draggedConversationId: string, targetConversationId: string) => void;
+};
+
+type ConversationDragState = {
+  conversationId: string;
+  pointerId: number;
+};
+
+type ConversationDragPreview = {
+  conversationId: string;
+  x: number;
+  y: number;
+  width: number;
 };
 
 export function Sidebar({
@@ -39,8 +53,80 @@ export function Sidebar({
   onStartRename,
   onRenameDraftChange,
   onRenameConversation,
-  onDeleteConversation
+  onDeleteConversation,
+  onReorderConversation
 }: SidebarProps) {
+  const [draggedConversationId, setDraggedConversationId] = useState<string | null>(null);
+  const [dragOverConversationId, setDragOverConversationId] = useState<string | null>(null);
+  const [dragPreview, setDragPreview] = useState<ConversationDragPreview | null>(null);
+  const conversationDrag = useRef<ConversationDragState | null>(null);
+  const draggedConversation = dragPreview
+    ? conversations.find((conversation) => conversation.id === dragPreview.conversationId) ?? null
+    : null;
+
+  function findConversationIdAtPoint(clientX: number, clientY: number) {
+    const target = document.elementFromPoint(clientX, clientY);
+    if (!(target instanceof Element)) return null;
+    return target.closest<HTMLElement>('[data-conversation-id]')?.dataset.conversationId ?? null;
+  }
+
+  function clearConversationDrag() {
+    conversationDrag.current = null;
+    setDraggedConversationId(null);
+    setDragOverConversationId(null);
+    setDragPreview(null);
+  }
+
+  function handleConversationPointerDown(event: PointerEvent<HTMLButtonElement>, conversationId: string) {
+    if (conversations.length < 2) return;
+
+    const conversationElement = event.currentTarget.closest<HTMLElement>('[data-conversation-id]');
+    const rect = conversationElement?.getBoundingClientRect();
+    const width = rect?.width ?? 280;
+
+    conversationDrag.current = {
+      conversationId,
+      pointerId: event.pointerId
+    };
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDraggedConversationId(conversationId);
+    setDragPreview({
+      conversationId,
+      x: event.clientX,
+      y: event.clientY,
+      width
+    });
+  }
+
+  function handleConversationPointerMove(event: PointerEvent<HTMLButtonElement>) {
+    const currentDrag = conversationDrag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+    setDragPreview((currentPreview) =>
+      currentPreview ? { ...currentPreview, x: event.clientX, y: event.clientY } : currentPreview
+    );
+    const targetConversationId = findConversationIdAtPoint(event.clientX, event.clientY);
+    setDragOverConversationId(
+      targetConversationId && targetConversationId !== currentDrag.conversationId ? targetConversationId : null
+    );
+  }
+
+  function handleConversationPointerUp(event: PointerEvent<HTMLButtonElement>) {
+    const currentDrag = conversationDrag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+
+    const targetConversationId = findConversationIdAtPoint(event.clientX, event.clientY);
+    const shouldReorder = targetConversationId && targetConversationId !== currentDrag.conversationId;
+    clearConversationDrag();
+    if (shouldReorder) onReorderConversation(currentDrag.conversationId, targetConversationId);
+  }
+
+  function handleConversationPointerCancel(event: PointerEvent<HTMLButtonElement>) {
+    if (conversationDrag.current?.pointerId === event.pointerId) clearConversationDrag();
+  }
+
   return (
     <aside className={`sidebar ${activeConversation ? 'has-active' : ''}`}>
       <header className="app-header">
@@ -94,7 +180,15 @@ export function Sidebar({
           {conversations.map((conversation) => (
             <article
               key={conversation.id}
-              className={`conversation-row ${conversation.id === activeConversationId ? 'active' : ''}`}
+              className={[
+                'conversation-row',
+                conversation.id === activeConversationId ? 'active' : '',
+                draggedConversationId === conversation.id ? 'dragging' : '',
+                dragOverConversationId === conversation.id ? 'drag-over' : ''
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              data-conversation-id={conversation.id}
             >
               {renamingId === conversation.id ? (
                 <form
@@ -116,6 +210,17 @@ export function Sidebar({
                 </button>
               )}
               <div className="row-actions">
+                <button
+                  className="icon-button bare drag-handle"
+                  title="Drag conversation"
+                  disabled={conversations.length < 2 || renamingId === conversation.id}
+                  onPointerDown={(event) => handleConversationPointerDown(event, conversation.id)}
+                  onPointerMove={handleConversationPointerMove}
+                  onPointerUp={handleConversationPointerUp}
+                  onPointerCancel={handleConversationPointerCancel}
+                >
+                  <GripVertical size={16} />
+                </button>
                 <button className="icon-button bare" title="Rename" onClick={() => onStartRename(conversation)}>
                   <Edit3 size={16} />
                 </button>
@@ -130,6 +235,19 @@ export function Sidebar({
             </article>
           ))}
           {conversations.length === 0 && <p className="empty-state">Create your first conversation.</p>}
+          {dragPreview && draggedConversation && (
+            <div
+              className="conversation-drag-preview"
+              style={{
+                left: dragPreview.x,
+                top: dragPreview.y,
+                width: dragPreview.width
+              }}
+            >
+              <strong>{draggedConversation.title}</strong>
+              <time>{formatDate(draggedConversation.updatedAt)}</time>
+            </div>
+          )}
         </section>
       )}
     </aside>

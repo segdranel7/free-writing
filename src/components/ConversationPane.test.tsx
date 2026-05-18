@@ -341,7 +341,7 @@ describe('ConversationPane', () => {
       }
     });
 
-    expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second');
+    expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second', 'after');
   });
 
   it('keeps desktop drag active if the browser cancels the pointer during native drag', () => {
@@ -367,7 +367,125 @@ describe('ConversationPane', () => {
       }
     });
 
-    expect(secondBlock).toHaveClass('drag-over');
+    expect(secondBlock).not.toHaveClass('drag-over');
+    expect(document.querySelector('.message-drop-indicator')).toBeInTheDocument();
+  });
+
+  it('shows the insertion space where the dragged block will land', () => {
+    renderPane();
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
+    Object.defineProperty(secondBlock, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 100,
+        bottom: 200,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 100,
+        x: 0,
+        y: 100,
+        toJSON: () => undefined
+      })
+    });
+
+    fireEvent.dragStart(firstBlockHandle, {
+      dataTransfer: {
+        effectAllowed: '',
+        setData: vi.fn(),
+        getData: vi.fn(() => 'first')
+      }
+    });
+    fireEvent.dragOver(secondBlock, {
+      clientY: 175,
+      dataTransfer: {
+        dropEffect: ''
+      }
+    });
+
+    const indicator = document.querySelector('.message-drop-indicator');
+    expect(indicator).toBeInTheDocument();
+    expect(secondBlock.nextElementSibling).toBe(indicator);
+    expect(secondBlock).not.toHaveClass('drag-over');
+  });
+
+  it('treats message-list gaps as valid pointer drop zones', () => {
+    const props = renderPane();
+    const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
+    const messages = firstBlock.parentElement as HTMLElement;
+    const originalElementFromPoint = document.elementFromPoint;
+    const elementFromPoint = vi.fn(() => messages);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: elementFromPoint
+    });
+    Object.defineProperty(firstBlock, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 100,
+        bottom: 180,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 80,
+        x: 0,
+        y: 100,
+        toJSON: () => undefined
+      })
+    });
+    Object.defineProperty(secondBlock, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 240,
+        bottom: 320,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 80,
+        x: 0,
+        y: 240,
+        toJSON: () => undefined
+      })
+    });
+
+    fireEvent.pointerDown(firstBlockHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 12,
+      clientY: 120
+    });
+    fireEvent.pointerMove(firstBlockHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 12,
+      clientY: 220
+    });
+
+    const indicator = document.querySelector('.message-drop-indicator');
+    expect(indicator).toBeInTheDocument();
+    expect(secondBlock.previousElementSibling).toBe(indicator);
+
+    fireEvent.pointerUp(firstBlockHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 12,
+      clientY: 220
+    });
+
+    expect(elementFromPoint).toHaveBeenCalledWith(12, 220);
+    expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second', 'before');
+
+    if (originalElementFromPoint) {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint
+      });
+    } else {
+      Reflect.deleteProperty(document, 'elementFromPoint');
+    }
   });
 
   it('autoscrolls the message list when desktop dragging near the lower edge', () => {
@@ -475,7 +593,97 @@ describe('ConversationPane', () => {
     });
 
     expect(elementFromPoint).toHaveBeenCalledWith(14, 38);
-    expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second');
+    expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second', 'after');
+
+    if (originalElementFromPoint) {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint
+      });
+    } else {
+      Reflect.deleteProperty(document, 'elementFromPoint');
+    }
+  });
+
+  it('starts touch pointer dragging as soon as the drag handle is pressed', () => {
+    const props = renderPane();
+    const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
+    const originalElementFromPoint = document.elementFromPoint;
+    const elementFromPoint = vi.fn(() => secondBlock);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: elementFromPoint
+    });
+
+    fireEvent.pointerDown(firstBlockHandle, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 12,
+      clientY: 12
+    });
+
+    expect(firstBlock).toHaveClass('dragging');
+    expect(screen.getByText('First', { selector: '.message-drag-preview p' })).toBeInTheDocument();
+
+    fireEvent.pointerUp(firstBlockHandle, {
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX: 14,
+      clientY: 38
+    });
+
+    expect(elementFromPoint).toHaveBeenCalledWith(14, 38);
+    expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second', 'after');
+
+    if (originalElementFromPoint) {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint
+      });
+    } else {
+      Reflect.deleteProperty(document, 'elementFromPoint');
+    }
+  });
+
+  it('starts mouse pointer dragging as soon as the drag handle is pressed', () => {
+    const props = renderPane();
+    const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
+    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
+    const originalElementFromPoint = document.elementFromPoint;
+    const elementFromPoint = vi.fn(() => secondBlock);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: elementFromPoint
+    });
+
+    fireEvent.pointerDown(firstBlockHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 12,
+      clientY: 12
+    });
+
+    expect(firstBlock).toHaveClass('dragging');
+    expect(screen.getByText('First', { selector: '.message-drag-preview p' })).toBeInTheDocument();
+
+    fireEvent.pointerMove(firstBlockHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 14,
+      clientY: 38
+    });
+    fireEvent.pointerUp(firstBlockHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 14,
+      clientY: 38
+    });
+
+    expect(elementFromPoint).toHaveBeenCalledWith(14, 38);
+    expect(props.onReorderMessage).toHaveBeenCalledWith('first', 'second', 'after');
 
     if (originalElementFromPoint) {
       Object.defineProperty(document, 'elementFromPoint', {

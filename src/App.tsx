@@ -7,6 +7,7 @@ import { useMessagingData } from './hooks/useMessagingData';
 import {
   createConversation,
   deleteConversation,
+  reorderConversations,
   renameConversation
 } from './services/conversations';
 import {
@@ -23,7 +24,12 @@ import { searchLoadedMessages } from './services/search';
 import { uploadMessageImages } from './services/storage';
 import { requestEnglishVersions } from './services/translation';
 import type { Conversation, Message, MessageReference } from './types';
-import { moveMessageByDirection, moveMessageToDropTarget } from './utils/messageOrder';
+import {
+  moveItemToDropTarget,
+  moveMessageByDirection,
+  moveMessageToDropPosition,
+  type DropPosition
+} from './utils/messageOrder';
 import type { MessageReferenceNavigationTarget } from './utils/messageReferences';
 
 type TransferAction = {
@@ -36,6 +42,7 @@ export default function App() {
     user,
     authLoading,
     conversations,
+    setConversations,
     activeConversationId,
     setActiveConversationId,
     messagesByConversation,
@@ -141,15 +148,23 @@ export default function App() {
     await reorderMessages(user.uid, activeConversationId, nextMessages);
   }
 
-  async function handleReorderMessage(draggedMessageId: string, targetMessageId: string) {
+  async function handleReorderMessage(draggedMessageId: string, targetMessageId: string, position: DropPosition) {
     if (!user || !activeConversationId) return;
-    const nextMessages = moveMessageToDropTarget(activeMessages, draggedMessageId, targetMessageId);
+    const nextMessages = moveMessageToDropPosition(activeMessages, draggedMessageId, targetMessageId, position);
     if (!nextMessages) return;
     setMessagesByConversation((current) => ({
       ...current,
       [activeConversationId]: nextMessages
     }));
     await reorderMessages(user.uid, activeConversationId, nextMessages);
+  }
+
+  async function handleReorderConversation(draggedConversationId: string, targetConversationId: string) {
+    if (!user) return;
+    const nextConversations = moveItemToDropTarget(conversations, draggedConversationId, targetConversationId);
+    if (!nextConversations) return;
+    setConversations(nextConversations);
+    await reorderConversations(user.uid, nextConversations);
   }
 
   async function handleCreateEnglishBlock(source: Message, text: string) {
@@ -213,6 +228,9 @@ export default function App() {
         onRenameDraftChange={setRenameDraft}
         onRenameConversation={(conversation) => void handleRenameConversation(conversation)}
         onDeleteConversation={(conversation) => void handleDeleteConversation(conversation)}
+        onReorderConversation={(draggedConversationId, targetConversationId) =>
+          void handleReorderConversation(draggedConversationId, targetConversationId)
+        }
       />
 
       <ConversationPane
@@ -235,8 +253,8 @@ export default function App() {
         onNavigationHandled={() => setNavigationTarget(null)}
         onDeleteMessage={(message) => void handleDeleteMessage(message)}
         onMoveMessage={(messageIndex, direction) => void handleMoveMessage(messageIndex, direction)}
-        onReorderMessage={(draggedMessageId, targetMessageId) =>
-          void handleReorderMessage(draggedMessageId, targetMessageId)
+        onReorderMessage={(draggedMessageId, targetMessageId, position) =>
+          void handleReorderMessage(draggedMessageId, targetMessageId, position)
         }
         onMergeMessages={handleMergeMessages}
         onConvertToEnglish={requestEnglishVersions}

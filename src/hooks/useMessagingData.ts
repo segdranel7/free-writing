@@ -53,6 +53,7 @@ export function useMessagingData() {
     user,
     authLoading,
     conversations,
+    setConversations,
     activeConversationId,
     setActiveConversationId,
     messagesByConversation,

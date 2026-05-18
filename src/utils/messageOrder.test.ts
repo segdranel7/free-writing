@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../types';
-import { moveMessageByDirection, moveMessageToDropTarget } from './messageOrder';
+import { moveMessageByDirection, moveMessageToDropPosition, moveMessageToDropTarget } from './messageOrder';
 
 function message(id: string): Message {
   return {
@@ -41,9 +41,23 @@ describe('message order helpers', () => {
     expect(nextMessages?.map((item) => item.id)).toEqual(['second', 'third', 'first']);
   });
 
+  it('moves a dragged message before or after a target position', () => {
+    expect(moveMessageToDropPosition(messages, 'third', 'first', 'before')?.map((item) => item.id)).toEqual([
+      'third',
+      'first',
+      'second'
+    ]);
+    expect(moveMessageToDropPosition(messages, 'first', 'second', 'after')?.map((item) => item.id)).toEqual([
+      'second',
+      'first',
+      'third'
+    ]);
+  });
+
   it('returns null for no-op or missing drag targets', () => {
     expect(moveMessageToDropTarget(messages, 'first', 'first')).toBeNull();
     expect(moveMessageToDropTarget(messages, 'missing', 'first')).toBeNull();
     expect(moveMessageToDropTarget(messages, 'first', 'missing')).toBeNull();
+    expect(moveMessageToDropPosition(messages, 'first', 'second', 'before')).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -13,6 +14,7 @@ import { MessageComposer } from './MessageComposer';
 import { MessageBubble, type CopyFeedbackStatus } from './MessageBubble';
 import type { Conversation, EnglishConversion, Message, MessageReference } from '../types';
 import { assembleEnglishText } from '../utils/englishConversion';
+import type { DropPosition } from '../utils/messageOrder';
 import {
   createConversationReference,
   createQuoteReference,
@@ -39,7 +41,7 @@ type ConversationPaneProps = {
   onNavigationHandled: () => void;
   onDeleteMessage: (message: Message) => void;
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
-  onReorderMessage: (draggedMessageId: string, targetMessageId: string) => void;
+  onReorderMessage: (draggedMessageId: string, targetMessageId: string, position: DropPosition) => void;
   onMergeMessages: (messages: Message[]) => Promise<void>;
   onConvertToEnglish: (text: string) => Promise<EnglishConversion>;
   onCreateEnglishBlock: (message: Message, text: string) => Promise<void>;
@@ -47,9 +49,13 @@ type ConversationPaneProps = {
 };
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
-const TOUCH_DRAG_THRESHOLD_PX = 8;
 const DRAG_AUTOSCROLL_EDGE_PX = 72;
 const DRAG_AUTOSCROLL_MAX_PX = 18;
+
+type MessageDropTarget = {
+  messageId: string;
+  position: DropPosition;
+};
 
 type CopyFeedback = {
   messageId: string;
@@ -59,10 +65,6 @@ type CopyFeedback = {
 type TouchDragState = {
   messageId: string;
   pointerId: number;
-  startX: number;
-  startY: number;
-  width: number;
-  isDragging: boolean;
 };
 
 type DragPreview = {
@@ -133,7 +135,7 @@ export function ConversationPane({
   const [isMerging, setIsMerging] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [draggedMessageId, setDraggedMessageId] = useState<string | null>(null);
-  const [dragOverMessageId, setDragOverMessageId] = useState<string | null>(null);
+  const [messageDropTarget, setMessageDropTarget] = useState<MessageDropTarget | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [editText, setEditText] = useState('');
   const [editReferences, setEditReferences] = useState<MessageReference[]>([]);
@@ -275,35 +277,61 @@ export function ConversationPane({
 
   function handleMessageDragOver(event: DragEvent<HTMLElement>, messageId: string) {
     const isSameMessage = draggedMessageId === messageId;
-    if (isSameMessage) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
     updateDragAutoScroll(event.clientY);
     updateDragPreview(event.clientX, event.clientY);
-    setDragOverMessageId(messageId);
+    setMessageDropTarget(
+      isSameMessage
+        ? getNearestMessageDropTarget(event.clientY, messageId)
+        : getMessageDropTarget(event.currentTarget, messageId, event.clientY, draggedMessageId)
+    );
   }
 
   function handleMessageDragLeave(event: DragEvent<HTMLElement>, messageId: string) {
     const relatedTarget = event.relatedTarget;
     if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) return;
-    setDragOverMessageId((currentId) => (currentId === messageId ? null : currentId));
+    setMessageDropTarget((currentTarget) => (currentTarget?.messageId === messageId ? null : currentTarget));
   }
 
   function handleMessageDrop(event: DragEvent<HTMLElement>, targetMessageId: string) {
     event.preventDefault();
+    event.stopPropagation();
     const droppedMessageId = event.dataTransfer.getData('text/plain') || draggedMessageId;
+    const dropPosition = getMessageDropPosition(event.currentTarget, event.clientY);
     stopDragAutoScroll();
     setDraggedMessageId(null);
-    setDragOverMessageId(null);
+    setMessageDropTarget(null);
     setDragPreview(null);
     if (!droppedMessageId || droppedMessageId === targetMessageId) return;
-    onReorderMessage(droppedMessageId, targetMessageId);
+    onReorderMessage(droppedMessageId, targetMessageId, dropPosition);
+  }
+
+  function handleMessagesDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!draggedMessageId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    updateDragAutoScroll(event.clientY);
+    updateDragPreview(event.clientX, event.clientY);
+    setMessageDropTarget(getNearestMessageDropTarget(event.clientY, draggedMessageId));
+  }
+
+  function handleMessagesDrop(event: DragEvent<HTMLDivElement>) {
+    if (!draggedMessageId) return;
+    event.preventDefault();
+    const droppedMessageId = event.dataTransfer.getData('text/plain') || draggedMessageId;
+    const dropTarget = getNearestMessageDropTarget(event.clientY, droppedMessageId);
+    stopDragAutoScroll();
+    setDraggedMessageId(null);
+    setMessageDropTarget(null);
+    setDragPreview(null);
+    if (dropTarget) onReorderMessage(droppedMessageId, dropTarget.messageId, dropTarget.position);
   }
 
   function handleMessageDragEnd() {
     stopDragAutoScroll();
     setDraggedMessageId(null);
-    setDragOverMessageId(null);
+    setMessageDropTarget(null);
     setDragPreview(null);
   }
 
@@ -360,79 +388,113 @@ export function ConversationPane({
     );
   }
 
-  function findMessageIdAtPoint(clientX: number, clientY: number) {
+  function getMessageDropPosition(messageElement: HTMLElement, clientY: number): DropPosition {
+    const rect = messageElement.getBoundingClientRect();
+    return clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+  }
+
+  function getMessageDropTarget(
+    messageElement: HTMLElement,
+    messageId: string,
+    clientY: number,
+    currentDraggedMessageId: string | null
+  ) {
+    if (currentDraggedMessageId === messageId) return null;
+    return {
+      messageId,
+      position: getMessageDropPosition(messageElement, clientY)
+    };
+  }
+
+  function getMessageElements(currentDraggedMessageId: string | null) {
+    return Array.from(messagesRef.current?.querySelectorAll<HTMLElement>('[data-message-id]') ?? []).filter(
+      (element) => element.dataset.messageId && element.dataset.messageId !== currentDraggedMessageId
+    );
+  }
+
+  function getNearestMessageDropTarget(clientY: number, currentDraggedMessageId: string | null): MessageDropTarget | null {
+    const messageElements = getMessageElements(currentDraggedMessageId);
+    if (messageElements.length === 0) return null;
+
+    for (const messageElement of messageElements) {
+      const messageId = messageElement.dataset.messageId;
+      if (!messageId) continue;
+
+      const rect = messageElement.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        return { messageId, position: 'before' };
+      }
+    }
+
+    const lastMessageElement = messageElements.at(-1);
+    const lastMessageId = lastMessageElement?.dataset.messageId;
+    return lastMessageId ? { messageId: lastMessageId, position: 'after' } : null;
+  }
+
+  function findMessageDropTargetAtPoint(clientX: number, clientY: number, currentDraggedMessageId: string | null) {
     const target = document.elementFromPoint(clientX, clientY);
-    if (!(target instanceof Element)) return null;
-    return target.closest<HTMLElement>('[data-message-id]')?.dataset.messageId ?? null;
+    if (!(target instanceof Element)) return getNearestMessageDropTarget(clientY, currentDraggedMessageId);
+    const messageElement = target.closest<HTMLElement>('[data-message-id]');
+    const messageId = messageElement?.dataset.messageId;
+    if (!messageElement || !messageId || currentDraggedMessageId === messageId) {
+      return getNearestMessageDropTarget(clientY, currentDraggedMessageId);
+    }
+    return getMessageDropTarget(messageElement, messageId, clientY, currentDraggedMessageId);
   }
 
   function clearTouchDrag() {
     touchDrag.current = null;
     stopDragAutoScroll();
     setDraggedMessageId(null);
-    setDragOverMessageId(null);
+    setMessageDropTarget(null);
     setDragPreview(null);
   }
 
   function handleMessagePointerDown(event: PointerEvent<HTMLElement>, messageId: string) {
-    if (event.pointerType === 'mouse' || activeMessages.length < 2) return;
+    if (activeMessages.length < 2) return;
 
     const messageElement = event.currentTarget.closest<HTMLElement>('[data-message-id]');
     const rect = messageElement?.getBoundingClientRect();
+    const width = rect?.width ?? 280;
 
     touchDrag.current = {
       messageId,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      width: rect?.width ?? 280,
-      isDragging: false
+      pointerId: event.pointerId
     };
+    event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDraggedMessageId(messageId);
+    setDragPreview({
+      messageId,
+      x: event.clientX,
+      y: event.clientY,
+      width
+    });
+    updateDragAutoScroll(event.clientY);
   }
 
   function handleMessagePointerMove(event: PointerEvent<HTMLElement>) {
     const currentDrag = touchDrag.current;
     if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
 
-    const moveX = event.clientX - currentDrag.startX;
-    const moveY = event.clientY - currentDrag.startY;
-    const hasPassedThreshold = Math.hypot(moveX, moveY) >= TOUCH_DRAG_THRESHOLD_PX;
-    if (!currentDrag.isDragging && !hasPassedThreshold) return;
-
     event.preventDefault();
-
-    if (!currentDrag.isDragging) {
-      touchDrag.current = { ...currentDrag, isDragging: true };
-      setDraggedMessageId(currentDrag.messageId);
-      setDragPreview({
-        messageId: currentDrag.messageId,
-        x: event.clientX,
-        y: event.clientY,
-        width: currentDrag.width
-      });
-    }
 
     updateDragAutoScroll(event.clientY);
     updateDragPreview(event.clientX, event.clientY);
-    const targetMessageId = findMessageIdAtPoint(event.clientX, event.clientY);
-    setDragOverMessageId(
-      targetMessageId && targetMessageId !== currentDrag.messageId ? targetMessageId : null
-    );
+    setMessageDropTarget(findMessageDropTargetAtPoint(event.clientX, event.clientY, currentDrag.messageId));
   }
 
   function handleMessagePointerUp(event: PointerEvent<HTMLElement>) {
     const currentDrag = touchDrag.current;
     if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
 
-    const targetMessageId = findMessageIdAtPoint(event.clientX, event.clientY);
-    const shouldReorder = currentDrag.isDragging && targetMessageId && targetMessageId !== currentDrag.messageId;
+    const dropTarget = findMessageDropTargetAtPoint(event.clientX, event.clientY, currentDrag.messageId);
     clearTouchDrag();
-    if (shouldReorder) onReorderMessage(currentDrag.messageId, targetMessageId);
+    if (dropTarget) onReorderMessage(currentDrag.messageId, dropTarget.messageId, dropTarget.position);
   }
 
   function handleMessagePointerCancel(event: PointerEvent<HTMLElement>) {
-    if (touchDrag.current?.pointerId === event.pointerId) clearTouchDrag();
+    if (event.pointerType !== 'mouse' && touchDrag.current?.pointerId === event.pointerId) clearTouchDrag();
   }
 
   async function mergeSelectedMessages() {
@@ -691,52 +753,64 @@ export function ConversationPane({
             </button>
           </div>
 
-          <div className="messages" ref={messagesRef}>
+          <div
+            className="messages"
+            ref={messagesRef}
+            onDragOver={handleMessagesDragOver}
+            onDrop={handleMessagesDrop}
+          >
             {activeMessages.map((message, messageIndex) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                messageIndex={messageIndex}
-                messageCount={activeMessages.length}
-                isSelected={selectedMessageIds.includes(message.id)}
-                isDragging={draggedMessageId === message.id}
-                isDragOver={dragOverMessageId === message.id}
-                isEditing={editingMessage?.id === message.id}
-                editText={editText}
-                editReferences={editReferences}
-                editImagePreviews={editImagePreviews}
-                activeReferenceTarget={activeReferenceTarget}
-                isSavingEdit={isSavingEdit}
-                editTextareaRef={editTextareaRef}
-                copyFeedbackStatus={copyFeedback?.messageId === message.id ? copyFeedback.status : null}
-                onSelect={toggleMessageSelection}
-                onNavigateToReference={onNavigateToReference}
-                canNavigateToReference={canNavigateToReference}
-                onCancelEdit={onCancelEdit}
-                onEditTextChange={setEditText}
-                onRemoveEditReference={(referenceId) =>
-                  setEditReferences((current) => current.filter((reference) => reference.id !== referenceId))
-                }
-                onEditImagePaste={handleEditImagePaste}
-                onRemoveEditImage={removeEditImage}
-                onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
-                onEditMessage={onEditMessage}
-                onCopyMessage={(messageToCopy) => void copyMessageText(messageToCopy)}
-                onConvertToEnglish={(messageToConvert) => void openMessageEnglishPicker(messageToConvert)}
-                onForwardMessage={onForwardMessage}
-                onMoveToConversation={onMoveToConversation}
-                onDeleteMessage={onDeleteMessage}
-                onMoveMessage={onMoveMessage}
-                onDragStart={handleMessageDragStart}
-                onDragOver={handleMessageDragOver}
-                onDragLeave={handleMessageDragLeave}
-                onDrop={handleMessageDrop}
-                onDragEnd={handleMessageDragEnd}
-                onPointerDown={handleMessagePointerDown}
-                onPointerMove={handleMessagePointerMove}
-                onPointerUp={handleMessagePointerUp}
-                onPointerCancel={handleMessagePointerCancel}
-              />
+              <Fragment key={message.id}>
+                {messageDropTarget?.messageId === message.id && messageDropTarget.position === 'before' && (
+                  <div className="message-drop-indicator" aria-hidden="true" />
+                )}
+                <MessageBubble
+                  message={message}
+                  messageIndex={messageIndex}
+                  messageCount={activeMessages.length}
+                  isSelected={selectedMessageIds.includes(message.id)}
+                  isDragging={draggedMessageId === message.id}
+                  isDragOver={false}
+                  isEditing={editingMessage?.id === message.id}
+                  editText={editText}
+                  editReferences={editReferences}
+                  editImagePreviews={editImagePreviews}
+                  activeReferenceTarget={activeReferenceTarget}
+                  isSavingEdit={isSavingEdit}
+                  editTextareaRef={editTextareaRef}
+                  copyFeedbackStatus={copyFeedback?.messageId === message.id ? copyFeedback.status : null}
+                  onSelect={toggleMessageSelection}
+                  onNavigateToReference={onNavigateToReference}
+                  canNavigateToReference={canNavigateToReference}
+                  onCancelEdit={onCancelEdit}
+                  onEditTextChange={setEditText}
+                  onRemoveEditReference={(referenceId) =>
+                    setEditReferences((current) => current.filter((reference) => reference.id !== referenceId))
+                  }
+                  onEditImagePaste={handleEditImagePaste}
+                  onRemoveEditImage={removeEditImage}
+                  onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
+                  onEditMessage={onEditMessage}
+                  onCopyMessage={(messageToCopy) => void copyMessageText(messageToCopy)}
+                  onConvertToEnglish={(messageToConvert) => void openMessageEnglishPicker(messageToConvert)}
+                  onForwardMessage={onForwardMessage}
+                  onMoveToConversation={onMoveToConversation}
+                  onDeleteMessage={onDeleteMessage}
+                  onMoveMessage={onMoveMessage}
+                  onDragStart={handleMessageDragStart}
+                  onDragOver={handleMessageDragOver}
+                  onDragLeave={handleMessageDragLeave}
+                  onDrop={handleMessageDrop}
+                  onDragEnd={handleMessageDragEnd}
+                  onPointerDown={handleMessagePointerDown}
+                  onPointerMove={handleMessagePointerMove}
+                  onPointerUp={handleMessagePointerUp}
+                  onPointerCancel={handleMessagePointerCancel}
+                />
+                {messageDropTarget?.messageId === message.id && messageDropTarget.position === 'after' && (
+                  <div className="message-drop-indicator" aria-hidden="true" />
+                )}
+              </Fragment>
             ))}
             {activeMessages.length === 0 && <p className="empty-state">Write the first message here.</p>}
           </div>
