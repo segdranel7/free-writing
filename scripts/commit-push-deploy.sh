@@ -4,7 +4,25 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  npm run ship -- "Commit message"
+  npm run ship -- "Context-rich commit message"
+  bash scripts/commit-push-deploy.sh "Context-rich commit message"
+
+Purpose:
+  Create a useful development checkpoint for future AI-assisted work.
+  The commit message should explain what changed, why it matters, and
+  what verification was performed so another AI or developer can safely
+  continue from this commit.
+
+Commit message guidance:
+  Prefer a concise subject plus bullet body when the change has meaningful
+  product, architecture, implementation, or documentation context.
+
+  Example:
+    npm run ship -- "Improve English conversion flow
+
+    - Keep the picker focused on selectable segment options for large inputs.
+    - Document the behavior and any architecture or QA context that changed.
+    - Verification: npm test and npm run build."
 
 Environment:
   RUN_TESTS=0          Skip npm run test.

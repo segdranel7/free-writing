@@ -10,7 +10,8 @@ Use after documentation refreshes, AI maintainability refactors, or meaningful f
 - If documentation changed, check local Markdown links before committing.
 - Do not include local secrets, `.env` files, generated caches, or unrelated temporary files.
 - If unrelated user changes are present, preserve them and only include them when they clearly belong to the requested checkpoint.
-- Use `npm run ship -- "Commit message"` for normal checkpoint publishing. It runs tests, builds, commits, pushes, and deploys Firebase Hosting. It also deploys Firestore rules or the Cloudflare Worker when matching files changed.
+- Use `npm run ship -- "Context-rich commit message"` for normal checkpoint publishing. It runs tests, builds, commits, pushes, and deploys Firebase Hosting. It also deploys Firestore rules or the Cloudflare Worker when matching files changed.
+- The ship script is intentionally a context-checkpoint tool, not only a deploy wrapper. Its message argument should include enough useful context for another AI or developer to understand the application changes, architectural implications, documentation updates, and verification performed.
 
 ## Prompt
 
@@ -39,7 +40,11 @@ Please:
    - Summarize documentation updates that preserve project context.
    - Mention verification performed.
 
-9. Commit, push, and deploy with:
-   `npm run ship -- "Commit message"`
+9. Commit, push, and deploy with a context-rich message, for example:
+   `npm run ship -- "Update English conversion context
+
+   - Summarize meaningful user-facing or architectural changes.
+   - Summarize documentation updates that preserve project context.
+   - Verification: npm test and npm run build."`
 10. Report the commit hash, branch, live URL, high-level files changed, deployment status, and whether verification passed.
 ```

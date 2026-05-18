@@ -180,7 +180,15 @@ Current hosting configuration:
 - Current deployed Worker URL: `https://free-writing-translation.free-writing-danielsegatto.workers.dev`.
 - Firestore rules are deployed from `firebase.rules`.
 
-Primary deployment flow:
+Primary checkpoint/deployment flow:
+
+```bash
+npm run ship -- "Context-rich commit message"
+```
+
+`scripts/commit-push-deploy.sh` is the normal publishing path when changes should become a useful future-development checkpoint. Its help text explains that the commit message should capture what changed, why it matters, and what verification ran so another AI or developer can safely continue from the commit. The script runs tests, writes the production Worker URL to ignored `.env.production.local`, builds, commits unignored changes, pushes the current branch, deploys Firebase Hosting, deploys Firestore rules when `firebase.rules` changed, and deploys the Cloudflare Worker when `workers/translation/` or `wrangler.jsonc` changed.
+
+Manual deployment setup/escape hatch:
 
 ```bash
 npx wrangler secret put GROQ_API_KEY

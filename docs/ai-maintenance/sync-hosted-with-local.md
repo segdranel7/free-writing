@@ -72,8 +72,10 @@ Do not commit unless I explicitly ask for a commit.
 Use this when you want to commit, push, and deploy together:
 
 ```bash
-npm run ship -- "Commit message"
+npm run ship -- "Context-rich commit message"
 ```
+
+The message should make the checkpoint useful to future AI-assisted development: summarize what changed, why it matters, and what verification was performed.
 
 Use this when you are running only the deployment yourself and already have Firebase and Cloudflare CLI auth set up:
 
