@@ -143,6 +143,8 @@ export function MessageBubble({
     .filter(Boolean)
     .join(' ');
   const transferLabel = getTransferLabel(message);
+  const hasAttachments = (message.attachments?.length ?? 0) > 0;
+  const copyTitle = hasAttachments ? 'Copy block' : 'Copy text';
 
   return (
     <article
@@ -254,7 +256,7 @@ export function MessageBubble({
         </form>
       ) : (
         <>
-          {(message.attachments?.length ?? 0) > 0 && (
+          {hasAttachments && (
             <div className="message-attachments">
               {message.attachments?.map((attachment) => (
                 <div key={attachment.id} className="message-image-preview" title={attachment.name}>
@@ -324,8 +326,8 @@ export function MessageBubble({
             </button>
             <button
               className="icon-button bare"
-              title="Copy text"
-              disabled={!message.text.trim()}
+              title={copyTitle}
+              disabled={!message.text.trim() && !hasAttachments}
               onClick={() => onCopyMessage(message)}
             >
               <Copy size={16} />

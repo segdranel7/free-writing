@@ -36,6 +36,22 @@ function message(id: string, text: string): Message {
   };
 }
 
+function imageMessage(id: string, text = ''): Message {
+  return {
+    ...message(id, text),
+    attachments: [
+      {
+        id: `${id}-image`,
+        type: 'image',
+        url: 'data:image/png;base64,aW1hZ2UtYnl0ZXM=',
+        name: 'note.png',
+        contentType: 'image/png',
+        size: 11
+      }
+    ]
+  };
+}
+
 function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> = {}) {
   const props: ComponentProps<typeof ConversationPane> = {
     activeConversation: conversation,
@@ -197,6 +213,138 @@ describe('ConversationPane', () => {
 
     expect(writeText).toHaveBeenCalledWith('First');
     expect(await screen.findByText('Copied')).toBeInTheDocument();
+  });
+
+  it('copies text and attached images as rich clipboard content', async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    const originalClipboardItem = globalThis.ClipboardItem;
+    const clipboardItems: Array<Record<string, Blob>> = [];
+    class MockClipboardItem {
+      constructor(items: Record<string, Blob>) {
+        clipboardItems.push(items);
+      }
+    }
+    Object.assign(globalThis, { ClipboardItem: MockClipboardItem });
+    Object.assign(navigator, {
+      clipboard: { write, writeText: vi.fn() }
+    });
+
+    renderPane({
+      activeMessages: [imageMessage('first', 'First\nline two')],
+      messagesByConversation: {
+        [conversation.id]: [imageMessage('first', 'First\nline two')]
+      }
+    });
+
+    fireEvent.click(screen.getByTitle('Copy block'));
+
+    await waitFor(() => {
+      expect(write).toHaveBeenCalledWith([expect.any(MockClipboardItem)]);
+    });
+    expect(clipboardItems[0]['text/plain']).toEqual(expect.any(Blob));
+    expect(clipboardItems[0]['text/html']).toEqual(expect.any(Blob));
+    expect(clipboardItems[0]['image/png']).toEqual(expect.any(Blob));
+    await expect(clipboardItems[0]['text/plain'].text()).resolves.toBe('First\nline two');
+    await expect(clipboardItems[0]['text/html'].text()).resolves.toContain('<img src="data:image/png;base64,aW1hZ2UtYnl0ZXM="');
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
+
+    Object.assign(globalThis, { ClipboardItem: originalClipboardItem });
+  });
+
+  it('copies image-only blocks as rich clipboard content', async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    const originalClipboardItem = globalThis.ClipboardItem;
+    const clipboardItems: Array<Record<string, Blob>> = [];
+    class MockClipboardItem {
+      constructor(items: Record<string, Blob>) {
+        clipboardItems.push(items);
+      }
+    }
+    Object.assign(globalThis, { ClipboardItem: MockClipboardItem });
+    Object.assign(navigator, {
+      clipboard: { write, writeText: vi.fn() }
+    });
+
+    renderPane({
+      activeMessages: [imageMessage('image-only')],
+      messagesByConversation: {
+        [conversation.id]: [imageMessage('image-only')]
+      }
+    });
+
+    const copyButton = screen.getByTitle('Copy block');
+    expect(copyButton).toBeEnabled();
+    fireEvent.click(copyButton);
+
+    await waitFor(() => {
+      expect(write).toHaveBeenCalledWith([expect.any(MockClipboardItem)]);
+    });
+    expect(clipboardItems[0]['text/plain']).toEqual(expect.any(Blob));
+    expect(clipboardItems[0]['text/html']).toEqual(expect.any(Blob));
+    expect(clipboardItems[0]['image/png']).toEqual(expect.any(Blob));
+    await expect(clipboardItems[0]['text/plain'].text()).resolves.toBe('');
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
+
+    Object.assign(globalThis, { ClipboardItem: originalClipboardItem });
+  });
+
+  it('falls back to plain text when rich clipboard writes fail', async () => {
+    const write = vi.fn().mockRejectedValue(new Error('Rich clipboard unavailable'));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const originalClipboardItem = globalThis.ClipboardItem;
+    class MockClipboardItem {
+      constructor(_items: Record<string, Blob>) {}
+    }
+    Object.assign(globalThis, { ClipboardItem: MockClipboardItem });
+    Object.assign(navigator, {
+      clipboard: { write, writeText }
+    });
+
+    renderPane({
+      activeMessages: [imageMessage('first', 'First')],
+      messagesByConversation: {
+        [conversation.id]: [imageMessage('first', 'First')]
+      }
+    });
+
+    fireEvent.click(screen.getByTitle('Copy block'));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('First');
+    });
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
+
+    Object.assign(globalThis, { ClipboardItem: originalClipboardItem });
+  });
+
+  it('shows copy feedback when rich clipboard writes fail for image-only blocks', async () => {
+    const write = vi.fn().mockRejectedValue(new Error('Rich clipboard unavailable'));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const originalClipboardItem = globalThis.ClipboardItem;
+    class MockClipboardItem {
+      constructor(_items: Record<string, Blob>) {}
+    }
+    Object.assign(globalThis, { ClipboardItem: MockClipboardItem });
+    Object.assign(navigator, {
+      clipboard: { write, writeText }
+    });
+
+    renderPane({
+      activeMessages: [imageMessage('image-only')],
+      messagesByConversation: {
+        [conversation.id]: [imageMessage('image-only')]
+      }
+    });
+
+    fireEvent.click(screen.getByTitle('Copy block'));
+
+    expect(await screen.findByText('Copy failed')).toBeInTheDocument();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith('Unable to copy message text.', expect.any(Error));
+
+    consoleError.mockRestore();
+    Object.assign(globalThis, { ClipboardItem: originalClipboardItem });
   });
 
   it('shows copy feedback when clipboard writes fail', async () => {

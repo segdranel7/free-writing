@@ -12,6 +12,7 @@ The app should let the user:
 
 - Write messages
 - Attach small images by selecting or pasting them
+- Copy text blocks, including attached images where the browser clipboard and paste target support rich clipboard content
 - Read saved messages
 - Create separate conversations
 - Reorder conversations with a drag handle
@@ -85,13 +86,14 @@ The user should be able to:
 7. Delete messages.
 8. Search messages.
 9. Attach small images to message blocks by selecting files or pasting copied images.
-10. Forward/copy whole text blocks or selected parts of a block from one conversation to another.
-11. Open draft English conversion from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
-12. Reorder conversations and reorder text blocks inside a conversation with touch-friendly controls and drag handles on desktop and touch/pointer devices.
-13. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
-14. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
-15. Access the same content from iPhone, desktop, and tablet.
-16. Continue reading and writing offline when the app has already loaded and local data is cached.
+10. Copy saved blocks to the system clipboard, including attached images where rich clipboard support is available.
+11. Forward/copy whole text blocks or selected parts of a block from one conversation to another.
+12. Open draft English conversion from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
+13. Reorder conversations and reorder text blocks inside a conversation with touch-friendly controls and drag handles on desktop and touch/pointer devices.
+14. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
+15. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
+16. Access the same content from iPhone, desktop, and tablet.
+17. Continue reading and writing offline when the app has already loaded and local data is cached.
 
 ## 5. What Version 1 should not include
 
@@ -119,7 +121,7 @@ This version is still for one private user.
 
 ## 6. Core user story
 
-As the only user of the app, I want to sign in with Gmail, create and organize private conversations, write and organize text/image message blocks, merge related blocks, move or copy full blocks and selected parts between conversations, convert text blocks to English when needed, search them, edit them, delete them, and access them from my iPhone, desktop, and tablet, even with limited offline support.
+As the only user of the app, I want to sign in with Gmail, create and organize private conversations, write and organize text/image message blocks, copy saved blocks out to other apps when needed, merge related blocks, move or copy full blocks and selected parts between conversations, convert text blocks to English when needed, search them, edit them, delete them, and access them from my iPhone, desktop, and tablet, even with limited offline support.
 
 ---
 

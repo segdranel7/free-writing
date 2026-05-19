@@ -67,7 +67,7 @@ Required message actions:
 - Create message
 - Add small image attachments from the file picker or copied image paste
 - Edit message
-- Copy message text
+- Copy block content to the system clipboard
 - Delete message
 - Forward message to another conversation
 - Move message to another conversation
@@ -115,7 +115,26 @@ Requirements:
 - If an image or set of images is too large for inline storage, the app should show a clear error and keep the draft/edit content intact.
 - Search and English conversion operate on message text, not image contents.
 
-### 7.3.3 Convert text to English
+### 7.3.3 Copy blocks
+
+The user can copy saved block content to the system clipboard.
+
+Version 1 behavior:
+
+- Text-only blocks copy plain text.
+- Blocks with images copy plain text plus rich HTML containing the block text and attached images where the browser supports rich clipboard writes.
+- Image-only blocks can be copied.
+- Copying an image block also provides the first attached image as an image clipboard item when the browser supports it.
+- If rich clipboard copy is unavailable or fails for a block that has text, the app falls back to copying plain text.
+- Copy feedback should clearly show success or failure.
+
+Requirements:
+
+- Copying is a browser clipboard API action only and does not change Firestore data.
+- Attached images should be included in display order in the rich HTML clipboard payload.
+- Actual paste results depend on the target app; plain text fields may only receive the text.
+
+### 7.3.4 Convert text to English
 
 The user can convert saved text blocks or draft composer text into English.
 
@@ -141,7 +160,7 @@ Requirements:
 
 ---
 
-### 7.3.4 Message references
+### 7.3.5 Message references
 
 The user can attach structured references to another conversation or a quoted message block.
 
@@ -404,6 +423,7 @@ Content:
 - Message input fixed at the bottom of the visible conversation pane
 - Image preview strip in the composer when images are selected or pasted
 - Message actions: edit, delete, forward
+- Message action: copy block content to the clipboard
 - Message action: move to another conversation
 - Message action: convert to English
 - Transfer dialog for forwarding/moving whole blocks or selected text parts with tap and drag word selection
@@ -455,6 +475,7 @@ Content:
 - User can save an inline edit with `Ctrl+Enter` / `Cmd+Enter`.
 - User can edit a message.
 - User can paste images while editing a message and save them onto that block.
+- User can copy text-only, text/image, and image-only blocks to the system clipboard where browser support allows.
 - User can delete a message.
 - User can forward a whole message or selected text parts to another conversation.
 - User can move a whole message or selected text parts to another conversation.
@@ -523,6 +544,9 @@ Version 1 is complete when:
 - I can refresh the page and still see my messages.
 - I can open the same account on another device and see the same messages.
 - I can edit a message.
+- I can copy a text-only block and paste its text elsewhere.
+- I can copy a block with images and paste text plus attached images into a rich paste target where supported by the browser and target app.
+- I can copy an image-only block and paste the image into a compatible target where supported.
 - I can delete a message.
 - I can add a conversation or quote reference to a message and open it when the source is loaded.
 - I can open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`.

@@ -52,6 +52,7 @@ Messages:
 - Cmd+Enter should open draft English conversion on macOS and iPad hardware keyboards.
 - User can edit messages inline inside the message block, without moving the text into the composer.
 - User can paste images while editing a message, preview them, and save them onto that block.
+- User can copy saved blocks to the system clipboard. Text-only blocks copy plain text; blocks with images use best-effort rich clipboard data containing text and attached images, with plain-text fallback when possible.
 - User can delete messages with confirmation.
 - User can forward a whole message or selected text parts to another conversation.
 - User can move a whole message or selected text parts to another conversation.
