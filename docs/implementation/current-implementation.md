@@ -67,6 +67,7 @@ Current visual system:
 - `src/styles.css` is a single global stylesheet rather than a component-scoped CSS system.
 - The UI uses a dark base (`#101719`) with dark panel surfaces and bright teal action accents.
 - `:root` declares `color-scheme: dark` so native form controls and browser defaults align with the app theme.
+- Shared button styling lives in `src/styles.css`: use `.icon-button` for icon-only controls, including the mobile back button, and `.primary-button` or `.new-conversation` for text+icon actions. These shared styles center direct SVG children and prevent icon sizing/alignment drift when new lucide icons are added.
 - Keep theme changes coordinated with `index.html` `theme-color` and `vite.config.ts` manifest `theme_color` / `background_color`.
 
 Firebase is configured through a local `.env` file using Vite environment variables:
@@ -149,7 +150,7 @@ src/utils/
   Shared formatting, error, ordering, and small pure text helpers. `englishConversion.ts` assembles selected English conversion segment options into the text used for saving or sending. `textSelection.ts` tokenizes transfer/source text into word and whitespace tokens, normalizes selected ranges, assembles selected parts, and removes selected ranges from source text for partial moves. `messageOrder.ts` computes behavior-preserving reorder arrays for message up/down controls, conversation drag targets, and message before/after insertion positions. `dropTargets.ts` resolves pointer positions to before/after drop slots from measured item rectangles.
 
 src/styles.css
-  Global dark theme, responsive layout, viewport-constrained conversation pane, component surfaces, input states, message bubbles, drag reorder states, modal styling, English picker styling, and hover states.
+  Global dark theme, responsive layout, viewport-constrained conversation pane, component surfaces, input states, shared button/icon alignment, message bubbles, drag reorder states, modal styling, English picker styling, and hover states.
 
 index.html + vite.config.ts
   Browser theme color, generated PWA manifest colors, and local `/api/to-english` development middleware. Theme colors currently match the dark app shell so installed/mobile surfaces do not flash the old light theme.

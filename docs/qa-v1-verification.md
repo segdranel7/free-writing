@@ -111,6 +111,7 @@ Expected result:
 - Forward/move dialogs transfer the whole block when no words are selected, and transfer only selected words when one or more word selections exist.
 - Forward/move word selection supports tap toggling, click-to-deselect, separate non-adjacent selections, and pointer drag selection/unselection on mouse and touch.
 - Structured conversation and quote reference cards navigate to their source conversation or source text block when the source is still loaded; unavailable sources remain readable from their stored snapshot.
+- Icon-only controls, including composer toolbar actions, modal close buttons, row/message actions, and the mobile back button, show their icons centered within the button boundary.
 - Reordered conversations keep their order after reconnect and reload.
 - Reordered messages keep their order after reconnect and reload, whether reordered by explicit controls or the drag handle on desktop and mobile/touch devices.
 - Drag reordering continues smoothly when the intended drop target starts off-screen by auto-scrolling the message list near its top or bottom edge, and message-list gaps resolve to the nearest insertion slot instead of cancelling the drop.
