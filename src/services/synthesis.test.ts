@@ -24,6 +24,7 @@ function message(id: string, text: string, overrides: Partial<Message> = {}): Me
     conversationId: 'conversation-1',
     text,
     searchText: text.toLowerCase(),
+    tags: [],
     references: [],
     createdAt: timestamp,
     updatedAt: null,

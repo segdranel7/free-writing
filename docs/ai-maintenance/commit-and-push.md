@@ -10,8 +10,8 @@ Use after documentation refreshes, AI maintainability refactors, or meaningful f
 - If documentation changed, check local Markdown links before committing.
 - Do not include local secrets, `.env` files, generated caches, or unrelated temporary files.
 - If unrelated user changes are present, preserve them and only include them when they clearly belong to the requested checkpoint.
-- Use `npm run ship -- "Context-rich commit message"` for normal checkpoint publishing. It runs tests, builds, commits, pushes, and deploys Firebase Hosting. It also deploys Firestore rules or the Cloudflare Worker when matching files changed.
-- The ship script is intentionally a context-checkpoint tool, not only a deploy wrapper. Its message argument should include enough useful context for another AI or developer to understand the application changes, architectural implications, documentation updates, and verification performed.
+- Use `npm run ship -- "Context-rich commit message"` or `bash scripts/commit-push-deploy.sh "Context-rich commit message"` for normal checkpoint publishing. Either command runs tests, builds, commits, pushes, and deploys Firebase Hosting. It also deploys Firestore rules or the Cloudflare Worker when matching files changed.
+- The ship script and the underlying `scripts/commit-push-deploy.sh` script are intentionally context-checkpoint tools, not only deploy wrappers. Their message argument should include enough useful context for another AI or developer to understand the application changes, architectural implications, documentation updates, and verification performed.
 
 ## Prompt
 

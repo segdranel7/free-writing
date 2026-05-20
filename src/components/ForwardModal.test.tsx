@@ -30,6 +30,7 @@ const sourceMessage: Message = {
   conversationId: 'source',
   text: 'Send this elsewhere',
   searchText: 'send this elsewhere',
+  tags: [],
   references: [],
   createdAt: timestamp,
   updatedAt: null,

@@ -25,6 +25,7 @@ function message(id: string, text: string): Message {
     conversationId: conversation.id,
     text,
     searchText: text.toLowerCase(),
+    tags: [],
     references: [],
     createdAt: timestamp,
     updatedAt: null,
@@ -57,6 +58,8 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     activeConversation: conversation,
     conversations: [conversation],
     activeMessages: [message('first', 'First'), message('second', 'Second')],
+    availableTags: [],
+    selectedTags: [],
     messagesByConversation: {
       [conversation.id]: [message('first', 'First'), message('second', 'Second')]
     },
@@ -68,6 +71,8 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     onDismissMoveNotice: vi.fn(),
     onBack: vi.fn(),
     onDraftChange: vi.fn(),
+    onToggleTag: vi.fn(),
+    onClearTags: vi.fn(),
     onSubmitMessage: vi.fn(),
     onCancelEdit: vi.fn(),
     onEditMessage: vi.fn(),
@@ -94,6 +99,7 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     })),
     onCreateEnglishBlock: vi.fn(async () => undefined),
     onReplaceWithEnglish: vi.fn(async () => undefined),
+    onUpdateMessageTags: vi.fn(async () => undefined),
     ...overrides
   };
 
@@ -369,6 +375,60 @@ describe('ConversationPane', () => {
     expect(consoleError).toHaveBeenCalledWith('Unable to copy message text.', expect.any(Error));
 
     consoleError.mockRestore();
+  });
+
+  it('adds and removes tags inline on a block', async () => {
+    const taggedMessage = message('first', 'First');
+    taggedMessage.tags = ['Urgent'];
+    const onUpdateMessageTags = vi.fn(async () => undefined);
+
+    renderPane({
+      activeMessages: [taggedMessage],
+      messagesByConversation: {
+        [conversation.id]: [taggedMessage]
+      },
+      onUpdateMessageTags
+    });
+
+    expect(screen.getByText('Urgent')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Add tag'));
+    fireEvent.change(screen.getByLabelText('New tag'), { target: { value: ' Idea ' } });
+    fireEvent.click(screen.getByTitle('Save tag'));
+
+    await waitFor(() => {
+      expect(onUpdateMessageTags).toHaveBeenCalledWith(taggedMessage, ['Urgent', 'Idea']);
+    });
+
+    fireEvent.click(screen.getByTitle('Remove Urgent'));
+
+    await waitFor(() => {
+      expect(onUpdateMessageTags).toHaveBeenCalledWith(taggedMessage, []);
+    });
+  });
+
+  it('filters the active conversation by selected tags and disables reorder controls', () => {
+    const first = message('first', 'First');
+    first.tags = ['Urgent'];
+    const second = message('second', 'Second');
+    second.tags = ['Later'];
+
+    renderPane({
+      activeMessages: [first, second],
+      availableTags: [
+        { name: 'Urgent', count: 1 },
+        { name: 'Later', count: 1 }
+      ],
+      selectedTags: ['Urgent'],
+      messagesByConversation: {
+        [conversation.id]: [first, second]
+      }
+    });
+
+    expect(screen.getByText('First')).toBeInTheDocument();
+    expect(screen.queryByText('Second')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Drag to reorder')).toBeDisabled();
+    expect(screen.getAllByRole('button', { name: /urgent/i })[0]).toHaveClass('active');
   });
 
   it('opens draft English conversion with Ctrl+Enter and Cmd+Enter but leaves plain Enter as a newline shortcut', async () => {

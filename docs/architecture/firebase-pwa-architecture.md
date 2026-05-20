@@ -117,6 +117,7 @@ Useful user fields:
   "conversationId": "conversation-id",
   "text": "Message content",
   "searchText": "message content",
+  "tags": ["urgent", "idea"],
   "attachments": [
     {
       "id": "attachment-id",
@@ -176,6 +177,9 @@ Useful user fields:
 `searchText`
 : Lowercase version of message content for simple search.
 
+`tags`
+: Free-text labels attached to a block. Tags and flags share this field. The client trims tags, removes empty values, deduplicates them case-insensitively, and preserves the first display casing. Older messages without this field are treated as having no tags.
+
 `attachments`
 : Optional array of message attachments. Current supported attachment type is `image`. Images are compressed client-side and stored as inline data URLs in Firestore message documents, so they must stay small enough for Firestore document limits.
 
@@ -214,11 +218,13 @@ Useful user fields:
 
 Forwarded and moved source metadata is kept for transfer labeling and compatibility. Copied/forwarded blocks can expose conversation-level source navigation through `forwardedFromConversationId` plus `forwardedFromConversationTitle`; quote-level navigation is rendered from structured `references` instead of text markers.
 
-English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. Replacing a source block with English text updates the same message through the normal edit path. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments and structured references on that new message.
+Whole-block copy and move operations preserve tags. Partial text transfers intentionally create untagged target blocks because the tag may describe the full source block rather than the selected fragment.
+
+English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. The created English block preserves the source block's tags. Replacing a source block with English text updates the same message through the normal edit path. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments and structured references on that new message.
 
 Synthesized conversation indexes are stored as ordinary message documents with `blockKind: "conversation-index"` and `indexEntries`. The `text` field stores a plain fallback/search representation of the generated index, while `indexEntries` drives the clickable rows. Creating an index appends a new bottom message and moves the receiving conversation to the top like other new blocks. Previous index blocks remain normal source blocks and are included in later synthesis requests.
 
-Merged text/image blocks are stored as normal messages. Merging does not require extra fields beyond `attachments`; the app creates a replacement message with unified text plus selected attachments in display order and deletes the selected original messages in the same batch.
+Merged text/image blocks are stored as normal messages. The app creates a replacement message with unified text plus selected attachments in display order, assigns the union of source tags, and deletes the selected original messages in the same batch.
 
 ---
 

@@ -28,11 +28,7 @@ npx wrangler deploy
 
 For local Vite-only testing, put `GROQ_API_KEY` in ignored `.env` without the `VITE_` prefix and also ensure Firebase values, especially `VITE_FIREBASE_PROJECT_ID`, are present in `.env`. Restart the dev server, then confirm the browser calls `/api/to-english` for English conversion and `/api/synthesize-index` for index synthesis; in Vite dev these are local middleware.
 
-For hosted Firebase testing, set `VITE_TRANSLATION_API_URL` in ignored `.env.production.local` to the deployed Worker URL before `npm run build`, then deploy Firebase Hosting only. Conversation index synthesis derives `/api/synthesize-index` from this Worker URL unless `VITE_SYNTHESIS_API_URL` is explicitly configured. The current Worker URL is:
-
-```env
-VITE_TRANSLATION_API_URL=https://free-writing-translation.free-writing-danielsegatto.workers.dev
-```
+For hosted Firebase testing, set `VITE_TRANSLATION_API_URL` in ignored `.env.production.local` to the deployed Worker URL before `npm run build`, then deploy Firebase Hosting only. Conversation index synthesis derives `/api/synthesize-index` from this Worker URL unless `VITE_SYNTHESIS_API_URL` is explicitly configured.
 
 ## Firestore rules
 

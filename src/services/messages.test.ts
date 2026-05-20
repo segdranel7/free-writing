@@ -49,7 +49,8 @@ import {
   mergeMessages,
   moveMessage,
   moveMessageTextSelection,
-  reorderMessages
+  reorderMessages,
+  updateMessageTags
 } from './messages';
 
 const timestamp = (millis: number) => ({ toMillis: () => millis }) as Message['createdAt'];
@@ -61,6 +62,7 @@ function sourceMessage(overrides: Partial<Message> = {}): Message {
     conversationId: 'source-conversation',
     text: 'Transfer this',
     searchText: 'transfer this',
+    tags: [],
     references: [],
     createdAt: timestamp(1),
     updatedAt: null,
@@ -262,9 +264,9 @@ describe('message service writes', () => {
     });
   });
 
-  it('normalizes older message records without references', () => {
+  it('normalizes older message records without references or tags', () => {
     const oldMessage = sourceMessage();
-    const { references: _references, ...legacyMessage } = oldMessage;
+    const { references: _references, tags: _tags, ...legacyMessage } = oldMessage;
     const onChange = vi.fn();
     firestoreMocks.onSnapshot.mockImplementation((_query, callback) => {
       callback(docsWithMessages([legacyMessage as Message]));
@@ -276,9 +278,22 @@ describe('message service writes', () => {
     expect(onChange).toHaveBeenCalledWith([
       expect.objectContaining({
         id: 'source-message',
-        references: []
+        references: [],
+        tags: []
       })
     ]);
+  });
+
+  it('updates tags with normalized values only', async () => {
+    await updateMessageTags('user-1', 'conversation-1', 'message-1', ['  Urgent ', 'urgent', '', 'Idea']);
+
+    expect(firestoreMocks.updateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/message-1' }),
+      {
+        tags: ['Urgent', 'Idea'],
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
+    );
   });
 
   it('forwards a message as a new target message without deleting the source', async () => {
@@ -303,6 +318,14 @@ describe('message service writes', () => {
     expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'target-conversation', 'Transfer this', {
       moveToTop: true
     });
+  });
+
+  it('preserves tags when forwarding whole blocks', async () => {
+    await forwardMessage('user-1', sourceMessage({ tags: ['Urgent', 'Idea'] }), 'target-conversation', 'Source chat');
+
+    expect(firestoreMocks.addDoc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      tags: ['Urgent', 'Idea']
+    }));
   });
 
   it('creates an English block directly after the source message with a midpoint sort order', async () => {
@@ -330,6 +353,16 @@ describe('message service writes', () => {
     expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'English text', {
       moveToTop: true
     });
+  });
+
+  it('preserves tags when creating an English block after the source', async () => {
+    const first = sourceMessage({ id: 'first', conversationId: 'conversation-1', sortOrder: 1000, tags: ['Keep'] });
+
+    await createMessageAfter('user-1', 'conversation-1', first, [first], 'English text');
+
+    expect(firestoreMocks.batch.set).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      tags: ['Keep']
+    }));
   });
 
   it('rebalances message order when inserting an English block without a sort gap', async () => {
@@ -376,11 +409,22 @@ describe('message service writes', () => {
     });
   });
 
+  it('preserves tags when moving whole blocks', async () => {
+    await moveMessage('user-1', sourceMessage({ tags: ['Later'] }), 'target-conversation');
+
+    expect(firestoreMocks.batch.set).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      tags: ['Later']
+    }));
+  });
+
   it('moves selected text to the top of the target conversation without moving the source conversation', async () => {
-    await moveMessageTextSelection('user-1', sourceMessage({ text: 'Transfer this text' }), 'target-conversation', [
+    await moveMessageTextSelection('user-1', sourceMessage({ text: 'Transfer this text', tags: ['Source only'] }), 'target-conversation', [
       { startOffset: 0, endOffset: 8 }
     ]);
 
+    expect(firestoreMocks.batch.set).toHaveBeenCalledWith(expect.anything(), expect.not.objectContaining({
+      tags: expect.any(Array)
+    }));
     expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'target-conversation', 'Transfer', {
       moveToTop: true
     });
@@ -388,8 +432,8 @@ describe('message service writes', () => {
   });
 
   it('merges selected messages into one replacement block and deletes the originals', async () => {
-    const first = sourceMessage({ id: 'first', conversationId: 'conversation-1', text: 'First block', sortOrder: 3000 });
-    const second = sourceMessage({ id: 'second', conversationId: 'conversation-1', text: 'Second block', sortOrder: 1000 });
+    const first = sourceMessage({ id: 'first', conversationId: 'conversation-1', text: 'First block', sortOrder: 3000, tags: ['Idea'] });
+    const second = sourceMessage({ id: 'second', conversationId: 'conversation-1', text: 'Second block', sortOrder: 1000, tags: ['Urgent', 'idea'] });
 
     await mergeMessages('user-1', 'conversation-1', [first, second]);
 
@@ -401,6 +445,7 @@ describe('message service writes', () => {
       references: [],
       createdAt: 'SERVER_TIMESTAMP',
       updatedAt: null,
+      tags: ['Urgent', 'idea'],
       sortOrder: 1000,
       isForwarded: false,
       transferType: null,

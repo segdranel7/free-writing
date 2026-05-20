@@ -62,6 +62,7 @@ export type Message = {
   conversationId: string;
   text: string;
   searchText: string;
+  tags: string[];
   attachments?: MessageAttachment[];
   references: MessageReference[];
   createdAt: Timestamp;

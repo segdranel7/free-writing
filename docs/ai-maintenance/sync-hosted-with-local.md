@@ -88,6 +88,12 @@ npm run build
 npx firebase-tools deploy --only hosting
 ```
 
+Or use the checkpoint script directly:
+
+```bash
+bash scripts/commit-push-deploy.sh "Context-rich commit message"
+```
+
 If Firestore rules changed:
 
 ```bash

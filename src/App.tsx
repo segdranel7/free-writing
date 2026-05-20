@@ -20,7 +20,8 @@ import {
   mergeMessages,
   moveMessage,
   moveMessageTextSelection,
-  reorderMessages
+  reorderMessages,
+  updateMessageTags
 } from './services/messages';
 import { searchLoadedMessages } from './services/search';
 import { uploadMessageImages } from './services/storage';
@@ -30,6 +31,7 @@ import type { Conversation, ConversationIndexEntry, Message, MessageReference } 
 import type { DropPosition } from './utils/dropTargets';
 import { moveItemToDropPosition, moveMessageByDirection, moveMessageToDropPosition } from './utils/messageOrder';
 import type { MessageReferenceNavigationTarget } from './utils/messageReferences';
+import { getTagKey, getTagSummaries, messageMatchesAnyTag, normalizeTags } from './utils/tags';
 import { getSelectedTextFromRanges, type TextSelectionRange } from './utils/textSelection';
 
 type TransferAction = {
@@ -68,6 +70,8 @@ export default function App() {
   const [transferAction, setTransferAction] = useState<TransferAction | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<MessageReferenceNavigationTarget | null>(null);
   const [moveNotice, setMoveNotice] = useState<MoveNotice | null>(null);
+  const [selectedGlobalTags, setSelectedGlobalTags] = useState<string[]>([]);
+  const [selectedConversationTags, setSelectedConversationTags] = useState<string[]>([]);
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
@@ -75,13 +79,40 @@ export default function App() {
     () => searchLoadedMessages(searchTerm, conversations, messagesByConversation),
     [searchTerm, conversations, messagesByConversation]
   );
+  const allMessages = useMemo(
+    () => conversations.flatMap((conversation) => messagesByConversation[conversation.id] ?? []),
+    [conversations, messagesByConversation]
+  );
+  const globalTagSummaries = useMemo(() => getTagSummaries(allMessages), [allMessages]);
+  const conversationTagSummaries = useMemo(() => getTagSummaries(activeMessages), [activeMessages]);
+  const globalTagResults = useMemo(
+    () =>
+      selectedGlobalTags.length === 0
+        ? []
+        : conversations.flatMap((conversation) =>
+            (messagesByConversation[conversation.id] ?? [])
+              .filter((message) => messageMatchesAnyTag(message, selectedGlobalTags))
+              .map((message) => ({ conversation, message }))
+          ),
+    [conversations, messagesByConversation, selectedGlobalTags]
+  );
 
   function getConversationTitle(conversationId: string) {
     return conversations.find((conversation) => conversation.id === conversationId)?.title ?? null;
   }
 
+  function toggleSelectedTag(tags: string[], tag: string) {
+    const key = getTagKey(tag);
+    return tags.some((currentTag) => getTagKey(currentTag) === key)
+      ? tags.filter((currentTag) => getTagKey(currentTag) !== key)
+      : normalizeTags([...tags, tag]);
+  }
+
   function selectConversation(conversationId: string | null) {
     setMoveNotice(null);
+    if (conversationId !== activeConversationId) {
+      setSelectedConversationTags([]);
+    }
     setActiveConversationId(conversationId);
   }
 
@@ -306,6 +337,11 @@ export default function App() {
     );
   }
 
+  async function handleUpdateMessageTags(message: Message, tags: string[]) {
+    if (!user) return;
+    await updateMessageTags(user.uid, message.conversationId, message.id, tags);
+  }
+
   function handleStartRename(conversation: Conversation) {
     setRenamingId(conversation.id);
     setRenameDraft(conversation.title);
@@ -322,8 +358,16 @@ export default function App() {
   function handleNavigateToReference(target: MessageReferenceNavigationTarget) {
     setTransferAction(null);
     setSearchTerm('');
+    setSelectedConversationTags([]);
     setNavigationTarget(target);
     selectConversation(target.conversationId);
+  }
+
+  function handleOpenTagResult(conversationId: string, messageId: string) {
+    setTransferAction(null);
+    setSelectedConversationTags([]);
+    setNavigationTarget({ conversationId, messageId });
+    selectConversation(conversationId);
   }
 
   if (authLoading) {
@@ -342,9 +386,15 @@ export default function App() {
         conversations={conversations}
         searchTerm={searchTerm}
         searchResults={searchResults}
+        tagSummaries={globalTagSummaries}
+        selectedTags={selectedGlobalTags}
+        tagResults={globalTagResults}
         renamingId={renamingId}
         renameDraft={renameDraft}
         onSearchTermChange={setSearchTerm}
+        onToggleTag={(tag) => setSelectedGlobalTags((current) => toggleSelectedTag(current, tag))}
+        onClearTags={() => setSelectedGlobalTags([])}
+        onOpenTagResult={handleOpenTagResult}
         onCreateConversation={() => void handleCreateConversation()}
         onSelectConversation={selectConversation}
         onStartRename={handleStartRename}
@@ -360,6 +410,8 @@ export default function App() {
         activeConversation={activeConversation}
         conversations={conversations}
         activeMessages={activeMessages}
+        availableTags={conversationTagSummaries}
+        selectedTags={selectedConversationTags}
         messagesByConversation={messagesByConversation}
         navigationTarget={navigationTarget}
         draft={draft}
@@ -372,6 +424,8 @@ export default function App() {
         onDismissMoveNotice={() => setMoveNotice(null)}
         onBack={() => selectConversation(null)}
         onDraftChange={setDraft}
+        onToggleTag={(tag) => setSelectedConversationTags((current) => toggleSelectedTag(current, tag))}
+        onClearTags={() => setSelectedConversationTags([])}
         onSubmitMessage={handleSubmitMessage}
         onCancelEdit={handleCancelEdit}
         onEditMessage={handleEditMessage}
@@ -393,6 +447,7 @@ export default function App() {
         onConvertToEnglish={requestEnglishVersions}
         onCreateEnglishBlock={handleCreateEnglishBlock}
         onReplaceWithEnglish={handleReplaceWithEnglish}
+        onUpdateMessageTags={(message, tags) => void handleUpdateMessageTags(message, tags)}
       />
 
       {transferAction && (

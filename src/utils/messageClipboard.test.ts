@@ -17,6 +17,7 @@ function message(overrides: Partial<Message> = {}): Message {
     conversationId: 'conversation-1',
     text: 'Message text',
     searchText: 'message text',
+    tags: [],
     references: [],
     createdAt: timestamp,
     updatedAt: null,

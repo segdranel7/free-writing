@@ -199,13 +199,24 @@ Current hosting configuration:
 - `firebase.json` serves the production build from `dist/`.
 - All routes rewrite to `/index.html` so the React app can handle navigation.
 - Hosted English conversion and conversation index synthesis use the Cloudflare Worker URL configured through `VITE_TRANSLATION_API_URL`; synthesis can override with `VITE_SYNTHESIS_API_URL` if needed.
-- Current deployed Worker URL: `https://free-writing-translation.free-writing-danielsegatto.workers.dev`.
 - Firestore rules are deployed from `firebase.rules`.
 
 Primary checkpoint/deployment flow:
 
 ```bash
 npm run ship -- "Context-rich commit message"
+```
+
+Or invoke the same checkpoint script directly:
+
+```bash
+bash scripts/commit-push-deploy.sh "Context-rich commit message"
+```
+
+For direct hosting-only deployment, use:
+
+```bash
+npm run deploy
 ```
 
 `scripts/commit-push-deploy.sh` is the normal publishing path when changes should become a useful future-development checkpoint. Its help text explains that the commit message should capture what changed, why it matters, and what verification ran so another AI or developer can safely continue from the commit. The script runs tests, writes the production Worker URL to ignored `.env.production.local`, builds, commits unignored changes, pushes the current branch, deploys Firebase Hosting, deploys Firestore rules when `firebase.rules` changed, and deploys the Cloudflare Worker when `workers/translation/` or `wrangler.jsonc` changed.
@@ -314,6 +325,14 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - Search results clear the search term and open the result's conversation.
 - This is intentionally simple, but it means search coverage depends on the active subscriptions and local cache.
 - Message subscriptions query Firestore by `createdAt` and then normalize/sort by `sortOrder` in client code so older records without explicit ordering still display chronologically.
+
+### Block tags and flags
+
+- Blocks store free-text tags/flags in a normalized `tags` array. `src/utils/tags.ts` trims values, removes empties, deduplicates case-insensitively, and preserves the first display casing.
+- `src/services/messages.ts` normalizes old records without `tags` to an empty array and exposes `updateMessageTags` for tag-only updates. Whole-block copy/move and English child blocks preserve tags, merged blocks get the union of source tags, and partial text transfers create untagged target blocks.
+- `src/components/MessageBubble.tsx` renders tag chips on each block and provides an inline add/remove tag editor.
+- `src/components/Sidebar.tsx` shows a global tag browser across loaded blocks. Selecting one or more tags shows matching blocks across conversations; opening a result navigates to and highlights that block.
+- `src/components/ConversationPane.tsx` shows active-conversation tag filters below the header. Filters use OR matching and disable reorder controls while blocks are hidden.
 
 ### Cross-conversation references
 

@@ -1,8 +1,10 @@
 import {
   useEffect,
   useRef,
+  useState,
   type ClipboardEvent,
   type DragEvent,
+  type FormEvent,
   type MouseEvent,
   type PointerEvent,
   type RefObject
@@ -17,13 +19,16 @@ import {
   Languages,
   Link2,
   MoveRight,
+  Plus,
   Quote,
+  Tag,
   Trash2,
   X
 } from 'lucide-react';
 import type { Message, MessageReference } from '../types';
 import { formatDate } from '../utils/date';
 import { getReferenceNavigationTarget, truncateReferenceText, type MessageReferenceNavigationTarget } from '../utils/messageReferences';
+import { getTagKey, normalizeTags } from '../utils/tags';
 
 export type CopyFeedbackStatus = 'copied' | 'failed';
 
@@ -38,6 +43,7 @@ type MessageBubbleProps = {
   isSelected: boolean;
   isDragging: boolean;
   isDragOver: boolean;
+  isReorderDisabled: boolean;
   isEditing: boolean;
   editText: string;
   editReferences: MessageReference[];
@@ -66,6 +72,7 @@ type MessageBubbleProps = {
   onMoveToConversation: (message: Message) => void;
   onDeleteMessage: (message: Message) => void;
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
+  onUpdateTags: (message: Message, tags: string[]) => void | Promise<void>;
   onDragStart: (event: DragEvent<HTMLElement>, messageId: string) => void;
   onDragOver: (event: DragEvent<HTMLElement>, messageId: string) => void;
   onDragLeave: (event: DragEvent<HTMLElement>, messageId: string) => void;
@@ -125,6 +132,7 @@ export function MessageBubble({
   isSelected,
   isDragging,
   isDragOver,
+  isReorderDisabled,
   isEditing,
   editText,
   editReferences,
@@ -153,6 +161,7 @@ export function MessageBubble({
   onMoveToConversation,
   onDeleteMessage,
   onMoveMessage,
+  onUpdateTags,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -167,6 +176,10 @@ export function MessageBubble({
   const lastTapRef = useRef<{ timeoutId: number } | null>(null);
   const suppressNextClickRef = useRef(false);
   const suppressClickTimeoutRef = useRef<number | null>(null);
+  const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
+  const [tagDraft, setTagDraft] = useState('');
+  const [isSavingTags, setIsSavingTags] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
   const messageClassName = [
     'message-bubble',
     isSelected ? 'selected' : '',
@@ -183,6 +196,7 @@ export function MessageBubble({
   const hasAttachments = (message.attachments?.length ?? 0) > 0;
   const copyTitle = hasAttachments ? 'Copy block' : 'Copy text';
   const isConversationIndex = message.blockKind === 'conversation-index' && (message.indexEntries?.length ?? 0) > 0;
+  const tags = normalizeTags(message.tags ?? []);
 
   useEffect(() => {
     return () => {
@@ -297,6 +311,36 @@ export function MessageBubble({
     clearNativeTextSelection();
   }
 
+  async function saveTags(tagsToSave: string[]) {
+    if (isSavingTags) return;
+    setIsSavingTags(true);
+    setTagError(null);
+    try {
+      await onUpdateTags(message, tagsToSave);
+      setTagDraft('');
+      setIsTagEditorOpen(false);
+    } catch (error) {
+      setTagError(error instanceof Error ? error.message : 'Unable to update tags.');
+    } finally {
+      setIsSavingTags(false);
+    }
+  }
+
+  function addTag(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextTags = normalizeTags([...tags, tagDraft]);
+    if (nextTags.length === tags.length) {
+      setTagDraft('');
+      return;
+    }
+    void saveTags(nextTags);
+  }
+
+  function removeTag(tagToRemove: string) {
+    const removeKey = getTagKey(tagToRemove);
+    void saveTags(tags.filter((tag) => getTagKey(tag) !== removeKey));
+  }
+
   return (
     <article
       className={messageClassName}
@@ -338,6 +382,76 @@ export function MessageBubble({
         {message.updatedAt && <span>edited</span>}
         <time>{formatDate(message.createdAt)}</time>
       </div>
+
+      <div className="message-tags" aria-label="Block tags">
+        {tags.map((tag) => (
+          <span key={tag} className="message-tag-chip">
+            <Tag size={12} />
+            {tag}
+            {!isSelectionMode && (
+              <button
+                className="tag-remove-button"
+                type="button"
+                title={`Remove ${tag}`}
+                disabled={isSavingTags}
+                onClick={() => removeTag(tag)}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </span>
+        ))}
+        {!isSelectionMode && (
+          <>
+            {isTagEditorOpen ? (
+              <form className="tag-editor-form" onSubmit={addTag}>
+                <input
+                  aria-label="New tag"
+                  value={tagDraft}
+                  autoFocus
+                  placeholder="Add tag"
+                  disabled={isSavingTags}
+                  onChange={(event) => setTagDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setTagDraft('');
+                      setIsTagEditorOpen(false);
+                      setTagError(null);
+                    }
+                  }}
+                />
+                <button className="icon-button bare" type="submit" title="Save tag" disabled={!tagDraft.trim() || isSavingTags}>
+                  <Plus size={14} />
+                </button>
+                <button
+                  className="icon-button bare"
+                  type="button"
+                  title="Cancel tag"
+                  disabled={isSavingTags}
+                  onClick={() => {
+                    setTagDraft('');
+                    setIsTagEditorOpen(false);
+                    setTagError(null);
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </form>
+            ) : (
+              <button className="add-tag-button" type="button" title="Add tag" onClick={() => setIsTagEditorOpen(true)}>
+                <Plus size={13} />
+                Tag
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      {tagError && (
+        <p className="tag-error" role="alert">
+          {tagError}
+        </p>
+      )}
 
       {isEditing ? (
         <form
@@ -488,7 +602,7 @@ export function MessageBubble({
                 <button
                   className="icon-button bare"
                   title="Move up"
-                  disabled={messageIndex === 0}
+                  disabled={isReorderDisabled || messageIndex === 0}
                   onClick={() => onMoveMessage(messageIndex, -1)}
                 >
                   <ArrowUp size={16} />
@@ -496,7 +610,7 @@ export function MessageBubble({
                 <button
                   className="icon-button bare"
                   title="Move down"
-                  disabled={messageIndex === messageCount - 1}
+                  disabled={isReorderDisabled || messageIndex === messageCount - 1}
                   onClick={() => onMoveMessage(messageIndex, 1)}
                 >
                   <ArrowDown size={16} />
@@ -504,8 +618,8 @@ export function MessageBubble({
                 <button
                   className="icon-button bare drag-handle"
                   title="Drag to reorder"
-                  draggable={messageCount > 1}
-                  disabled={messageCount < 2}
+                  draggable={!isReorderDisabled && messageCount > 1}
+                  disabled={isReorderDisabled || messageCount < 2}
                   onDragStart={(event) => onDragStart(event, message.id)}
                   onDragEnd={onDragEnd}
                   onPointerDown={(event) => onPointerDown(event, message.id)}

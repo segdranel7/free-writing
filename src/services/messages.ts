@@ -15,6 +15,7 @@ import { requireDb } from '../firebase';
 import type { ConversationIndexEntry, Message, MessageAttachment, MessageReference } from '../types';
 import { touchConversation } from './conversations';
 import { getSelectedTextFromRanges, removeTextRanges, type TextSelectionRange } from '../utils/textSelection';
+import { normalizeTags } from '../utils/tags';
 
 const messagesPath = (userId: string, conversationId: string) =>
   collection(requireDb(), 'users', userId, 'conversations', conversationId, 'messages');
@@ -29,6 +30,7 @@ type MessageWriteInput = {
   conversationId: string;
   text: string;
   searchText?: string;
+  tags?: string[];
   attachments?: MessageAttachment[];
   references?: MessageReference[];
   sortOrder: number;
@@ -50,6 +52,7 @@ function buildMessageWrite({
   conversationId,
   text,
   searchText,
+  tags = [],
   attachments = [],
   references = [],
   sortOrder,
@@ -61,6 +64,7 @@ function buildMessageWrite({
   blockKind,
   indexEntries
 }: MessageWriteInput) {
+  const normalizedTags = normalizeTags(tags);
   const message = {
     userId,
     conversationId,
@@ -79,6 +83,7 @@ function buildMessageWrite({
 
   return {
     ...message,
+    ...(normalizedTags.length > 0 ? { tags: normalizedTags } : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
     ...(blockKind ? { blockKind } : {}),
     ...(indexEntries ? { indexEntries } : {})
@@ -98,6 +103,7 @@ function buildTransferredMessageWrite(
     conversationId: targetConversationId,
     text: source.text,
     searchText: source.searchText,
+    tags: source.tags ?? [],
     attachments: source.attachments ?? [],
     references: source.references ?? [],
     sortOrder,
@@ -115,6 +121,7 @@ function normalizeMessages(messages: Message[]) {
       ...message,
       attachments: message.attachments ?? [],
       references: message.references ?? [],
+      tags: normalizeTags(message.tags ?? []),
       indexEntries: message.indexEntries ?? [],
       sortOrder: typeof message.sortOrder === 'number' ? message.sortOrder : (index + 1) * sortStep,
       transferType: message.transferType ?? (message.isForwarded ? 'forwarded' : null),
@@ -232,6 +239,7 @@ export async function createMessageAfter(
       conversationId,
       text: cleanText,
       sortOrder: insertion.sortOrder,
+      tags: source.tags ?? [],
       forwardedFromConversationId: source.conversationId,
       forwardedFromMessageId: source.id
     }));
@@ -252,6 +260,7 @@ export async function createMessageAfter(
     conversationId,
     text: cleanText,
     sortOrder: (insertion.sourceIndex + 2) * sortStep,
+    tags: source.tags ?? [],
     forwardedFromConversationId: source.conversationId,
     forwardedFromMessageId: source.id
   }));
@@ -284,6 +293,13 @@ export async function editMessage(
   if (references) updates.references = references;
   await updateDoc(messagePath(userId, conversationId, messageId), updates);
   await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments ?? [], references ?? []));
+}
+
+export async function updateMessageTags(userId: string, conversationId: string, messageId: string, tags: string[]) {
+  await updateDoc(messagePath(userId, conversationId, messageId), {
+    tags: normalizeTags(tags),
+    updatedAt: serverTimestamp()
+  });
 }
 
 export function deleteMessage(userId: string, conversationId: string, messageId: string) {
@@ -373,6 +389,7 @@ export async function mergeMessages(userId: string, conversationId: string, mess
   const selectedMessages = normalizeMessages(messages);
   const mergedText = selectedMessages.map((message) => message.text.trim()).filter(Boolean).join('\n\n').trim();
   const mergedAttachments = selectedMessages.flatMap((message) => message.attachments ?? []);
+  const mergedTags = normalizeTags(selectedMessages.flatMap((message) => message.tags ?? []));
   if (selectedMessages.length < 2 || (!mergedText && mergedAttachments.length === 0)) return null;
 
   const targetMessage = doc(messagesPath(userId, conversationId));
@@ -382,6 +399,7 @@ export async function mergeMessages(userId: string, conversationId: string, mess
     conversationId,
     text: mergedText,
     attachments: mergedAttachments,
+    tags: mergedTags,
     sortOrder: selectedMessages[0].sortOrder
   }));
   selectedMessages.forEach((message) => {

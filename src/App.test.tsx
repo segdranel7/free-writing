@@ -38,6 +38,7 @@ const sourceMessage: Message = {
   conversationId: 'source',
   text: 'Transfer this',
   searchText: 'transfer this',
+  tags: [],
   references: [],
   createdAt: timestamp,
   updatedAt: null,
@@ -132,7 +133,8 @@ vi.mock('./services/messages', () => ({
   mergeMessages: vi.fn(),
   moveMessage: serviceMocks.moveMessage,
   moveMessageTextSelection: vi.fn(),
-  reorderMessages: vi.fn()
+  reorderMessages: vi.fn(),
+  updateMessageTags: vi.fn()
 }));
 
 vi.mock('./services/search', () => ({

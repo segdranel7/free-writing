@@ -2,7 +2,7 @@ import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { Sidebar } from './Sidebar';
-import type { Conversation } from '../types';
+import type { Conversation, Message } from '../types';
 
 vi.mock('../services/auth', () => ({
   signOutUser: vi.fn(async () => undefined)
@@ -26,6 +26,26 @@ function conversation(id: string, title: string): Conversation {
   };
 }
 
+function message(id: string, conversationId: string, text: string, tags: string[]): Message {
+  return {
+    id,
+    userId: 'user-1',
+    conversationId,
+    text,
+    searchText: text.toLowerCase(),
+    tags,
+    references: [],
+    createdAt: timestamp(1),
+    updatedAt: null,
+    sortOrder: 1000,
+    isForwarded: false,
+    transferType: null,
+    forwardedFromConversationId: null,
+    forwardedFromConversationTitle: null,
+    forwardedFromMessageId: null
+  };
+}
+
 function renderSidebar(overrides: Partial<ComponentProps<typeof Sidebar>> = {}) {
   const conversations = [conversation('first', 'First'), conversation('second', 'Second')];
   const props: ComponentProps<typeof Sidebar> = {
@@ -34,9 +54,15 @@ function renderSidebar(overrides: Partial<ComponentProps<typeof Sidebar>> = {}) 
     conversations,
     searchTerm: '',
     searchResults: [],
+    tagSummaries: [],
+    selectedTags: [],
+    tagResults: [],
     renamingId: null,
     renameDraft: '',
     onSearchTermChange: vi.fn(),
+    onToggleTag: vi.fn(),
+    onClearTags: vi.fn(),
+    onOpenTagResult: vi.fn(),
     onCreateConversation: vi.fn(),
     onSelectConversation: vi.fn(),
     onStartRename: vi.fn(),
@@ -52,6 +78,24 @@ function renderSidebar(overrides: Partial<ComponentProps<typeof Sidebar>> = {}) 
 }
 
 describe('Sidebar', () => {
+  it('shows global tag results and opens the selected block', () => {
+    const conversations = [conversation('first', 'First'), conversation('second', 'Second')];
+    const props = renderSidebar({
+      conversations,
+      tagSummaries: [
+        { name: 'Urgent', count: 1 },
+        { name: 'Later', count: 1 }
+      ],
+      selectedTags: ['Urgent'],
+      tagResults: [{ conversation: conversations[1], message: message('message-2', 'second', 'Tagged note', ['Urgent']) }]
+    });
+
+    expect(screen.getByRole('button', { name: /urgent/i })).toHaveClass('active');
+    fireEvent.click(screen.getByText('Tagged note'));
+
+    expect(props.onOpenTagResult).toHaveBeenCalledWith('second', 'message-2');
+  });
+
   it('starts conversation dragging as soon as the drag handle is pressed', () => {
     const props = renderSidebar();
     const firstConversation = screen.getByText('First').closest('article') as HTMLElement;

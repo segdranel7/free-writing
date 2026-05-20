@@ -2,6 +2,7 @@ import {
   Fragment,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ClipboardEvent
@@ -21,11 +22,14 @@ import type { DropPosition } from '../utils/dropTargets';
 import { getImageFilesFromClipboardData } from '../utils/imageFiles';
 import { copyMessageToClipboard } from '../utils/messageClipboard';
 import type { MessageReferenceNavigationTarget } from '../utils/messageReferences';
+import { messageMatchesAnyTag, type TagSummary } from '../utils/tags';
 
 type ConversationPaneProps = {
   activeConversation: Conversation | null;
   conversations: Conversation[];
   activeMessages: Message[];
+  availableTags: TagSummary[];
+  selectedTags: string[];
   messagesByConversation: Record<string, Message[]>;
   navigationTarget: MessageReferenceNavigationTarget | null;
   moveNotice: { targetConversationId: string; targetConversationTitle: string } | null;
@@ -35,6 +39,8 @@ type ConversationPaneProps = {
   onDismissMoveNotice: () => void;
   onBack: () => void;
   onDraftChange: (value: string) => void;
+  onToggleTag: (tag: string) => void;
+  onClearTags: () => void;
   onSubmitMessage: (textOverride?: string, imageFiles?: File[], references?: MessageReference[]) => void | Promise<void>;
   onCancelEdit: () => void;
   onEditMessage: (message: Message) => void;
@@ -54,6 +60,7 @@ type ConversationPaneProps = {
   onConvertToEnglish: (text: string) => Promise<EnglishConversion>;
   onCreateEnglishBlock: (message: Message, text: string) => Promise<void>;
   onReplaceWithEnglish: (message: Message, text: string) => Promise<void>;
+  onUpdateMessageTags: (message: Message, tags: string[]) => void | Promise<void>;
 };
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
@@ -75,6 +82,8 @@ export function ConversationPane({
   activeConversation,
   conversations,
   activeMessages,
+  availableTags,
+  selectedTags,
   messagesByConversation,
   navigationTarget,
   moveNotice,
@@ -84,6 +93,8 @@ export function ConversationPane({
   onDismissMoveNotice,
   onBack,
   onDraftChange,
+  onToggleTag,
+  onClearTags,
   onSubmitMessage,
   onCancelEdit,
   onEditMessage,
@@ -102,7 +113,8 @@ export function ConversationPane({
   onSynthesizeIndex,
   onConvertToEnglish,
   onCreateEnglishBlock,
-  onReplaceWithEnglish
+  onReplaceWithEnglish,
+  onUpdateMessageTags
 }: ConversationPaneProps) {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [clearComposerImagePreviewsSignal, setClearComposerImagePreviewsSignal] = useState(0);
@@ -129,6 +141,11 @@ export function ConversationPane({
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const selectionAnchorRef = useRef<{ messageId: string; top: number } | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const isTagFilterActive = selectedTags.length > 0;
+  const visibleMessages = useMemo(
+    () => (isTagFilterActive ? activeMessages.filter((message) => messageMatchesAnyTag(message, selectedTags)) : activeMessages),
+    [activeMessages, isTagFilterActive, selectedTags]
+  );
   const {
     draggedItemId: draggedMessageId,
     dropTarget: messageDropTarget,
@@ -148,7 +165,7 @@ export function ConversationPane({
     containerRef: messagesRef,
     itemSelector: '[data-message-id]',
     getItemId: (element) => element.dataset.messageId,
-    itemCount: activeMessages.length,
+    itemCount: visibleMessages.length,
     onReorder: onReorderMessage
   });
   const {
@@ -172,9 +189,9 @@ export function ConversationPane({
     }
   });
 
-  const selectedMessages = activeMessages.filter((message) => selectedMessageIds.includes(message.id));
+  const selectedMessages = visibleMessages.filter((message) => selectedMessageIds.includes(message.id));
   const draggedMessage = dragPreview
-    ? activeMessages.find((message) => message.id === dragPreview.itemId) ?? null
+    ? visibleMessages.find((message) => message.id === dragPreview.itemId) ?? null
     : null;
 
   function getConversationTitle(conversationId: string | null) {
@@ -195,12 +212,12 @@ export function ConversationPane({
   }, [copyFeedback]);
 
   useEffect(() => {
-    const activeMessageIds = new Set(activeMessages.map((message) => message.id));
+    const activeMessageIds = new Set(visibleMessages.map((message) => message.id));
     setSelectedMessageIds((currentIds) => {
       const nextIds = currentIds.filter((messageId) => activeMessageIds.has(messageId));
       return nextIds.length === currentIds.length ? currentIds : nextIds;
     });
-  }, [activeConversation?.id, activeMessages]);
+  }, [activeConversation?.id, visibleMessages]);
 
   useEffect(() => {
     setIsMergeSelectionMode(false);
@@ -483,13 +500,35 @@ export function ConversationPane({
             </div>
           </header>
 
+          {availableTags.length > 0 && (
+            <div className="conversation-tag-filter" aria-label="Filter conversation by tag">
+              <span>Tags</span>
+              {availableTags.map((tag) => (
+                <button
+                  key={tag.name}
+                  className={selectedTags.includes(tag.name) ? 'tag-filter-chip active' : 'tag-filter-chip'}
+                  type="button"
+                  onClick={() => onToggleTag(tag.name)}
+                >
+                  {tag.name}
+                  <span>{tag.count}</span>
+                </button>
+              ))}
+              {isTagFilterActive && (
+                <button className="text-button compact" type="button" onClick={onClearTags}>
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
           <div
             className="messages"
             ref={messagesRef}
             onDragOver={handleMessagesDragOver}
             onDrop={handleMessagesDrop}
           >
-            {activeMessages.map((message, messageIndex) => (
+            {visibleMessages.map((message, messageIndex) => (
               <Fragment key={message.id}>
                 {messageDropTarget?.itemId === message.id && messageDropTarget.position === 'before' && (
                   <div className="message-drop-indicator" aria-hidden="true" />
@@ -498,6 +537,7 @@ export function ConversationPane({
                   message={message}
                   messageIndex={messageIndex}
                   messageCount={activeMessages.length}
+                  isReorderDisabled={isTagFilterActive}
                   isSelectionMode={isMergeSelectionMode}
                   isSelected={selectedMessageIds.includes(message.id)}
                   isDragging={draggedMessageId === message.id}
@@ -545,6 +585,7 @@ export function ConversationPane({
                   onPointerMove={handleMessagePointerMove}
                   onPointerUp={handleMessagePointerUp}
                   onPointerCancel={handleMessagePointerCancel}
+                  onUpdateTags={onUpdateMessageTags}
                 />
                 {messageDropTarget?.itemId === message.id && messageDropTarget.position === 'after' && (
                   <div className="message-drop-indicator" aria-hidden="true" />
@@ -552,6 +593,9 @@ export function ConversationPane({
               </Fragment>
             ))}
             {activeMessages.length === 0 && <p className="empty-state">Write the first message here.</p>}
+            {activeMessages.length > 0 && visibleMessages.length === 0 && (
+              <p className="empty-state">No blocks match those tags.</p>
+            )}
           </div>
 
           {dragPreview && draggedMessage && (

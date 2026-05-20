@@ -6,7 +6,7 @@ This is the entry point for the Free Writing PWA documentation. The detailed bas
 
 ## App summary
 
-Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, conversation list drag reordering, saved text/image blocks, image paste and selection, search, copying text/image blocks to the browser clipboard, editing, deletion, copying or moving whole blocks or selected parts between conversations with source metadata for copied blocks, manual up/down and drag-handle block reordering on desktop and touch/pointer devices, multi-block merging, per-block English conversion, conversation index synthesis, multi-device access, and offline support for the app shell plus cached Firestore data.
+Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, conversation list drag reordering, saved text/image blocks, image paste and selection, search, tags/flags on blocks with global and conversation filtering, copying text/image blocks to the browser clipboard, editing, deletion, copying or moving whole blocks or selected parts between conversations with source metadata for copied blocks, manual up/down and drag-handle block reordering on desktop and touch/pointer devices, multi-block merging, per-block English conversion, conversation index synthesis, multi-device access, and offline support for the app shell plus cached Firestore data.
 
 Target devices:
 
@@ -22,6 +22,17 @@ Recommended Version 1 stack:
 - Cloudflare Worker for server-side AI translation and conversation-index synthesis proxying
 - PWA manifest and service worker
 - Firebase Hosting
+
+## Quick start commands
+
+- `npm install`
+- `npm run dev`
+- `npm run test`
+- `npm run build`
+- `npm run preview`
+- `npm run deploy`
+- `npm run ship`
+- `bash scripts/commit-push-deploy.sh "Context-rich commit message"`
 
 ## Split documentation
 
@@ -102,7 +113,7 @@ Use [QA verification checklist](qa-v1-verification.md) before treating Firebase,
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create and organize conversations, save text/image blocks, copy text and attached images where the browser clipboard allows, convert text to English, synthesize a clickable conversation index, quickly convert draft text with keyboard shortcuts, edit/delete/search/reorder/merge blocks, forward or move whole blocks or selected parts between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create and organize conversations, save text/image blocks, tag or flag blocks for filtering, copy text and attached images where the browser clipboard allows, convert text to English, synthesize a clickable conversation index, quickly convert draft text with keyboard shortcuts, edit/delete/search/reorder/merge blocks, forward or move whole blocks or selected parts between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
 
 ## Maintenance guidance
 

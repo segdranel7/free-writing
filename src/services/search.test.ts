@@ -30,6 +30,7 @@ function message(id: string, conversationId: string, text: string): Message {
     conversationId,
     text,
     searchText: text.toLowerCase(),
+    tags: [],
     references: [],
     createdAt: timestamp,
     updatedAt: null,
