@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { Sidebar } from './Sidebar';
@@ -88,7 +88,283 @@ describe('Sidebar', () => {
     });
 
     expect(elementFromPoint).toHaveBeenCalledWith(14, 38);
-    expect(props.onReorderConversation).toHaveBeenCalledWith('first', 'second');
+    expect(props.onReorderConversation).toHaveBeenCalledWith('first', 'second', 'after');
+
+    if (originalElementFromPoint) {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint
+      });
+    } else {
+      Reflect.deleteProperty(document, 'elementFromPoint');
+    }
+  });
+
+  it('shows the insertion space where the dragged conversation will land', () => {
+    renderSidebar();
+    const firstConversationHandle = screen.getAllByTitle('Drag conversation')[0];
+    const secondConversation = screen.getByText('Second').closest('article') as HTMLElement;
+    Object.defineProperty(secondConversation, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 100,
+        bottom: 200,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 100,
+        x: 0,
+        y: 100,
+        toJSON: () => undefined
+      })
+    });
+
+    fireEvent.dragStart(firstConversationHandle, {
+      dataTransfer: {
+        effectAllowed: '',
+        setData: vi.fn(),
+        setDragImage: vi.fn(),
+        getData: vi.fn(() => 'first')
+      }
+    });
+    const dragOver = createEvent.dragOver(secondConversation);
+    Object.defineProperties(dragOver, {
+      clientY: { value: 125 },
+      dataTransfer: {
+        value: {
+          dropEffect: ''
+        }
+      }
+    });
+    fireEvent(secondConversation, dragOver);
+
+    const indicator = document.querySelector('.conversation-drop-indicator');
+    expect(indicator).toBeInTheDocument();
+    expect(secondConversation.previousElementSibling).toBe(indicator);
+    expect(secondConversation).not.toHaveClass('drag-over');
+  });
+
+  it('reorders conversations with native drag-and-drop', () => {
+    const props = renderSidebar();
+    const firstConversationHandle = screen.getAllByTitle('Drag conversation')[0];
+    const secondConversation = screen.getByText('Second').closest('article') as HTMLElement;
+    Object.defineProperty(secondConversation, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 100,
+        bottom: 200,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 100,
+        x: 0,
+        y: 100,
+        toJSON: () => undefined
+      })
+    });
+
+    fireEvent.dragStart(firstConversationHandle, {
+      clientY: 12,
+      dataTransfer: {
+        effectAllowed: '',
+        setData: vi.fn(),
+        setDragImage: vi.fn(),
+        getData: vi.fn(() => 'first')
+      }
+    });
+    const drop = createEvent.drop(secondConversation);
+    Object.defineProperties(drop, {
+      clientY: { value: 125 },
+      dataTransfer: {
+        value: {
+          getData: vi.fn(() => 'first')
+        }
+      }
+    });
+    fireEvent(secondConversation, drop);
+
+    expect(props.onReorderConversation).toHaveBeenCalledWith('first', 'second', 'before');
+  });
+
+  it('treats conversation-list gaps as valid pointer drop zones', () => {
+    const props = renderSidebar();
+    const firstConversation = screen.getByText('First').closest('article') as HTMLElement;
+    const firstConversationHandle = screen.getAllByTitle('Drag conversation')[0];
+    const secondConversation = screen.getByText('Second').closest('article') as HTMLElement;
+    const conversationList = firstConversation.parentElement as HTMLElement;
+    const originalElementFromPoint = document.elementFromPoint;
+    const elementFromPoint = vi.fn(() => conversationList);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: elementFromPoint
+    });
+    Object.defineProperty(firstConversation, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 100,
+        bottom: 180,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 80,
+        x: 0,
+        y: 100,
+        toJSON: () => undefined
+      })
+    });
+    Object.defineProperty(secondConversation, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 240,
+        bottom: 320,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 80,
+        x: 0,
+        y: 240,
+        toJSON: () => undefined
+      })
+    });
+
+    fireEvent.pointerDown(firstConversationHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 12,
+      clientY: 120
+    });
+    fireEvent.pointerMove(firstConversationHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 12,
+      clientY: 220
+    });
+
+    const indicator = document.querySelector('.conversation-drop-indicator');
+    expect(indicator).toBeInTheDocument();
+    expect(secondConversation.previousElementSibling).toBe(indicator);
+
+    fireEvent.pointerUp(firstConversationHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 12,
+      clientY: 220
+    });
+
+    expect(elementFromPoint).toHaveBeenCalledWith(12, 220);
+    expect(props.onReorderConversation).toHaveBeenCalledWith('first', 'second', 'before');
+
+    if (originalElementFromPoint) {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint
+      });
+    } else {
+      Reflect.deleteProperty(document, 'elementFromPoint');
+    }
+  });
+
+  it('autoscrolls the conversation list when dragging near the lower edge', () => {
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    let hasAnimationFrame = false;
+    let animationFrame: FrameRequestCallback = () => {
+      throw new Error('Expected drag autoscroll to request an animation frame.');
+    };
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      hasAnimationFrame = true;
+      animationFrame = callback;
+      return 123;
+    });
+    const cancelAnimationFrame = vi.fn();
+    Object.assign(window, { requestAnimationFrame, cancelAnimationFrame });
+
+    renderSidebar();
+    const firstConversation = screen.getByText('First').closest('article') as HTMLElement;
+    const firstConversationHandle = screen.getAllByTitle('Drag conversation')[0];
+    const secondConversation = screen.getByText('Second').closest('article') as HTMLElement;
+    const conversationList = firstConversation.parentElement as HTMLElement;
+    const scrollBy = vi.fn();
+    Object.defineProperty(conversationList, 'scrollBy', {
+      configurable: true,
+      value: scrollBy
+    });
+    Object.defineProperty(conversationList, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 0,
+        bottom: 200,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 200,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined
+      })
+    });
+
+    fireEvent.dragStart(firstConversationHandle, {
+      clientY: 12,
+      dataTransfer: {
+        effectAllowed: '',
+        setData: vi.fn(),
+        setDragImage: vi.fn(),
+        getData: vi.fn(() => 'first')
+      }
+    });
+    const dragOver = createEvent.dragOver(secondConversation);
+    Object.defineProperties(dragOver, {
+      clientY: { value: 195 },
+      dataTransfer: {
+        value: {
+          dropEffect: ''
+        }
+      }
+    });
+    fireEvent(secondConversation, dragOver);
+    expect(hasAnimationFrame).toBe(true);
+    animationFrame(0);
+
+    expect(requestAnimationFrame).toHaveBeenCalled();
+    expect(scrollBy).toHaveBeenCalledWith({ top: 17 });
+
+    fireEvent.dragEnd(firstConversationHandle);
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(123);
+
+    Object.assign(window, {
+      requestAnimationFrame: originalRequestAnimationFrame,
+      cancelAnimationFrame: originalCancelAnimationFrame
+    });
+  });
+
+  it('does not select a conversation after completing a reorder drag', () => {
+    const props = renderSidebar();
+    const firstConversationHandle = screen.getAllByTitle('Drag conversation')[0];
+    const firstConversationMain = screen.getByText('First').closest('button') as HTMLButtonElement;
+    const secondConversation = screen.getByText('Second').closest('article') as HTMLElement;
+    const originalElementFromPoint = document.elementFromPoint;
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => secondConversation)
+    });
+
+    fireEvent.pointerDown(firstConversationHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 12,
+      clientY: 12
+    });
+    fireEvent.pointerUp(firstConversationHandle, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      clientX: 14,
+      clientY: 38
+    });
+    fireEvent.click(firstConversationMain);
+
+    expect(props.onReorderConversation).toHaveBeenCalledWith('first', 'second', 'after');
+    expect(props.onSelectConversation).not.toHaveBeenCalled();
 
     if (originalElementFromPoint) {
       Object.defineProperty(document, 'elementFromPoint', {

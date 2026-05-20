@@ -35,7 +35,7 @@ vi.mock('../firebase', () => ({
   requireDb: () => firestoreMocks.db
 }));
 
-import { createConversation, listenForConversations, reorderConversations } from './conversations';
+import { createConversation, listenForConversations, reorderConversations, touchConversation } from './conversations';
 
 const timestamp = (millis: number) =>
   ({
@@ -113,6 +113,26 @@ describe('conversation service writes', () => {
       lastMessagePreview: '',
       sortOrder: 0
     });
+  });
+
+  it('touches conversations with a top sort order when requested', async () => {
+    firestoreMocks.getDocs.mockResolvedValue(
+      docsWithConversations([
+        sourceConversation({ id: 'first', sortOrder: 1000 }),
+        sourceConversation({ id: 'second', sortOrder: 2000 })
+      ])
+    );
+
+    await touchConversation('user-1', 'second', 'New preview', { moveToTop: true });
+
+    expect(firestoreMocks.updateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/second' }),
+      {
+        lastMessagePreview: 'New preview',
+        updatedAt: 'SERVER_TIMESTAMP',
+        sortOrder: 0
+      }
+    );
   });
 
   it('persists conversation reorder positions with stable numeric sort steps', async () => {

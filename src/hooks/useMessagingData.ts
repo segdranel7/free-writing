@@ -30,7 +30,6 @@ export function useMessagingData() {
 
     return listenForConversations(user.uid, (nextConversations) => {
       setConversations(nextConversations);
-      setActiveConversationId((current) => current ?? nextConversations[0]?.id ?? null);
     });
   }, [user]);
 

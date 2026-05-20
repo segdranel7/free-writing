@@ -26,7 +26,7 @@ import { uploadMessageImages } from './services/storage';
 import { requestEnglishVersions } from './services/translation';
 import type { Conversation, Message, MessageReference } from './types';
 import type { DropPosition } from './utils/dropTargets';
-import { moveItemToDropTarget, moveMessageByDirection, moveMessageToDropPosition } from './utils/messageOrder';
+import { moveItemToDropPosition, moveMessageByDirection, moveMessageToDropPosition } from './utils/messageOrder';
 import type { MessageReferenceNavigationTarget } from './utils/messageReferences';
 import { getSelectedTextFromRanges, type TextSelectionRange } from './utils/textSelection';
 
@@ -208,9 +208,13 @@ export default function App() {
     await reorderMessages(user.uid, activeConversationId, nextMessages);
   }
 
-  async function handleReorderConversation(draggedConversationId: string, targetConversationId: string) {
+  async function handleReorderConversation(
+    draggedConversationId: string,
+    targetConversationId: string,
+    position: DropPosition
+  ) {
     if (!user) return;
-    const nextConversations = moveItemToDropTarget(conversations, draggedConversationId, targetConversationId);
+    const nextConversations = moveItemToDropPosition(conversations, draggedConversationId, targetConversationId, position);
     if (!nextConversations) return;
     setConversations(nextConversations);
     await reorderConversations(user.uid, nextConversations);
@@ -277,8 +281,8 @@ export default function App() {
         onRenameDraftChange={setRenameDraft}
         onRenameConversation={(conversation) => void handleRenameConversation(conversation)}
         onDeleteConversation={(conversation) => void handleDeleteConversation(conversation)}
-        onReorderConversation={(draggedConversationId, targetConversationId) =>
-          void handleReorderConversation(draggedConversationId, targetConversationId)
+        onReorderConversation={(draggedConversationId, targetConversationId, position) =>
+          void handleReorderConversation(draggedConversationId, targetConversationId, position)
         }
       />
 

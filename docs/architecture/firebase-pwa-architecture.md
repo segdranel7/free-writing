@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-18
+Last updated: 2026-05-20
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -104,7 +104,7 @@ Useful user fields:
 : Short preview of the latest message.
 
 `sortOrder`
-: Numeric display order in the conversation list. Conversations should display by `sortOrder` ascending, with recent update time as a fallback for older records without explicit ordering.
+: Numeric display order in the conversation list. Conversations should display by `sortOrder` ascending, with recent update time as a fallback for older records without explicit ordering. Manual conversation reorder rewrites all conversation `sortOrder` values in visible order. When a conversation receives a newly created block, the app assigns that conversation a new top `sortOrder` so it moves above the current first row.
 
 ---
 
@@ -277,6 +277,7 @@ When online:
 - Deleted messages should sync to the cloud.
 - Forwarded messages should sync to the cloud.
 - Moved messages should sync to the cloud.
+- Conversations that receive newly created messages, forwarded blocks, moved blocks, selected moved text, or English result blocks should sync their new top-list `sortOrder`.
 - Merged replacement messages and deletion of their originals should sync to the cloud.
 - English conversion result messages and replacement edits should sync to the cloud.
 - Inline image attachments should sync as part of their message documents.

@@ -17,7 +17,7 @@ Implemented:
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
 - Firestore cloud storage under `users/{userId}/conversations/{conversationId}/messages/{messageId}`.
 - Firestore security rules scoped to the signed-in user's UID.
-- Conversation create, rename, open, delete, and drag-handle reorder.
+- Conversation create, rename, open, delete, and drag-handle reorder with floating preview, insertion marker, gap-tolerant drops, and edge autoscroll.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
 - Message create, edit, copy-to-clipboard for text-only, text/image, and image-only blocks, delete, forward, move to another conversation, partial text forwarding/moving from the transfer dialog, structured conversation links and quote citations, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, and selected-block merge.
 - Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
@@ -31,7 +31,7 @@ Implemented:
 - PWA manifest and generated service worker.
 - Browser/PWA theme colors are aligned to the dark app shell color.
 - Firestore persistent local cache is enabled for cached data and offline writes.
-- Conversation order and message order are persisted with numeric `sortOrder` values and sync across devices.
+- Conversation order and message order are persisted with numeric `sortOrder` values and sync across devices. New blocks move the receiving conversation to the top by assigning a top `sortOrder`; manual reorder remains stable until a later new block arrives in a conversation.
 - Search runs across messages loaded by Firestore subscriptions; the current hook subscribes to every conversation's messages after the conversation list loads.
 - Cloudflare Worker backend proxy for hosted English conversion.
 - Local Vite development middleware for `/api/to-english` so Codespaces/Vite testing works without Firebase Hosting rewrites.
@@ -277,10 +277,13 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Reorder conversations
 
-- `src/components/Sidebar.tsx` owns conversation drag state, floating preview state, row highlighting, and pointer handlers for the conversation list.
+- `src/components/Sidebar.tsx` owns conversation drag state, floating preview state, before/after insertion marker state, native desktop drag handlers, pointer handlers, gap-tolerant drop target resolution, edge autoscroll, and post-drag click suppression for the conversation list.
 - Conversation dragging starts from a dedicated row drag handle and is disabled while a row is being renamed or when only one conversation exists.
-- `src/App.tsx` optimistically updates `conversations` and calls `reorderConversations`.
-- `src/services/conversations.ts` normalizes conversations by `sortOrder`, falls back to recent update time for older records, creates new conversations above the current first row, and persists manual ordering by rewriting numeric `sortOrder` values in a Firestore batch.
+- Conversation dragging mirrors block dragging: desktop, touch, and pen drags show a floating row preview, dim the source row, render an insertion marker where the row will land, treat gaps/padding/near-miss positions as nearest insertion slots, and autoscroll the `.conversation-list` near its top or bottom edge.
+- Releasing a reordered conversation suppresses the follow-up row click so the app stays on the conversation list instead of opening the dragged row or the new top row.
+- `src/App.tsx` optimistically updates `conversations` with a before/after drop position and calls `reorderConversations`.
+- `src/services/conversations.ts` normalizes conversations by `sortOrder`, falls back to recent update time for older records, creates new conversations above the current first row, can touch an existing conversation with a new top `sortOrder`, and persists manual ordering by rewriting numeric `sortOrder` values in a Firestore batch.
+- `src/hooks/useMessagingData.ts` no longer auto-selects the first conversation when `activeConversationId` is `null`; explicit user actions, search results, reference navigation, creating a conversation, and transfer completion are the navigation paths into a conversation.
 
 ### Message search
 
@@ -319,7 +322,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Sync behavior
 
-Conversation `lastMessagePreview` is still stored and updated for possible future use, but the current conversation list does not render it. Conversation `sortOrder` controls manual list ordering, while `updatedAt` remains useful for display and fallback ordering. `lastMessagePreview` is updated on create, edit, forward, move target writes, merge result creation, English conversion result creation, and English replacement edits. It is not currently recalculated after deleting a message, deleting originals during merge, or removing a moved message from its source conversation.
+Conversation `lastMessagePreview` is still stored and updated for possible future use, but the current conversation list does not render it. Conversation `sortOrder` controls list ordering, while `updatedAt` remains useful for display and fallback ordering. `touchConversation(..., { moveToTop: true })` updates preview/time and assigns a new top `sortOrder`; it is used for direct message creation, forwarded blocks, moved whole blocks, selected moved text on the target conversation, and English result block creation. Edits, merges, English replacements, and source-side partial move updates touch preview/time without moving the conversation to the top. `lastMessagePreview` is not currently recalculated after deleting a message, deleting originals during merge, or removing a moved message from its source conversation.
 
 ### Header display
 

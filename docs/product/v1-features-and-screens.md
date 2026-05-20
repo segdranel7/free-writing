@@ -46,6 +46,9 @@ Conversation features:
 - See last updated time
 - Delete a conversation, with confirmation
 - Reorder conversations in the conversation list with a drag handle
+- While reordering, show block-like drag feedback: a floating row preview and an insertion marker at the exact landing position.
+- Releasing a reordered conversation should keep the user on the conversation list; it should not automatically open the reordered row or the new top row.
+- When a conversation receives a newly created block, whether from direct input, forwarding, moving, partial moving, or English block creation, that conversation moves to the top of the list.
 
 For Version 1, conversations are private to the signed-in user.
 
@@ -408,7 +411,7 @@ Tablet/desktop layout:
 - Optional two-column layout
 - Conversation list on left
 - Active conversation on right
-- Drag-handle conversation reordering should be available from the list.
+- Drag-handle conversation reordering should be available from the list with the same preview, insertion marker, gap handling, and edge autoscroll feedback used for block dragging.
 
 ---
 
@@ -482,6 +485,8 @@ Content:
 - User can move a whole message or selected text parts to another conversation.
 - User can add a conversation or quote reference to a message.
 - User can reorder conversations in the conversation list with a drag handle and see the same order after refresh.
+- User stays on the conversation list after releasing a reordered conversation.
+- Conversations that receive newly created blocks move to the top of the conversation list.
 - User can reorder messages inside a conversation with move controls or drag-handle drop on desktop and touch/pointer devices.
 - User can merge multiple selected messages inside a conversation.
 - User can convert a message to English and either create a new result block or replace the source block.
@@ -554,7 +559,8 @@ Version 1 is complete when:
 - I can search messages.
 - I can forward a whole message or selected text parts from one conversation to another.
 - I can move a whole message or selected text parts from one conversation to another.
-- I can reorder conversations and see the same order after refresh.
+- I can reorder conversations, see the same preview/insertion-marker feedback as block dragging, stay on the conversation list after release, and see the same order after refresh.
+- I can add or transfer a new block into a conversation and see that receiving conversation move to the top of the list.
 - I can reorder text blocks with move controls or a drag handle on desktop and touch/pointer devices and see the same order after refresh.
 - I can select multiple text blocks, merge them into one block, and confirm the originals are removed.
 - I can convert a text block to English, select variants, and create the English result below the original.

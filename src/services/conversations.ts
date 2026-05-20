@@ -19,6 +19,10 @@ const conversationPath = (userId: string, conversationId: string) =>
   doc(requireDb(), 'users', userId, 'conversations', conversationId);
 const sortStep = 1000;
 
+type TouchConversationOptions = {
+  moveToTop?: boolean;
+};
+
 function getConversationTime(conversation: Conversation) {
   return conversation.updatedAt?.toMillis?.() ?? conversation.createdAt?.toMillis?.() ?? 0;
 }
@@ -83,11 +87,26 @@ export async function deleteConversation(userId: string, conversationId: string)
   await batch.commit();
 }
 
-export function touchConversation(userId: string, conversationId: string, preview: string) {
-  return updateDoc(conversationPath(userId, conversationId), {
+export async function touchConversation(
+  userId: string,
+  conversationId: string,
+  preview: string,
+  options: TouchConversationOptions = {}
+) {
+  const updates: {
+    lastMessagePreview: string;
+    updatedAt: ReturnType<typeof serverTimestamp>;
+    sortOrder?: number;
+  } = {
     lastMessagePreview: preview.slice(0, 120),
     updatedAt: serverTimestamp()
-  });
+  };
+
+  if (options.moveToTop) {
+    updates.sortOrder = await getNextConversationSortOrder(userId);
+  }
+
+  return updateDoc(conversationPath(userId, conversationId), updates);
 }
 
 export function removeConversation(userId: string, conversationId: string) {

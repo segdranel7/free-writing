@@ -152,7 +152,9 @@ export async function createMessage(
     references,
     sortOrder
   }));
-  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments, references));
+  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments, references), {
+    moveToTop: true
+  });
   return message;
 }
 
@@ -197,7 +199,7 @@ export async function createMessageAfter(
       forwardedFromMessageId: source.id
     }));
     await batch.commit();
-    await touchConversation(userId, conversationId, cleanText);
+    await touchConversation(userId, conversationId, cleanText, { moveToTop: true });
     return targetMessage;
   }
 
@@ -217,7 +219,7 @@ export async function createMessageAfter(
     forwardedFromMessageId: source.id
   }));
   await batch.commit();
-  await touchConversation(userId, conversationId, cleanText);
+  await touchConversation(userId, conversationId, cleanText, { moveToTop: true });
   return targetMessage;
 }
 
@@ -261,7 +263,7 @@ export async function forwardMessage(
     messagesPath(userId, targetConversationId),
     buildTransferredMessageWrite(userId, source, targetConversationId, sortOrder, 'forwarded')
   );
-  await touchConversation(userId, targetConversationId, source.text);
+  await touchConversation(userId, targetConversationId, source.text, { moveToTop: true });
   return forwarded;
 }
 
@@ -276,7 +278,7 @@ export async function moveMessage(
   batch.set(targetMessage, buildTransferredMessageWrite(userId, source, targetConversationId, sortOrder, 'moved'));
   batch.delete(messagePath(userId, source.conversationId, source.id));
   await batch.commit();
-  await touchConversation(userId, targetConversationId, source.text);
+  await touchConversation(userId, targetConversationId, source.text, { moveToTop: true });
   return targetMessage;
 }
 
@@ -319,7 +321,7 @@ export async function moveMessageTextSelection(
   }
 
   await batch.commit();
-  await touchConversation(userId, targetConversationId, selectedText);
+  await touchConversation(userId, targetConversationId, selectedText, { moveToTop: true });
   await touchConversation(
     userId,
     source.conversationId,

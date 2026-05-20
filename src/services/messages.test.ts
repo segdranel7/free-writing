@@ -47,6 +47,7 @@ import {
   listenForMessages,
   mergeMessages,
   moveMessage,
+  moveMessageTextSelection,
   reorderMessages
 } from './messages';
 
@@ -113,7 +114,9 @@ describe('message service writes', () => {
       forwardedFromConversationId: null,
       forwardedFromMessageId: null
     });
-    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Hello There');
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Hello There', {
+      moveToTop: true
+    });
   });
 
   it('creates image-only messages with attachment metadata and an image preview', async () => {
@@ -143,7 +146,9 @@ describe('message service writes', () => {
       forwardedFromConversationId: null,
       forwardedFromMessageId: null
     });
-    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Image');
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Image', {
+      moveToTop: true
+    });
   });
 
   it('creates reference-only messages with structured metadata', async () => {
@@ -177,7 +182,9 @@ describe('message service writes', () => {
       forwardedFromConversationId: null,
       forwardedFromMessageId: null
     });
-    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Reference');
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Reference', {
+      moveToTop: true
+    });
   });
 
   it('edits message text while preserving provided references', async () => {
@@ -241,6 +248,9 @@ describe('message service writes', () => {
       forwardedFromMessageId: 'source-message'
     });
     expect(firestoreMocks.deleteDoc).not.toHaveBeenCalled();
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'target-conversation', 'Transfer this', {
+      moveToTop: true
+    });
   });
 
   it('creates an English block directly after the source message with a midpoint sort order', async () => {
@@ -264,7 +274,9 @@ describe('message service writes', () => {
       forwardedFromMessageId: 'first'
     });
     expect(firestoreMocks.batch.update).not.toHaveBeenCalled();
-    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'English text');
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'English text', {
+      moveToTop: true
+    });
   });
 
   it('rebalances message order when inserting an English block without a sort gap', async () => {
@@ -305,6 +317,20 @@ describe('message service writes', () => {
     });
     expect(firestoreMocks.batch.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/source-conversation/messages/source-message' }));
     expect(firestoreMocks.batch.commit).toHaveBeenCalled();
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'target-conversation', 'Transfer this', {
+      moveToTop: true
+    });
+  });
+
+  it('moves selected text to the top of the target conversation without moving the source conversation', async () => {
+    await moveMessageTextSelection('user-1', sourceMessage({ text: 'Transfer this text' }), 'target-conversation', [
+      { startOffset: 0, endOffset: 8 }
+    ]);
+
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'target-conversation', 'Transfer', {
+      moveToTop: true
+    });
+    expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'source-conversation', 'this text');
   });
 
   it('merges selected messages into one replacement block and deletes the originals', async () => {
