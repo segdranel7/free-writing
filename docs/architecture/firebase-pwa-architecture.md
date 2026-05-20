@@ -145,6 +145,7 @@ Useful user fields:
   "isForwarded": false,
   "transferType": null,
   "forwardedFromConversationId": null,
+  "forwardedFromConversationTitle": null,
   "forwardedFromMessageId": null
 }
 ```
@@ -190,10 +191,13 @@ Useful user fields:
 `forwardedFromConversationId`
 : Source conversation ID, if forwarded or moved.
 
+`forwardedFromConversationTitle`
+: Optional source conversation title snapshot for copied/forwarded blocks. The UI uses it to render `Copied from [conversation name]`; moved messages keep this null and render only `Moved`.
+
 `forwardedFromMessageId`
 : Source message ID, if forwarded or moved.
 
-Forwarded and moved source metadata is kept for transfer labeling and compatibility. User-visible cross-conversation links and quote citations are rendered from structured `references` instead of text markers.
+Forwarded and moved source metadata is kept for transfer labeling and compatibility. Copied/forwarded blocks can expose conversation-level source navigation through `forwardedFromConversationId` plus `forwardedFromConversationTitle`; quote-level navigation is rendered from structured `references` instead of text markers.
 
 English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. Replacing a source block with English text updates the same message through the normal edit path. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments and structured references on that new message.
 

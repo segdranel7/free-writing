@@ -72,7 +72,7 @@ Required message actions:
 - Edit message
 - Copy block content to the system clipboard
 - Delete message
-- Forward message to another conversation
+- Copy/forward message to another conversation
 - Move message to another conversation
 - Reorder message within the current conversation with explicit controls or a drag handle on desktop and touch/pointer devices
 - Merge multiple selected messages into one unified block
@@ -220,14 +220,14 @@ Future option:
 
 ---
 
-### 7.6 Forward messages between conversations
+### 7.6 Copy/forward messages between conversations
 
-The user can forward a whole message block, or selected parts of a text block, from one conversation to another.
+The user can copy/forward a whole message block, or selected parts of a text block, from one conversation to another.
 
 Version 1 behavior:
 
-- User opens a message menu.
-- User chooses `Forward`.
+- User opens a message action.
+- User chooses `Copy to conversation`.
 - App shows a transfer dialog with the source text and a list of conversations.
 - If the user does not select text, the whole block is forwarded.
 - The user can tap words to select or deselect them.
@@ -236,17 +236,21 @@ Version 1 behavior:
 - Adjacent selected words are transferred as one phrase; separate selected parts are transferred as separate paragraphs.
 - User selects target conversation.
 - App creates a new message in the target conversation using the whole text or selected text parts.
+- After copying, the app opens the target conversation.
+- The copied message shows a small `Copied from [conversation name]` metadata line. The conversation name is clickable and opens the source conversation.
+- Copied-message origin navigation is conversation-level; quote-level navigation is provided by structured quote references.
 
-The forwarded message should store optional metadata:
+The copied/forwarded message should store optional metadata:
 
-- Original message ID
 - Original conversation ID
-- Forwarded date/time
+- Original conversation title snapshot
+- Original message ID
+- Copied/forwarded date/time
 
 Simple display:
 
-- Show the forwarded text as a normal message.
-- Optional small label: `Forwarded`.
+- Show the copied/forwarded text as a normal message.
+- Small label: `Copied`; when the source title is known, show `Copied from [conversation name]`.
 
 ### 7.6.1 Move messages between conversations
 
@@ -261,6 +265,7 @@ Intended behavior:
 - If partial moving leaves no text, attachments, or references in the source block, the source block is deleted.
 - Whole-block moves create the target message and delete the original message from the source conversation in the same Firestore batch.
 - Partial moves update or delete the source message and create the target message in the same Firestore batch.
+- After moving, the user stays in the current conversation and sees a non-blocking option to open the target conversation.
 - The moved message stores source metadata for transfer history. User-visible cross-conversation navigation is provided by structured conversation links and quote citations.
 - The moved message displays a small `Moved` label.
 
@@ -426,11 +431,11 @@ Content:
 - Message list
 - Message input fixed at the bottom of the visible conversation pane
 - Image preview strip in the composer when images are selected or pasted
-- Message actions: edit, delete, forward
+- Message actions: edit, delete, copy/forward
 - Message action: copy block content to the clipboard
 - Message action: move to another conversation
 - Message action: convert to English
-- Transfer dialog for forwarding/moving whole blocks or selected text parts with tap and drag word selection
+- Transfer dialog for copying/moving whole blocks or selected text parts with tap and drag word selection
 - Reorder controls for moving text blocks, plus drag-handle reordering between blocks on desktop and touch/pointer devices
 - Selection controls and a merge action for combining multiple selected blocks
 - English conversion picker modal with scrollable segment options
@@ -481,7 +486,7 @@ Content:
 - User can paste images while editing a message and save them onto that block.
 - User can copy text-only, text/image, and image-only blocks to the system clipboard where browser support allows.
 - User can delete a message.
-- User can forward a whole message or selected text parts to another conversation.
+- User can copy/forward a whole message or selected text parts to another conversation.
 - User can move a whole message or selected text parts to another conversation.
 - User can add a conversation or quote reference to a message.
 - User can reorder conversations in the conversation list with a drag handle and see the same order after refresh.
@@ -557,8 +562,8 @@ Version 1 is complete when:
 - I can add a conversation or quote reference to a message and open it when the source is loaded.
 - I can open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`.
 - I can search messages.
-- I can forward a whole message or selected text parts from one conversation to another.
-- I can move a whole message or selected text parts from one conversation to another.
+- I can copy/forward a whole message or selected text parts from one conversation to another, see the copied block's source conversation in its metadata, and click the source conversation name to navigate there.
+- I can move a whole message or selected text parts from one conversation to another, remain in the current conversation afterward, and optionally open the target conversation from the move notice.
 - I can reorder conversations, see the same preview/insertion-marker feedback as block dragging, stay on the conversation list after release, and see the same order after refresh.
 - I can add or transfer a new block into a conversation and see that receiving conversation move to the top of the list.
 - I can reorder text blocks with move controls or a drag handle on desktop and touch/pointer devices and see the same order after refresh.

@@ -35,6 +35,7 @@ type MessageWriteInput = {
   isForwarded?: boolean;
   transferType?: Message['transferType'];
   forwardedFromConversationId?: string | null;
+  forwardedFromConversationTitle?: string | null;
   forwardedFromMessageId?: string | null;
 };
 
@@ -53,6 +54,7 @@ function buildMessageWrite({
   isForwarded = false,
   transferType = null,
   forwardedFromConversationId = null,
+  forwardedFromConversationTitle = null,
   forwardedFromMessageId = null
 }: MessageWriteInput) {
   const message = {
@@ -67,6 +69,7 @@ function buildMessageWrite({
     isForwarded,
     transferType,
     forwardedFromConversationId,
+    forwardedFromConversationTitle,
     forwardedFromMessageId
   };
 
@@ -78,7 +81,8 @@ function buildTransferredMessageWrite(
   source: Message,
   targetConversationId: string,
   sortOrder: number,
-  transferType: 'forwarded' | 'moved'
+  transferType: 'forwarded' | 'moved',
+  sourceConversationTitle: string | null = null
 ) {
   return buildMessageWrite({
     userId,
@@ -91,6 +95,7 @@ function buildTransferredMessageWrite(
     isForwarded: true,
     transferType,
     forwardedFromConversationId: source.conversationId,
+    forwardedFromConversationTitle: transferType === 'forwarded' ? sourceConversationTitle : null,
     forwardedFromMessageId: source.id
   });
 }
@@ -102,7 +107,8 @@ function normalizeMessages(messages: Message[]) {
       attachments: message.attachments ?? [],
       references: message.references ?? [],
       sortOrder: typeof message.sortOrder === 'number' ? message.sortOrder : (index + 1) * sortStep,
-      transferType: message.transferType ?? (message.isForwarded ? 'forwarded' : null)
+      transferType: message.transferType ?? (message.isForwarded ? 'forwarded' : null),
+      forwardedFromConversationTitle: message.forwardedFromConversationTitle ?? null
     }))
     .sort(
       (first, second) =>
@@ -256,12 +262,13 @@ export function deleteMessage(userId: string, conversationId: string, messageId:
 export async function forwardMessage(
   userId: string,
   source: Message,
-  targetConversationId: string
+  targetConversationId: string,
+  sourceConversationTitle: string | null = null
 ) {
   const sortOrder = await getNextSortOrder(userId, targetConversationId);
   const forwarded = await addDoc(
     messagesPath(userId, targetConversationId),
-    buildTransferredMessageWrite(userId, source, targetConversationId, sortOrder, 'forwarded')
+    buildTransferredMessageWrite(userId, source, targetConversationId, sortOrder, 'forwarded', sourceConversationTitle)
   );
   await touchConversation(userId, targetConversationId, source.text, { moveToTop: true });
   return forwarded;
@@ -306,6 +313,7 @@ export async function moveMessageTextSelection(
       isForwarded: true,
       transferType: 'moved',
       forwardedFromConversationId: source.conversationId,
+      forwardedFromConversationTitle: null,
       forwardedFromMessageId: source.id
     })
   );

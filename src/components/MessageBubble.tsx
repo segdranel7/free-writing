@@ -46,6 +46,7 @@ type MessageBubbleProps = {
   isSavingEdit: boolean;
   editTextareaRef: RefObject<HTMLTextAreaElement | null>;
   copyFeedbackStatus: CopyFeedbackStatus | null;
+  sourceConversationTitle?: string | null;
   onSelect: (messageId: string) => void;
   onStartSelection: (messageId: string) => void;
   onNavigateToReference: (target: MessageReferenceNavigationTarget) => void;
@@ -76,7 +77,7 @@ type MessageBubbleProps = {
 
 function getTransferLabel(message: Message) {
   if (message.transferType === 'moved') return 'Moved';
-  if (message.transferType === 'forwarded' || message.isForwarded) return 'Forwarded';
+  if (message.transferType === 'forwarded' || message.isForwarded) return 'Copied';
   return null;
 }
 
@@ -130,6 +131,7 @@ export function MessageBubble({
   isSavingEdit,
   editTextareaRef,
   copyFeedbackStatus,
+  sourceConversationTitle,
   onSelect,
   onStartSelection,
   onNavigateToReference,
@@ -171,6 +173,9 @@ export function MessageBubble({
     .filter(Boolean)
     .join(' ');
   const transferLabel = getTransferLabel(message);
+  const canShowSourceLink = Boolean(
+    sourceConversationTitle && message.transferType !== 'moved' && message.forwardedFromConversationId
+  );
   const hasAttachments = (message.attachments?.length ?? 0) > 0;
   const copyTitle = hasAttachments ? 'Copy block' : 'Copy text';
 
@@ -304,7 +309,27 @@ export function MessageBubble({
       onDrop={(event) => onDrop(event, message.id)}
     >
       <div className="message-meta">
-        {transferLabel && <span>{transferLabel}</span>}
+        {transferLabel && (
+          <span>
+            {transferLabel}
+            {canShowSourceLink && (
+              <>
+                {' from '}
+                <button
+                  className="source-link"
+                  type="button"
+                  onClick={() =>
+                    onNavigateToReference({
+                      conversationId: message.forwardedFromConversationId as string
+                    })
+                  }
+                >
+                  {sourceConversationTitle}
+                </button>
+              </>
+            )}
+          </span>
+        )}
         {message.updatedAt && <span>edited</span>}
         <time>{formatDate(message.createdAt)}</time>
       </div>

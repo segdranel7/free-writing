@@ -444,10 +444,6 @@ button {
   box-shadow: 0 -4px 0 #54d6bf, 0 0 0 2px rgba(84, 214, 191, 0.72), 0 10px 24px rgba(0, 0, 0, 0.28);
 }
 
-.message-bubble.reference-target {
-  box-shadow: 0 0 0 2px #f0c85a, 0 10px 24px rgba(0, 0, 0, 0.28);
-}
-
 .message-bubble p {
   margin: 6px 0 10px;
   white-space: pre-wrap;
@@ -718,6 +714,30 @@ button {
 
 .merge-error {
   color: #ffc5bf;
+}
+
+.move-notice {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px 18px;
+  gap: 10px;
+  border-top: 1px solid #263337;
+  color: #dff4ef;
+  background: #102a27;
+  font-size: 0.88rem;
+}
+
+.move-notice span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.move-notice .text-button {
+  margin-left: auto;
 }
 
 .composer {

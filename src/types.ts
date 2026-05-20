@@ -63,6 +63,7 @@ export type Message = {
   isForwarded: boolean;
   transferType?: MessageTransferType;
   forwardedFromConversationId: string | null;
+  forwardedFromConversationTitle?: string | null;
   forwardedFromMessageId: string | null;
 };
 

@@ -36,6 +36,11 @@ type TransferAction = {
   messages?: Message[];
 };
 
+type MoveNotice = {
+  targetConversationId: string;
+  targetConversationTitle: string;
+};
+
 export default function App() {
   const {
     user,
@@ -54,6 +59,7 @@ export default function App() {
   const [renameDraft, setRenameDraft] = useState('');
   const [transferAction, setTransferAction] = useState<TransferAction | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<MessageReferenceNavigationTarget | null>(null);
+  const [moveNotice, setMoveNotice] = useState<MoveNotice | null>(null);
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
@@ -62,12 +68,26 @@ export default function App() {
     [searchTerm, conversations, messagesByConversation]
   );
 
+  function getConversationTitle(conversationId: string) {
+    return conversations.find((conversation) => conversation.id === conversationId)?.title ?? null;
+  }
+
+  function selectConversation(conversationId: string | null) {
+    setMoveNotice(null);
+    setActiveConversationId(conversationId);
+  }
+
+  function startTransferAction(action: TransferAction) {
+    setMoveNotice(null);
+    setTransferAction(action);
+  }
+
   async function handleCreateConversation() {
     if (!user) return;
     const title = window.prompt('Conversation name');
     if (!title?.trim()) return;
     const conversation = await createConversation(user.uid, title);
-    setActiveConversationId(conversation.id);
+    selectConversation(conversation.id);
   }
 
   async function handleRenameConversation(conversation: Conversation) {
@@ -83,7 +103,9 @@ export default function App() {
       return;
     }
     await deleteConversation(user.uid, conversation.id);
-    setActiveConversationId((current) => (current === conversation.id ? conversations[0]?.id ?? null : current));
+    if (activeConversationId === conversation.id) {
+      selectConversation(conversations.find((item) => item.id !== conversation.id)?.id ?? null);
+    }
   }
 
   async function handleSubmitMessage(textOverride?: string, imageFiles: File[] = [], references: MessageReference[] = []) {
@@ -148,7 +170,12 @@ export default function App() {
           if (transferAction.mode === 'move') {
             await moveMessageTextSelection(user.uid, message, targetConversationId, selection.ranges);
           } else {
-            await forwardMessage(user.uid, { ...message, text: selectedText }, targetConversationId);
+            await forwardMessage(
+              user.uid,
+              { ...message, text: selectedText },
+              targetConversationId,
+              getConversationTitle(message.conversationId)
+            );
           }
         }
       } else if (transferAction.mode === 'move') {
@@ -157,11 +184,18 @@ export default function App() {
         }
       } else {
         for (const message of selectedMessages) {
-          await forwardMessage(user.uid, message, targetConversationId);
+          await forwardMessage(user.uid, message, targetConversationId, getConversationTitle(message.conversationId));
         }
       }
       setTransferAction(null);
-      setActiveConversationId(targetConversationId);
+      if (transferAction.mode === 'move') {
+        setMoveNotice({
+          targetConversationId,
+          targetConversationTitle: getConversationTitle(targetConversationId) ?? 'target conversation'
+        });
+      } else {
+        selectConversation(targetConversationId);
+      }
       return;
     }
 
@@ -178,12 +212,29 @@ export default function App() {
     } else if (transferAction.mode === 'move') {
       await moveMessage(user.uid, transferAction.message, targetConversationId);
     } else if (ranges && selectedText) {
-      await forwardMessage(user.uid, { ...transferAction.message, text: selectedText }, targetConversationId);
+      await forwardMessage(
+        user.uid,
+        { ...transferAction.message, text: selectedText },
+        targetConversationId,
+        getConversationTitle(transferAction.message.conversationId)
+      );
     } else {
-      await forwardMessage(user.uid, transferAction.message, targetConversationId);
+      await forwardMessage(
+        user.uid,
+        transferAction.message,
+        targetConversationId,
+        getConversationTitle(transferAction.message.conversationId)
+      );
     }
     setTransferAction(null);
-    setActiveConversationId(targetConversationId);
+    if (transferAction.mode === 'move') {
+      setMoveNotice({
+        targetConversationId,
+        targetConversationTitle: getConversationTitle(targetConversationId) ?? 'target conversation'
+      });
+    } else {
+      selectConversation(targetConversationId);
+    }
   }
 
   async function handleMoveMessage(messageIndex: number, direction: -1 | 1) {
@@ -253,7 +304,7 @@ export default function App() {
     setTransferAction(null);
     setSearchTerm('');
     setNavigationTarget(target);
-    setActiveConversationId(target.conversationId);
+    selectConversation(target.conversationId);
   }
 
   if (authLoading) {
@@ -276,7 +327,7 @@ export default function App() {
         renameDraft={renameDraft}
         onSearchTermChange={setSearchTerm}
         onCreateConversation={() => void handleCreateConversation()}
-        onSelectConversation={setActiveConversationId}
+        onSelectConversation={selectConversation}
         onStartRename={handleStartRename}
         onRenameDraftChange={setRenameDraft}
         onRenameConversation={(conversation) => void handleRenameConversation(conversation)}
@@ -294,16 +345,22 @@ export default function App() {
         navigationTarget={navigationTarget}
         draft={draft}
         editingMessage={editingMessage}
-        onBack={() => setActiveConversationId(null)}
+        moveNotice={moveNotice}
+        onOpenMoveNotice={() => {
+          if (!moveNotice) return;
+          selectConversation(moveNotice.targetConversationId);
+        }}
+        onDismissMoveNotice={() => setMoveNotice(null)}
+        onBack={() => selectConversation(null)}
         onDraftChange={setDraft}
         onSubmitMessage={handleSubmitMessage}
         onCancelEdit={handleCancelEdit}
         onEditMessage={handleEditMessage}
         onSaveEdit={handleSaveEdit}
-        onForwardMessage={(message) => setTransferAction({ mode: 'forward', message })}
-        onMoveToConversation={(message) => setTransferAction({ mode: 'move', message })}
-        onForwardMessages={(messages) => setTransferAction({ mode: 'forward', messages })}
-        onMoveMessages={(messages) => setTransferAction({ mode: 'move', messages })}
+        onForwardMessage={(message) => startTransferAction({ mode: 'forward', message })}
+        onMoveToConversation={(message) => startTransferAction({ mode: 'move', message })}
+        onForwardMessages={(messages) => startTransferAction({ mode: 'forward', messages })}
+        onMoveMessages={(messages) => startTransferAction({ mode: 'move', messages })}
         onNavigateToReference={handleNavigateToReference}
         onNavigationHandled={() => setNavigationTarget(null)}
         onDeleteMessage={(message) => void handleDeleteMessage(message)}
@@ -325,7 +382,9 @@ export default function App() {
           sourceMessage={transferAction.message}
           sourceMessages={transferAction.messages}
           onClose={() => setTransferAction(null)}
-          onForward={(conversationId, ranges) => void handleForwardMessage(conversationId, ranges)}
+          onForward={(conversationId, ranges, messageSelections) =>
+            void handleForwardMessage(conversationId, ranges, messageSelections)
+          }
         />
       )}
     </main>

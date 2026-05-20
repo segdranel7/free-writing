@@ -67,6 +67,7 @@ function sourceMessage(overrides: Partial<Message> = {}): Message {
     isForwarded: false,
     transferType: null,
     forwardedFromConversationId: null,
+    forwardedFromConversationTitle: null,
     forwardedFromMessageId: null,
     ...overrides
   };
@@ -112,6 +113,7 @@ describe('message service writes', () => {
       isForwarded: false,
       transferType: null,
       forwardedFromConversationId: null,
+      forwardedFromConversationTitle: null,
       forwardedFromMessageId: null
     });
     expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Hello There', {
@@ -144,6 +146,7 @@ describe('message service writes', () => {
       isForwarded: false,
       transferType: null,
       forwardedFromConversationId: null,
+      forwardedFromConversationTitle: null,
       forwardedFromMessageId: null
     });
     expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Image', {
@@ -180,6 +183,7 @@ describe('message service writes', () => {
       isForwarded: false,
       transferType: null,
       forwardedFromConversationId: null,
+      forwardedFromConversationTitle: null,
       forwardedFromMessageId: null
     });
     expect(conversationMocks.touchConversation).toHaveBeenCalledWith('user-1', 'conversation-1', 'Reference', {
@@ -231,7 +235,7 @@ describe('message service writes', () => {
   });
 
   it('forwards a message as a new target message without deleting the source', async () => {
-    await forwardMessage('user-1', sourceMessage(), 'target-conversation');
+    await forwardMessage('user-1', sourceMessage(), 'target-conversation', 'Source chat');
 
     expect(firestoreMocks.addDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/target-conversation/messages' }), {
       userId: 'user-1',
@@ -245,6 +249,7 @@ describe('message service writes', () => {
       isForwarded: true,
       transferType: 'forwarded',
       forwardedFromConversationId: 'source-conversation',
+      forwardedFromConversationTitle: 'Source chat',
       forwardedFromMessageId: 'source-message'
     });
     expect(firestoreMocks.deleteDoc).not.toHaveBeenCalled();
@@ -271,6 +276,7 @@ describe('message service writes', () => {
       isForwarded: false,
       transferType: null,
       forwardedFromConversationId: 'conversation-1',
+      forwardedFromConversationTitle: null,
       forwardedFromMessageId: 'first'
     });
     expect(firestoreMocks.batch.update).not.toHaveBeenCalled();
@@ -313,6 +319,7 @@ describe('message service writes', () => {
       isForwarded: true,
       transferType: 'moved',
       forwardedFromConversationId: 'source-conversation',
+      forwardedFromConversationTitle: null,
       forwardedFromMessageId: 'source-message'
     });
     expect(firestoreMocks.batch.delete).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/conversations/source-conversation/messages/source-message' }));
@@ -351,6 +358,7 @@ describe('message service writes', () => {
       isForwarded: false,
       transferType: null,
       forwardedFromConversationId: null,
+      forwardedFromConversationTitle: null,
       forwardedFromMessageId: null
     });
     expect(firestoreMocks.batch.delete).toHaveBeenNthCalledWith(1, expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/second' }));

@@ -6,7 +6,7 @@ This is the entry point for the Free Writing PWA documentation. The detailed bas
 
 ## App summary
 
-Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, conversation list drag reordering, saved text/image blocks, image paste and selection, search, copying text/image blocks to the browser clipboard, editing, deletion, forwarding or moving whole blocks or selected parts of a block, manual up/down and drag-handle block reordering on desktop and touch/pointer devices, multi-block merging, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
+Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, conversation list drag reordering, saved text/image blocks, image paste and selection, search, copying text/image blocks to the browser clipboard, editing, deletion, copying or moving whole blocks or selected parts between conversations with source metadata for copied blocks, manual up/down and drag-handle block reordering on desktop and touch/pointer devices, multi-block merging, per-block English conversion, multi-device access, and offline support for the app shell plus cached Firestore data.
 
 Target devices:
 
@@ -51,7 +51,7 @@ Use the product docs when changing what the app should do or checking whether a 
 
 - Google/Gmail login behavior
 - Conversation behavior, including manual conversation ordering
-- Message creation, image attachments, editing, deletion, forwarding or moving whole/partial blocks, reordering, merging, and English conversion
+- Message creation, image attachments, editing, deletion, copying or moving whole/partial blocks between conversations, reordering, merging, and English conversion
 - Message search
 - Sign-in, conversation list, conversation, and search screens
 - Functional requirements

@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for conversation service writes, sidebar drag reordering, message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, text/rich block copy feedback and fallbacks, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch, English conversion UI/service/helper behavior, and the shared forward/move modal.
+- Focused Vitest coverage for app transfer navigation, conversation service writes, sidebar drag reordering, message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, text/rich block copy feedback and fallbacks, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch, English conversion UI/service/helper behavior, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -19,11 +19,11 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, delete, and drag-handle reorder with floating preview, insertion marker, gap-tolerant drops, and edge autoscroll.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
-- Message create, edit, copy-to-clipboard for text-only, text/image, and image-only blocks, delete, forward, move to another conversation, partial text forwarding/moving from the transfer dialog, structured conversation links and quote citations, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, and selected-block merge.
+- Message create, edit, copy-to-clipboard for text-only, text/image, and image-only blocks, delete, copy/forward to another conversation with clickable source-conversation metadata, move to another conversation with a post-move open-target notice, partial text copying/moving from the transfer dialog, structured conversation links and quote citations, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, and selected-block merge.
 - Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
 - Image attachments are compressed in the browser and stored inline in Firestore message documents. Firebase Storage is intentionally not used so the app stays on the free Spark plan.
 - English conversion for saved messages and composer draft text. It segments text, presents three English options per segment, and can create a new message below a saved source, replace a saved source, or send selected draft English text directly as a new message.
-- Message transfer support distinguishes forwarded messages from moved messages with `transferType`.
+- Message transfer support distinguishes copied/forwarded messages from moved messages with `transferType` and stores `forwardedFromConversationTitle` for copied-block origin display.
 - Composer `Ctrl+Enter` / `Cmd+Enter` opens draft English conversion, while plain `Enter` inserts a newline. Inline message edits use `Ctrl+Enter` / `Cmd+Enter` to save.
 - Responsive phone/desktop layout.
 - Conversation pane layout is constrained to the viewport; only the message list scrolls, keeping the conversation header, merge toolbar, and composer visible in long conversations.
@@ -118,7 +118,7 @@ src/components/ConversationPane.tsx
   Active conversation view, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion orchestration, insertion marker state, reference picker state, conversion picker state, and inline edit/image-paste state.
 
 src/components/MessageBubble.tsx
-  Per-message rendering and local action wiring. Owns message metadata display, inert image attachment previews, structured reference cards, inline edit form markup, copy feedback label, reorder buttons and drag handle, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
+  Per-message rendering and local action wiring. Owns message metadata display including clickable copied-origin conversation names, inert image attachment previews, structured reference cards, inline edit form markup, copy feedback label, reorder buttons and drag handle, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
 
 src/components/MessageComposer.tsx
   Draft composer rendering, pending reference chips, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, and `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`.
@@ -222,14 +222,15 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/services/messages.ts` has `moveMessage`, which writes the target message and deletes the source message in a Firestore batch.
 - `src/services/messages.ts` has `moveMessageTextSelection`, which creates the moved target text from selected source ranges and updates or deletes the source message in the same Firestore batch.
 - `src/services/messages.ts` uses local write-payload helpers to keep normal, forwarded, moved, merged, and English-result message fields consistent.
-- Moved messages currently use `isForwarded: true`, `transferType: 'moved'`, `forwardedFromConversationId`, and `forwardedFromMessageId`.
-- `src/components/MessageBubble.tsx` includes a `Move to conversation` message action and displays `Moved` or `Forwarded` through `getTransferLabel`.
-- `src/components/MessageBubble.tsx` renders user-visible source navigation through structured reference cards; forwarded and moved source metadata still drives transfer labels.
+- Copied/forwarded messages use `isForwarded: true`, `transferType: 'forwarded'`, `forwardedFromConversationId`, `forwardedFromConversationTitle`, and `forwardedFromMessageId`. `src/components/MessageBubble.tsx` renders these as `Copied from [conversation title]`, where the title is an inline `.source-link` button that navigates to the source conversation.
+- Moved messages use `isForwarded: true`, `transferType: 'moved'`, `forwardedFromConversationId`, `forwardedFromMessageId`, and `forwardedFromConversationTitle: null`. They render only the small `Moved` label and do not show copied-origin navigation.
+- `src/components/MessageBubble.tsx` includes a `Move to conversation` message action and displays transfer labels through `getTransferLabel`.
+- Structured conversation and quote reference cards remain the UI for explicit user-added references; copied-origin metadata is shown only in the top message metadata line.
 - `src/components/MessageBubble.tsx` includes a copy action with short-lived success/failure feedback. Text-only messages show `Copy text`; messages with attachments show `Copy block`, and image-only blocks can be copied.
 - `src/components/ConversationPane.tsx` handles clipboard writes. Text-only blocks use `navigator.clipboard.writeText`; blocks with attachments use `navigator.clipboard.write` with `text/plain`, `text/html` containing escaped text plus inline image tags in attachment order, and the first data-URL image as a binary image clipboard item when supported. If rich clipboard writing fails for a block that has text, it falls back to plain-text copy. Image-only rich-copy failures show `Copy failed`.
 - Clipboard copy is browser API UI only and does not touch Firestore. Paste fidelity depends on the destination app; plain text fields may receive only text even when rich clipboard data was written.
-- `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message }`.
-- `src/components/ForwardModal.tsx` receives `mode` and `sourceMessage`, changes its heading between `Forward to` and `Move to`, excludes the source conversation from target choices, and returns optional selected source text ranges.
+- `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message? | messages? }`, passes source conversation titles into forwarded writes, navigates to the target after copy/forward, and keeps the current conversation active after moves while showing a dismissible `Moved to [target]` notice with an `Open` action.
+- `src/components/ForwardModal.tsx` receives `mode`, `sourceMessage`, and optional `sourceMessages`, changes its heading between `Forward to` and `Move to`, excludes the source conversation from target choices, and returns optional selected source text ranges or per-message selections.
 - Transfer word selection is scoped to the forward/move dialog. Normal message bubbles remain plain readable text and do not expose per-word selection.
 - The transfer dialog supports separate selections: tapping a word toggles it, tapping a selected word deselects it, and pressing/holding then dragging with mouse, finger, or pen selects or unselects words depending on the first word's state. Hover is outline-only; selected words use the filled teal state.
 - Forwarding with selected ranges creates a normal forwarded target message whose text is assembled from the selected parts. Adjacent selected words remain one phrase; non-adjacent selected parts are joined as separate paragraphs.

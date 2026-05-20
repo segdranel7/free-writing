@@ -61,8 +61,11 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
       [conversation.id]: [message('first', 'First'), message('second', 'Second')]
     },
     navigationTarget: null,
+    moveNotice: null,
     draft: 'Ready to send',
     editingMessage: null,
+    onOpenMoveNotice: vi.fn(),
+    onDismissMoveNotice: vi.fn(),
     onBack: vi.fn(),
     onDraftChange: vi.fn(),
     onSubmitMessage: vi.fn(),
@@ -1191,6 +1194,71 @@ describe('ConversationPane', () => {
       messageId: 'second',
       range: { startOffset: 0, endOffset: 6 }
     });
+  });
+
+  it('renders copied block origin metadata and navigates to the source conversation', () => {
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+    const copiedMessage = {
+      ...message('copied', 'Copied text'),
+      transferType: 'forwarded' as const,
+      isForwarded: true,
+      forwardedFromConversationId: sourceConversation.id,
+      forwardedFromConversationTitle: 'Source chat',
+      forwardedFromMessageId: 'source-message'
+    };
+    const props = renderPane({
+      conversations: [conversation, sourceConversation],
+      activeMessages: [copiedMessage],
+      messagesByConversation: {
+        [conversation.id]: [copiedMessage],
+        [sourceConversation.id]: [message('source-message', 'Original text')]
+      }
+    });
+
+    expect(screen.getByText(/Copied from/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Copied block source')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Source chat' }));
+
+    expect(props.onNavigateToReference).toHaveBeenCalledWith({
+      conversationId: sourceConversation.id
+    });
+  });
+
+  it('omits copied origin UI for moved blocks', () => {
+    const movedMessage = {
+      ...message('moved', 'Moved text'),
+      transferType: 'moved' as const,
+      isForwarded: true,
+      forwardedFromConversationId: 'source-conversation',
+      forwardedFromConversationTitle: 'Source chat',
+      forwardedFromMessageId: 'source-message'
+    };
+
+    renderPane({ activeMessages: [movedMessage] });
+
+    expect(screen.getByText('Moved')).toBeInTheDocument();
+    expect(screen.queryByText('Copied from Source chat')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Source chat' })).not.toBeInTheDocument();
+  });
+
+  it('shows a post-move notice with an open action', () => {
+    const onOpenMoveNotice = vi.fn();
+    const onDismissMoveNotice = vi.fn();
+
+    renderPane({
+      moveNotice: { targetConversationId: 'target-conversation', targetConversationTitle: 'Target chat' },
+      onOpenMoveNotice,
+      onDismissMoveNotice
+    });
+
+    expect(screen.getByText('Moved to Target chat')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+    fireEvent.click(screen.getByTitle('Dismiss move notice'));
+
+    expect(onOpenMoveNotice).toHaveBeenCalled();
+    expect(onDismissMoveNotice).toHaveBeenCalled();
   });
 
   it('allows removing references while editing a block', () => {

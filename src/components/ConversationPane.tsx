@@ -28,8 +28,11 @@ type ConversationPaneProps = {
   activeMessages: Message[];
   messagesByConversation: Record<string, Message[]>;
   navigationTarget: MessageReferenceNavigationTarget | null;
+  moveNotice: { targetConversationId: string; targetConversationTitle: string } | null;
   draft: string;
   editingMessage: Message | null;
+  onOpenMoveNotice: () => void;
+  onDismissMoveNotice: () => void;
   onBack: () => void;
   onDraftChange: (value: string) => void;
   onSubmitMessage: (textOverride?: string, imageFiles?: File[], references?: MessageReference[]) => void | Promise<void>;
@@ -190,8 +193,11 @@ export function ConversationPane({
   activeMessages,
   messagesByConversation,
   navigationTarget,
+  moveNotice,
   draft,
   editingMessage,
+  onOpenMoveNotice,
+  onDismissMoveNotice,
   onBack,
   onDraftChange,
   onSubmitMessage,
@@ -251,6 +257,11 @@ export function ConversationPane({
   const referenceConversation = conversations.find((conversation) => conversation.id === referenceConversationId) ?? null;
   const referenceMessages = referenceConversationId ? messagesByConversation[referenceConversationId] ?? [] : [];
   const referenceMessage = referenceMessages.find((message) => message.id === referenceMessageId) ?? null;
+
+  function getConversationTitle(conversationId: string | null) {
+    if (!conversationId) return null;
+    return conversations.find((conversation) => conversation.id === conversationId)?.title ?? null;
+  }
 
   useEffect(() => {
     if (!copyFeedback) return undefined;
@@ -1024,6 +1035,9 @@ export function ConversationPane({
                   isSavingEdit={isSavingEdit}
                   editTextareaRef={editTextareaRef}
                   copyFeedbackStatus={copyFeedback?.messageId === message.id ? copyFeedback.status : null}
+                  sourceConversationTitle={
+                    message.forwardedFromConversationTitle ?? getConversationTitle(message.forwardedFromConversationId)
+                  }
                   onSelect={toggleMessageSelection}
                   onStartSelection={startMergeSelection}
                   onNavigateToReference={onNavigateToReference}
@@ -1083,6 +1097,18 @@ export function ConversationPane({
           )}
 
           {selectionToolbar}
+
+          {moveNotice && (
+            <div className="move-notice" role="status">
+              <span>Moved to {moveNotice.targetConversationTitle}</span>
+              <button className="text-button" type="button" onClick={onOpenMoveNotice}>
+                Open
+              </button>
+              <button className="icon-button bare" type="button" title="Dismiss move notice" onClick={onDismissMoveNotice}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
 
           {!isMergeSelectionMode && (
             <MessageComposer
