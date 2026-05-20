@@ -13,7 +13,7 @@ npm run build
 
 Expected result:
 
-- Vitest passes for search, conversation service writes, sidebar drag reordering, message service writes, image-only messages, composer image selection/paste, inline edit image paste, text-only and rich block copy feedback/fallbacks, composer keyboard conversion behavior including draft English sends with pasted images, inline editing, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, insertion markers, gap drop zones, and edge autoscroll, selected-block merge, English conversion UI/service behavior, and the forward/move transfer modal including multi-part word selection.
+- Vitest passes for search, conversation service writes, sidebar drag reordering, message service writes, image-only messages, composer image selection/paste, inline edit image paste, text-only and rich block copy feedback/fallbacks, composer keyboard conversion behavior including draft English sends with pasted images, inline editing, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, insertion markers, gap drop zones, and edge autoscroll, selected-block merge including desktop double-click and mobile double-tap entry, English conversion UI/service behavior, and the forward/move transfer modal including multi-part word selection.
 - The production build completes without TypeScript or Vite errors.
 
 ## English conversion setup
@@ -84,7 +84,7 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 26. On a phone or touch emulator, scroll by swiping the body of a long text block and confirm it scrolls normally without starting a reorder.
 27. On a phone or touch emulator, use the block's drag handle to drag one text block between other blocks and confirm the visible order changes, the dragged block follows the pointer, and an insertion marker shows the exact landing space.
 28. In a long conversation on a touch device or emulator, drag a block handle near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
-29. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments.
+29. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments. On desktop, enter block selection by double-clicking the first block; on touch devices, enter it by double-tapping the first block. After selection mode starts, confirm single clicks/taps toggle the remaining blocks.
 30. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
 31. Confirm the active conversation header shows the conversation title without a message-count subtitle.
 32. Convert one message to English, choose non-default options for at least one segment, confirm the picker shows only the scrollable segment option list without a separate assembled preview, and create the English block.
@@ -115,7 +115,7 @@ Expected result:
 - Reordered conversations keep their order after reconnect and reload.
 - Reordered messages keep their order after reconnect and reload, whether reordered by explicit controls or the drag handle on desktop and mobile/touch devices.
 - Drag reordering continues smoothly when the intended drop target starts off-screen by auto-scrolling the message list near its top or bottom edge, and message-list gaps resolve to the nearest insertion slot instead of cancelling the drop.
-- Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.
+- Block merge selection starts by double-clicking or double-tapping the first block and then supports single-click/tap toggling for additional blocks. Merged messages keep the selected text in display order, and the original selected blocks remain removed after reconnect and reload.
 - English conversion can keep the original message unchanged by creating a new block, or replace the original when `Replace block` is chosen.
 - Draft English conversion sends the selected English result directly as a new message, preserves current composer image attachments and references, clears sent previews, and leaves the composer out of that send step.
 - Long conversations keep the composer and merge action reachable without scrolling the whole page.

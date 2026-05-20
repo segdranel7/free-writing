@@ -27,6 +27,9 @@ import { getReferenceNavigationTarget, truncateReferenceText, type MessageRefere
 
 export type CopyFeedbackStatus = 'copied' | 'failed';
 
+const DOUBLE_TAP_TIMEOUT_MS = 350;
+const TAP_MOVE_TOLERANCE_PX = 8;
+
 type MessageBubbleProps = {
   message: Message;
   messageIndex: number;
@@ -154,8 +157,8 @@ export function MessageBubble({
   onPointerUp,
   onPointerCancel
 }: MessageBubbleProps) {
-  const longPressTimeoutRef = useRef<number | null>(null);
-  const longPressStartRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const tapStartRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const lastTapRef = useRef<{ timeoutId: number } | null>(null);
   const suppressNextClickRef = useRef(false);
   const suppressClickTimeoutRef = useRef<number | null>(null);
   const messageClassName = [
@@ -173,72 +176,109 @@ export function MessageBubble({
 
   useEffect(() => {
     return () => {
-      if (longPressTimeoutRef.current !== null) window.clearTimeout(longPressTimeoutRef.current);
+      if (lastTapRef.current) window.clearTimeout(lastTapRef.current.timeoutId);
       if (suppressClickTimeoutRef.current !== null) window.clearTimeout(suppressClickTimeoutRef.current);
     };
   }, []);
 
-  function clearLongPress() {
-    if (longPressTimeoutRef.current !== null) {
-      window.clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
-    }
-    longPressStartRef.current = null;
+  function clearLastTap() {
+    if (lastTapRef.current) window.clearTimeout(lastTapRef.current.timeoutId);
+    lastTapRef.current = null;
   }
 
-  function clearSuppressedClickSoon() {
-    if (!suppressNextClickRef.current) return;
+  function clearSuppressedClick() {
+    suppressNextClickRef.current = false;
+    if (suppressClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressClickTimeoutRef.current);
+      suppressClickTimeoutRef.current = null;
+    }
+  }
+
+  function suppressClickSoon() {
+    suppressNextClickRef.current = true;
     if (suppressClickTimeoutRef.current !== null) window.clearTimeout(suppressClickTimeoutRef.current);
     suppressClickTimeoutRef.current = window.setTimeout(() => {
       suppressNextClickRef.current = false;
       suppressClickTimeoutRef.current = null;
-    }, 250);
+    }, DOUBLE_TAP_TIMEOUT_MS);
   }
 
   function handleSelectionPointerDown(event: PointerEvent<HTMLElement>) {
-    if (isEditing || isSelectionMode || event.button !== 0 || isInteractiveSelectionTarget(event.target)) return;
+    if (event.pointerType === 'mouse' || isEditing || isSelectionMode || isInteractiveSelectionTarget(event.target)) {
+      tapStartRef.current = null;
+      return;
+    }
 
-    event.preventDefault();
-    clearNativeTextSelection();
-    longPressStartRef.current = {
+    tapStartRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY
     };
-    longPressTimeoutRef.current = window.setTimeout(() => {
-      suppressNextClickRef.current = true;
+  }
+
+  function handleSelectionPointerUp(event: PointerEvent<HTMLElement>) {
+    const tapStart = tapStartRef.current;
+    tapStartRef.current = null;
+
+    if (
+      event.pointerType === 'mouse' ||
+      isEditing ||
+      isSelectionMode ||
+      isInteractiveSelectionTarget(event.target) ||
+      !tapStart ||
+      tapStart.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    const moved =
+      Math.abs(event.clientX - tapStart.x) > TAP_MOVE_TOLERANCE_PX ||
+      Math.abs(event.clientY - tapStart.y) > TAP_MOVE_TOLERANCE_PX;
+    if (moved) {
+      clearLastTap();
+      return;
+    }
+
+    if (lastTapRef.current) {
+      clearLastTap();
+      suppressClickSoon();
+      event.preventDefault();
+      event.stopPropagation();
       clearNativeTextSelection();
       onStartSelection(message.id);
-      clearLongPress();
-    }, 450);
+      return;
+    }
+
+    lastTapRef.current = {
+      timeoutId: window.setTimeout(() => {
+        lastTapRef.current = null;
+      }, DOUBLE_TAP_TIMEOUT_MS)
+    };
   }
 
-  function handleSelectionPointerUp() {
-    clearLongPress();
-    clearSuppressedClickSoon();
-  }
-
-  function handleSelectionPointerMove(event: PointerEvent<HTMLElement>) {
-    const start = longPressStartRef.current;
-    if (!start || start.pointerId !== event.pointerId) return;
-    if (Math.abs(event.clientX - start.x) > 8 || Math.abs(event.clientY - start.y) > 8) clearLongPress();
+  function handleSelectionPointerCancel() {
+    tapStartRef.current = null;
   }
 
   function handleSelectionClick(event: MouseEvent<HTMLElement>) {
     if (suppressNextClickRef.current) {
-      suppressNextClickRef.current = false;
-      if (suppressClickTimeoutRef.current !== null) {
-        window.clearTimeout(suppressClickTimeoutRef.current);
-        suppressClickTimeoutRef.current = null;
-      }
+      clearSuppressedClick();
       event.preventDefault();
       event.stopPropagation();
       return;
     }
+
     if (!isSelectionMode || isEditing || isInteractiveSelectionTarget(event.target)) return;
     event.preventDefault();
     clearNativeTextSelection();
     onSelect(message.id);
+  }
+
+  function handleSelectionDoubleClick(event: MouseEvent<HTMLElement>) {
+    if (isSelectionMode || isEditing || isInteractiveSelectionTarget(event.target)) return;
+    event.preventDefault();
+    clearNativeTextSelection();
+    onStartSelection(message.id);
   }
 
   function handleBlockContextMenu(event: MouseEvent<HTMLElement>) {
@@ -254,11 +294,11 @@ export function MessageBubble({
       aria-grabbed={isDragging}
       style={{ userSelect: isSelectionMode ? 'none' : undefined }}
       onClick={handleSelectionClick}
+      onDoubleClick={handleSelectionDoubleClick}
       onContextMenu={handleBlockContextMenu}
       onPointerDown={handleSelectionPointerDown}
-      onPointerMove={handleSelectionPointerMove}
       onPointerUp={handleSelectionPointerUp}
-      onPointerCancel={clearLongPress}
+      onPointerCancel={handleSelectionPointerCancel}
       onDragOver={(event) => onDragOver(event, message.id)}
       onDragLeave={(event) => onDragLeave(event, message.id)}
       onDrop={(event) => onDrop(event, message.id)}

@@ -1,6 +1,6 @@
 # Current Implementation
 
-Last updated: 2026-05-19
+Last updated: 2026-05-20
 
 Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [QA checklist](../qa-v1-verification.md).
 
@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for conversation service writes, sidebar drag reordering, message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, text/rich block copy feedback and fallbacks, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge, English conversion UI/service/helper behavior, and the shared forward/move modal.
+- Focused Vitest coverage for conversation service writes, sidebar drag reordering, message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, text/rich block copy feedback and fallbacks, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch, English conversion UI/service/helper behavior, and the shared forward/move modal.
 - React code organized into small components, a subscription hook, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -238,6 +238,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/services/messages.ts` has `mergeMessages`, which normalizes the selected messages into display order, joins trimmed block text with blank lines, carries selected attachments forward in display order, creates one replacement message at the first selected message's `sortOrder`, and deletes the selected originals in the same Firestore batch.
 - Merged replacement blocks are normal messages with `isForwarded: false`, `transferType: null`, and no source metadata.
 - `src/components/ConversationPane.tsx` tracks selected message IDs, prunes selections when messages/conversations change, highlights selected bubbles, and enables the merge action only when at least two current messages are selected.
+- `src/components/MessageBubble.tsx` starts block-selection mode from a desktop double-click or a touch/pen double-tap. Once selection mode is active, ordinary clicks/taps toggle additional blocks selected or unselected. Single clicks/taps outside selection mode do not select blocks.
 - Successful merge clears the current selection. Failed merge keeps the selection and shows an inline error in the selection toolbar.
 
 ### Message editing

@@ -962,18 +962,12 @@ describe('ConversationPane', () => {
 
     expect(screen.queryByRole('button', { name: 'Merge selected text blocks' })).not.toBeInTheDocument();
 
-    vi.useFakeTimers();
     const firstBlock = screen.getByText('First').closest('article');
     const secondBlock = screen.getByText('Second').closest('article');
     expect(firstBlock).not.toBeNull();
     expect(secondBlock).not.toBeNull();
 
-    fireEvent.pointerDown(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
-    act(() => {
-      vi.advanceTimersByTime(450);
-    });
-    fireEvent.pointerUp(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
-    vi.useRealTimers();
+    fireEvent.dblClick(firstBlock!);
 
     fireEvent.click(secondBlock!);
     fireEvent.click(screen.getByRole('button', { name: 'Merge selected text blocks' }));
@@ -984,24 +978,20 @@ describe('ConversationPane', () => {
     ]);
   });
 
-  it('starts block selection with a long press and then selects other blocks with clicks', () => {
+  it('starts block selection with a double-click and then selects other blocks with clicks', () => {
     renderPane();
 
     expect(screen.queryByRole('button', { name: 'Merge selected text blocks' })).not.toBeInTheDocument();
 
-    vi.useFakeTimers();
     const firstBlock = screen.getByText('First').closest('article');
     const secondBlock = screen.getByText('Second').closest('article');
     expect(firstBlock).not.toBeNull();
     expect(secondBlock).not.toBeNull();
 
-    fireEvent.pointerDown(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
-    act(() => {
-      vi.advanceTimersByTime(450);
-    });
-    fireEvent.pointerUp(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
     fireEvent.click(firstBlock!);
-    vi.useRealTimers();
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+
+    fireEvent.dblClick(firstBlock!);
 
     expect(screen.getByText('1 selected')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Merge selected text blocks' })).toBeDisabled();
@@ -1021,20 +1011,37 @@ describe('ConversationPane', () => {
     expect(screen.getByRole('button', { name: 'Merge selected text blocks' })).not.toBeDisabled();
   });
 
+  it('starts block selection with a mobile double tap', () => {
+    renderPane();
+
+    const firstBlock = screen.getByText('First').closest('article');
+    const secondBlock = screen.getByText('Second').closest('article');
+    expect(firstBlock).not.toBeNull();
+    expect(secondBlock).not.toBeNull();
+
+    fireEvent.pointerDown(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
+    fireEvent.pointerUp(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
+
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+
+    fireEvent.pointerDown(firstBlock!, { pointerId: 2, pointerType: 'touch', button: 0, clientX: 13, clientY: 12 });
+    fireEvent.pointerUp(firstBlock!, { pointerId: 2, pointerType: 'touch', button: 0, clientX: 13, clientY: 12 });
+    fireEvent.click(firstBlock!);
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    fireEvent.click(secondBlock!);
+
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+  });
+
   it('exits block selection when the last selected block is deselected', () => {
     renderPane();
 
-    vi.useFakeTimers();
     const firstBlock = screen.getByText('First').closest('article');
     expect(firstBlock).not.toBeNull();
 
-    fireEvent.pointerDown(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
-    act(() => {
-      vi.advanceTimersByTime(450);
-    });
-    fireEvent.pointerUp(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
-    fireEvent.click(firstBlock!);
-    vi.useRealTimers();
+    fireEvent.dblClick(firstBlock!);
 
     expect(screen.getByText('1 selected')).toBeInTheDocument();
 
@@ -1049,7 +1056,7 @@ describe('ConversationPane', () => {
     expect(screen.queryByRole('button', { name: 'Merge selected text blocks' })).not.toBeInTheDocument();
   });
 
-  it('does not swallow a later deselect tap when the long-press release click never fires', () => {
+  it('does not start block selection with a long press', () => {
     renderPane();
 
     vi.useFakeTimers();
@@ -1061,13 +1068,6 @@ describe('ConversationPane', () => {
       vi.advanceTimersByTime(450);
     });
     fireEvent.pointerUp(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
-
-    expect(screen.getByText('1 selected')).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(250);
-    });
-    fireEvent.click(firstBlock!);
     vi.useRealTimers();
 
     expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
@@ -1081,17 +1081,10 @@ describe('ConversationPane', () => {
     const onMoveMessages = vi.fn();
     renderPane({ onForwardMessage, onMoveToConversation, onForwardMessages, onMoveMessages });
 
-    vi.useFakeTimers();
     const firstBlock = screen.getByText('First').closest('article');
     expect(firstBlock).not.toBeNull();
 
-    fireEvent.pointerDown(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
-    act(() => {
-      vi.advanceTimersByTime(450);
-    });
-    fireEvent.pointerUp(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
-    fireEvent.click(firstBlock!);
-    vi.useRealTimers();
+    fireEvent.dblClick(firstBlock!);
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy selected blocks to conversation' }));
     fireEvent.click(screen.getByRole('button', { name: 'Move selected blocks to conversation' }));

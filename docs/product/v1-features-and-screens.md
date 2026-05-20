@@ -1,6 +1,6 @@
 # Version 1 Features and Screens
 
-Last updated: 2026-05-19
+Last updated: 2026-05-20
 
 Related docs: [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -304,7 +304,8 @@ The user can select multiple text blocks in one conversation and merge them into
 
 Version 1 behavior:
 
-- Each message can be selected with a checkbox.
+- The user enters block-selection mode by double-clicking a block on desktop or double-tapping a block on touch devices.
+- After the first block is selected, clicking or tapping additional blocks toggles them selected or unselected.
 - A merge control is disabled until at least two messages are selected.
 - Merging creates one new message containing the selected messages in their current display order.
 - The merged text keeps the original block boundaries with blank lines between blocks.

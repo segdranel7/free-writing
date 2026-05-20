@@ -1,6 +1,6 @@
 # Free Writing Documentation
 
-Last updated: 2026-05-19
+Last updated: 2026-05-20
 
 This is the entry point for the Free Writing PWA documentation. The detailed base document has been split into smaller files so product intent, architecture, implementation status, and reusable prompts can be updated independently.
 

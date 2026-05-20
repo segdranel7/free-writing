@@ -64,6 +64,7 @@ Messages:
 - The message list should resolve gaps, padding, and near-miss pointer positions to a valid nearest insertion slot.
 - Drag reordering should auto-scroll the visible message list when the user drags near the top or bottom edge so off-screen drop targets remain reachable.
 - User can select multiple text blocks inside a conversation and merge them into one unified block.
+- Block selection starts with a double-click on desktop or a double-tap on touch devices; after the first block is selected, single clicks/taps toggle other blocks.
 - User can convert a text block to English.
 - User can convert draft composer text to English and send the selected English result directly.
 - Forwarding creates a new message in the target conversation with the same text, or with the selected text parts.
