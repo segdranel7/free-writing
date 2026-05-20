@@ -96,7 +96,7 @@ It contains:
 
 ## QA docs
 
-Use [QA verification checklist](qa-v1-verification.md) before treating Firebase, Cloudflare Worker translation, offline behavior, or browser-specific behavior as stable.
+Use [QA verification checklist](qa-v1-verification.md) before treating Firebase, the Cloudflare Worker AI proxy, offline behavior, or browser-specific behavior as stable.
 
 ## Version 1 product summary
 

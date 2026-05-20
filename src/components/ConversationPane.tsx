@@ -8,19 +8,18 @@ import {
   type DragEvent,
   type PointerEvent
 } from 'react';
-import { ArrowLeft, Combine, Copy, Forward, Link2, Map as MapIcon, MoreVertical, MoveRight, Quote, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Map as MapIcon, MoreVertical, X } from 'lucide-react';
 import { EnglishPickerModal, type EnglishPickerState } from './EnglishPickerModal';
+import { MessageDragPreview } from './MessageDragPreview';
 import { MessageComposer } from './MessageComposer';
 import { MessageBubble, type CopyFeedbackStatus } from './MessageBubble';
-import type { Conversation, EnglishConversion, Message, MessageImageAttachment, MessageReference } from '../types';
+import { ReferencePickerModal, type ReferencePickerMode } from './ReferencePickerModal';
+import { SelectionToolbar } from './SelectionToolbar';
+import type { Conversation, EnglishConversion, Message, MessageReference } from '../types';
 import { resolveNearestDropTarget, type DropPosition, type DropTargetCandidate } from '../utils/dropTargets';
 import { assembleEnglishText } from '../utils/englishConversion';
-import {
-  createConversationReference,
-  createQuoteReference,
-  type MessageReferenceNavigationTarget
-} from '../utils/messageReferences';
-import { getTextTokens } from '../utils/textSelection';
+import { copyMessageToClipboard } from '../utils/messageClipboard';
+import type { MessageReferenceNavigationTarget } from '../utils/messageReferences';
 
 type ConversationPaneProps = {
   activeConversation: Conversation | null;
@@ -88,8 +87,6 @@ type EditImagePreview = {
   url: string;
 };
 
-type ReferencePickerMode = 'conversation' | 'quote';
-
 function createPreviewId() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -110,82 +107,6 @@ function getImageFilesFromClipboardData(clipboardData: DataTransfer) {
 
   if (itemFiles.length > 0) return itemFiles;
   return Array.from(clipboardData.files).filter((file) => file.type.startsWith('image/'));
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function renderTextAsClipboardHtml(text: string) {
-  const trimmedText = text.trim();
-  if (!trimmedText) return '';
-
-  return trimmedText
-    .split(/\n{2,}/)
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
-    .join('');
-}
-
-function getDataUrlBlob(dataUrl: string, fallbackType: string) {
-  const [metadata = '', data = ''] = dataUrl.split(',');
-  const contentType = metadata.match(/^data:([^;]+)/)?.[1] ?? fallbackType;
-  const isBase64 = metadata.includes(';base64');
-  const binary = isBase64 ? atob(data) : decodeURIComponent(data);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return new Blob([bytes], { type: contentType });
-}
-
-function getClipboardHtml(message: Message) {
-  const textHtml = renderTextAsClipboardHtml(message.text);
-  const imageHtml = (message.attachments ?? [])
-    .filter((attachment): attachment is MessageImageAttachment => attachment.type === 'image')
-    .map(
-      (attachment) =>
-        `<p><img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(attachment.name || 'Attached image')}"></p>`
-    )
-    .join('');
-
-  return `<!doctype html><html><body>${textHtml}${imageHtml}</body></html>`;
-}
-
-async function copyMessageToClipboard(message: Message) {
-  const attachments = message.attachments ?? [];
-
-  if (attachments.length === 0 || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
-    if (!message.text.trim()) throw new Error('This block has no text to copy.');
-    await navigator.clipboard.writeText(message.text);
-    return;
-  }
-
-  const clipboardParts: Record<string, Blob> = {
-    'text/plain': new Blob([message.text], { type: 'text/plain' }),
-    'text/html': new Blob([getClipboardHtml(message)], { type: 'text/html' })
-  };
-  const firstImage = attachments.find(
-    (attachment): attachment is MessageImageAttachment => attachment.type === 'image' && attachment.url.startsWith('data:')
-  );
-
-  if (firstImage) {
-    const imageBlob = getDataUrlBlob(firstImage.url, firstImage.contentType);
-    clipboardParts[imageBlob.type || firstImage.contentType] = imageBlob;
-  }
-
-  try {
-    await navigator.clipboard.write([new ClipboardItem(clipboardParts)]);
-  } catch (error) {
-    if (!message.text.trim()) throw error;
-    await navigator.clipboard.writeText(message.text);
-  }
 }
 
 export function ConversationPane({
@@ -228,9 +149,6 @@ export function ConversationPane({
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [pendingReferences, setPendingReferences] = useState<MessageReference[]>([]);
   const [referencePickerMode, setReferencePickerMode] = useState<ReferencePickerMode | null>(null);
-  const [referenceConversationId, setReferenceConversationId] = useState<string | null>(null);
-  const [referenceMessageId, setReferenceMessageId] = useState<string | null>(null);
-  const [referenceSelection, setReferenceSelection] = useState({ start: 0, end: 0 });
   const [activeReferenceTarget, setActiveReferenceTarget] = useState<MessageReferenceNavigationTarget | null>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [isSynthesizingIndex, setIsSynthesizingIndex] = useState(false);
@@ -258,9 +176,6 @@ export function ConversationPane({
   const draggedMessage = dragPreview
     ? activeMessages.find((message) => message.id === dragPreview.messageId) ?? null
     : null;
-  const referenceConversation = conversations.find((conversation) => conversation.id === referenceConversationId) ?? null;
-  const referenceMessages = referenceConversationId ? messagesByConversation[referenceConversationId] ?? [] : [];
-  const referenceMessage = referenceMessages.find((message) => message.id === referenceMessageId) ?? null;
 
   function getConversationTitle(conversationId: string | null) {
     if (!conversationId) return null;
@@ -750,53 +665,16 @@ export function ConversationPane({
   }
 
   function openReferencePicker(mode: ReferencePickerMode) {
-    const defaultConversation =
-      mode === 'quote'
-        ? conversations.find((conversation) => conversation.id !== activeConversation?.id)
-        : conversations[0];
     setReferencePickerMode(mode);
-    setReferenceConversationId(defaultConversation?.id ?? null);
-    setReferenceMessageId(null);
-    setReferenceSelection({ start: 0, end: 0 });
   }
 
   function closeReferencePicker() {
     setReferencePickerMode(null);
-    setReferenceConversationId(null);
-    setReferenceMessageId(null);
-    setReferenceSelection({ start: 0, end: 0 });
   }
 
-  function addConversationReference() {
-    if (!referenceConversation) return;
-    setPendingReferences((current) => [...current, createConversationReference(referenceConversation)]);
-    closeReferencePicker();
-  }
-
-  function addQuoteReference() {
-    if (!referenceConversation || !referenceMessage) return;
-    const reference = createQuoteReference(
-      referenceConversation,
-      referenceMessage,
-      referenceSelection.start,
-      referenceSelection.end
-    );
-    if (!reference) return;
+  function addPendingReference(reference: MessageReference) {
     setPendingReferences((current) => [...current, reference]);
     closeReferencePicker();
-  }
-
-  function selectReferenceWord(startOffset: number, endOffset: number) {
-    setReferenceSelection((currentSelection) => {
-      if (currentSelection.start === currentSelection.end) {
-        return { start: startOffset, end: endOffset };
-      }
-
-      return {
-        start: Math.min(currentSelection.start, startOffset),
-        end: Math.max(currentSelection.end, endOffset)
-      };
-    });
   }
 
   function canNavigateToReference(reference: MessageReference) {
@@ -952,69 +830,18 @@ export function ConversationPane({
     englishPicker?.status === 'replacing' ||
     englishPicker?.status === 'sending-draft';
   const selectionToolbar = isMergeSelectionMode ? (
-    <div className="selection-toolbar" aria-live="polite">
-      <span>{selectedMessages.length} selected</span>
-      {mergeError && (
-        <span className="merge-error" role="alert">
-          {mergeError}
-        </span>
-      )}
-      <button
-        className="icon-button cancel-merge-button"
-        type="button"
-        title="Cancel merge selection"
-        onClick={cancelMergeSelection}
-      >
-        <X size={16} />
-      </button>
-      <div className="selection-actions">
-        <button
-          className="icon-button merge-button"
-          type="button"
-          title="Merge selected text blocks"
-          disabled={selectedMessages.length < 2 || isMerging}
-          onClick={() => void mergeSelectedMessages()}
-        >
-          <Combine size={16} />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Copy selected blocks to conversation"
-          disabled={selectedMessages.length === 0}
-          onClick={forwardSelectedMessages}
-        >
-          <Forward size={16} />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Move selected blocks to conversation"
-          disabled={selectedMessages.length === 0}
-          onClick={moveSelectedMessages}
-        >
-          <MoveRight size={16} />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Copy selected text"
-          disabled={selectedMessages.length === 0}
-          onClick={() => void copySelectedMessagesText()}
-        >
-          <Copy size={16} />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Delete selected blocks"
-          disabled={selectedMessages.length === 0 || isApplyingSelectedAction}
-          onClick={() => void deleteSelectedMessages()}
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
-    </div>
+    <SelectionToolbar
+      selectedCount={selectedMessages.length}
+      error={mergeError}
+      isMerging={isMerging}
+      isApplyingAction={isApplyingSelectedAction}
+      onCancel={cancelMergeSelection}
+      onMerge={() => void mergeSelectedMessages()}
+      onForward={forwardSelectedMessages}
+      onMove={moveSelectedMessages}
+      onCopyText={() => void copySelectedMessagesText()}
+      onDelete={() => void deleteSelectedMessages()}
+    />
   ) : null;
 
   return (
@@ -1118,24 +945,12 @@ export function ConversationPane({
           </div>
 
           {dragPreview && draggedMessage && (
-            <div
-              className="message-drag-preview"
-              style={{
-                left: dragPreview.x,
-                top: dragPreview.y,
-                width: dragPreview.width
-              }}
-              aria-hidden="true"
-            >
-              {(draggedMessage.attachments?.length ?? 0) > 0 && (
-                <div className="message-drag-preview-images">
-                  {draggedMessage.attachments?.slice(0, 2).map((attachment) => (
-                    <img key={attachment.id} src={attachment.url} alt="" />
-                  ))}
-                </div>
-              )}
-              {draggedMessage.text && <p>{draggedMessage.text}</p>}
-            </div>
+            <MessageDragPreview
+              message={draggedMessage}
+              x={dragPreview.x}
+              y={dragPreview.y}
+              width={dragPreview.width}
+            />
           )}
 
           {selectionToolbar}
@@ -1179,115 +994,14 @@ export function ConversationPane({
           )}
 
           {referencePickerMode && (
-            <div className="modal-backdrop" role="presentation">
-              <section
-                className="modal reference-picker"
-                role="dialog"
-                aria-modal="true"
-                aria-label={referencePickerMode === 'quote' ? 'Cite text' : 'Add conversation link'}
-              >
-                <header className="modal-header">
-                  <h3>{referencePickerMode === 'quote' ? 'Cite text' : 'Add conversation link'}</h3>
-                  <button className="icon-button bare" type="button" title="Close" onClick={closeReferencePicker}>
-                    <X size={18} />
-                  </button>
-                </header>
-
-                <div className="reference-picker-grid">
-                  <div className="reference-picker-list">
-                    {conversations
-                      .filter(
-                        (conversation) => referencePickerMode !== 'quote' || conversation.id !== activeConversation.id
-                      )
-                      .map((conversation) => (
-                        <button
-                          key={conversation.id}
-                          className={`reference-picker-row ${
-                            referenceConversationId === conversation.id ? 'active' : ''
-                          }`}
-                          type="button"
-                          onClick={() => {
-                            setReferenceConversationId(conversation.id);
-                            setReferenceMessageId(null);
-                            setReferenceSelection({ start: 0, end: 0 });
-                          }}
-                        >
-                          {conversation.title}
-                        </button>
-                      ))}
-                  </div>
-
-                  {referencePickerMode === 'quote' ? (
-                    <div className="reference-picker-detail">
-                      <div className="reference-picker-message-list">
-                        {referenceMessages
-                          .filter((message) => message.text.trim())
-                          .map((message) => (
-                            <button
-                              key={message.id}
-                              className={`reference-picker-row ${referenceMessageId === message.id ? 'active' : ''}`}
-                              type="button"
-                              onClick={() => {
-                                setReferenceMessageId(message.id);
-                                setReferenceSelection({ start: 0, end: 0 });
-                              }}
-                            >
-                              {message.text}
-                            </button>
-                          ))}
-                      </div>
-                      {referenceMessage ? (
-                        <div className="reference-word-picker" aria-label="Source message text">
-                          {getTextTokens(referenceMessage.text).map((token) =>
-                            token.isWord ? (
-                              <button
-                                key={`${token.startOffset}-${token.endOffset}`}
-                                className={`word-token ${
-                                  token.startOffset >= referenceSelection.start &&
-                                  token.endOffset <= referenceSelection.end
-                                    ? 'selected'
-                                    : ''
-                                }`}
-                                type="button"
-                                onClick={() => selectReferenceWord(token.startOffset, token.endOffset)}
-                              >
-                                {token.text}
-                              </button>
-                            ) : (
-                              <span key={`${token.startOffset}-${token.endOffset}`}>{token.text}</span>
-                            )
-                          )}
-                        </div>
-                      ) : (
-                        <p className="empty-state">Choose a text block.</p>
-                      )}
-                      <button
-                        className="primary-button"
-                        type="button"
-                        disabled={!referenceMessage || referenceSelection.end <= referenceSelection.start}
-                        onClick={addQuoteReference}
-                      >
-                        <Quote size={16} />
-                        Insert citation
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="reference-picker-detail">
-                      <p>{referenceConversation?.title ?? 'Choose a conversation.'}</p>
-                      <button
-                        className="primary-button"
-                        type="button"
-                        disabled={!referenceConversation}
-                        onClick={addConversationReference}
-                      >
-                        <Link2 size={16} />
-                        Insert link
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </section>
-            </div>
+            <ReferencePickerModal
+              mode={referencePickerMode}
+              activeConversation={activeConversation}
+              conversations={conversations}
+              messagesByConversation={messagesByConversation}
+              onAddReference={addPendingReference}
+              onClose={closeReferencePicker}
+            />
           )}
         </>
       ) : (

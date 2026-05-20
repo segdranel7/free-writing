@@ -117,7 +117,16 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, drag reorder, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context.
 
 src/components/ConversationPane.tsx
-  Active conversation view, selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge/English conversion and index synthesis orchestration, insertion marker state, reference picker state, conversion picker state, and inline edit/image-paste state.
+  Active conversation view and orchestration for selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge flows, English conversion, index synthesis, insertion marker state, reference picker open mode, conversion picker state, and inline edit/image-paste state.
+
+src/components/SelectionToolbar.tsx
+  Multi-block selection toolbar rendering for merge, copy-to-conversation, move-to-conversation, copy text, delete, cancel, selected count, busy states, and inline selection errors.
+
+src/components/ReferencePickerModal.tsx
+  Composer-side conversation link and quote citation picker. Owns picker-local conversation/message/word-range selection state, creates structured references, and returns the chosen reference to `ConversationPane`.
+
+src/components/MessageDragPreview.tsx
+  Floating dragged-message preview rendering used by message drag reordering.
 
 src/components/MessageBubble.tsx
   Per-message rendering and local action wiring. Owns message metadata display including clickable copied-origin conversation names, inert image attachment previews, structured reference cards, synthesized index rows, inline edit form markup, copy feedback label, reorder buttons and drag handle, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`.
@@ -150,7 +159,7 @@ functions/src/index.ts
   Legacy Firebase Function version of the translation proxy. Firebase Functions require the Blaze plan and are not used by the default free hosted deployment.
 
 src/utils/
-  Shared formatting, error, ordering, and small pure text helpers. `englishConversion.ts` assembles selected English conversion segment options into the text used for saving or sending. `textSelection.ts` tokenizes transfer/source text into word and whitespace tokens, normalizes selected ranges, assembles selected parts, and removes selected ranges from source text for partial moves. `messageOrder.ts` computes behavior-preserving reorder arrays for message up/down controls, conversation drag targets, and message before/after insertion positions. `dropTargets.ts` resolves pointer positions to before/after drop slots from measured item rectangles.
+  Shared formatting, clipboard, error, ordering, and small pure text helpers. `messageClipboard.ts` owns block copy formatting and rich/plain clipboard fallbacks. `englishConversion.ts` assembles selected English conversion segment options into the text used for saving or sending. `textSelection.ts` tokenizes transfer/source text into word and whitespace tokens, normalizes selected ranges, assembles selected parts, and removes selected ranges from source text for partial moves. `messageOrder.ts` computes behavior-preserving reorder arrays for message up/down controls, conversation drag targets, and message before/after insertion positions. `dropTargets.ts` resolves pointer positions to before/after drop slots from measured item rectangles.
 
 src/styles.css
   Global dark theme, responsive layout, viewport-constrained conversation pane, component surfaces, input states, shared button/icon alignment, message bubbles, drag reorder states, modal styling, English picker styling, and hover states.
@@ -230,7 +239,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/components/MessageBubble.tsx` includes a `Move to conversation` message action and displays transfer labels through `getTransferLabel`.
 - Structured conversation and quote reference cards remain the UI for explicit user-added references; copied-origin metadata is shown only in the top message metadata line.
 - `src/components/MessageBubble.tsx` includes a copy action with short-lived success/failure feedback. Text-only messages show `Copy text`; messages with attachments show `Copy block`, and image-only blocks can be copied.
-- `src/components/ConversationPane.tsx` handles clipboard writes. Text-only blocks use `navigator.clipboard.writeText`; blocks with attachments use `navigator.clipboard.write` with `text/plain`, `text/html` containing escaped text plus inline image tags in attachment order, and the first data-URL image as a binary image clipboard item when supported. If rich clipboard writing fails for a block that has text, it falls back to plain-text copy. Image-only rich-copy failures show `Copy failed`.
+- `src/utils/messageClipboard.ts` handles block clipboard writes. Text-only blocks use `navigator.clipboard.writeText`; blocks with attachments use `navigator.clipboard.write` with `text/plain`, `text/html` containing escaped text plus inline image tags in attachment order, and the first data-URL image as a binary image clipboard item when supported. If rich clipboard writing fails for a block that has text, it falls back to plain-text copy. Image-only rich-copy failures show `Copy failed` through `ConversationPane` copy feedback state.
 - Clipboard copy is browser API UI only and does not touch Firestore. Paste fidelity depends on the destination app; plain text fields may receive only text even when rich clipboard data was written.
 - `src/App.tsx` models the pending transfer as `{ mode: 'forward' | 'move', message? | messages? }`, passes source conversation titles into forwarded writes, navigates to the target after copy/forward, and keeps the current conversation active after moves while showing a dismissible `Moved to [target]` notice with an `Open` action.
 - `src/components/ForwardModal.tsx` receives `mode`, `sourceMessage`, and optional `sourceMessages`, changes its heading between `Forward to` and `Move to`, excludes the source conversation from target choices, and returns optional selected source text ranges or per-message selections.
@@ -241,7 +250,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - Whole-block moving touches the target conversation preview after the batch, but does not recompute the source conversation preview after deleting the original. Partial moving touches both the target and source conversation previews.
 - `src/services/messages.ts` has `mergeMessages`, which normalizes the selected messages into display order, joins trimmed block text with blank lines, carries selected attachments forward in display order, creates one replacement message at the first selected message's `sortOrder`, and deletes the selected originals in the same Firestore batch.
 - Merged replacement blocks are normal messages with `isForwarded: false`, `transferType: null`, and no source metadata.
-- `src/components/ConversationPane.tsx` tracks selected message IDs, prunes selections when messages/conversations change, highlights selected bubbles, and enables the merge action only when at least two current messages are selected.
+- `src/components/ConversationPane.tsx` tracks selected message IDs, prunes selections when messages/conversations change, and highlights selected bubbles. `src/components/SelectionToolbar.tsx` renders the selection actions and enables merge only when at least two current messages are selected.
 - `src/components/MessageBubble.tsx` starts block-selection mode from a desktop double-click or a touch/pen double-tap. Once selection mode is active, ordinary clicks/taps toggle additional blocks selected or unselected. Single clicks/taps outside selection mode do not select blocks.
 - Successful merge clears the current selection. Failed merge keeps the selection and shows an inline error in the selection toolbar.
 
@@ -262,7 +271,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/components/MessageComposer.tsx` supports image file selection, normal paste events, and a visible paste-image button for touch devices. Clipboard read support is browser-dependent; when it is unavailable, the button falls back to file selection.
 - `src/components/MessageBubble.tsx` renders saved image previews as inert elements, not links. Clicking a saved image intentionally does nothing.
 - Image-only messages are allowed. Conversation previews use `Image` or `{n} images` when a message has no text.
-- Search and English conversion use message text only; image contents are not OCR-indexed or sent to the AI conversion endpoint.
+- Search, English conversion, and conversation index synthesis use message text or fallback block descriptions only; image contents are not OCR-indexed or sent to the AI endpoint.
 - Inline Firestore image storage avoids paid Firebase Storage but is not suitable for large original media. If compression cannot keep images within the configured limits, the composer/editor shows an error and preserves the unsent content.
 
 ### Reorder messages
@@ -270,7 +279,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - `src/App.tsx` keeps reorder persistence centralized by optimistically updating `messagesByConversation` and then calling `reorderMessages`.
 - `src/utils/messageOrder.ts` keeps the pure reorder-array calculations outside `App.tsx`, with focused tests for up/down moves, drag/drop target moves, and before/after insertion moves.
 - `src/utils/dropTargets.ts` keeps the geometry-independent nearest-slot calculation outside `ConversationPane`, so gap-tolerant drops can be tested without rendering React components.
-- `src/components/ConversationPane.tsx` owns drag/reorder state, floating preview state, autoscroll, and persistence callbacks, while `src/components/MessageBubble.tsx` exposes up/down buttons and a dedicated drag handle with native desktop drag-and-drop and mobile/touch pointer bindings.
+- `src/components/ConversationPane.tsx` owns drag/reorder state, floating preview state, autoscroll, and persistence callbacks. `src/components/MessageDragPreview.tsx` renders the floating preview, while `src/components/MessageBubble.tsx` exposes up/down buttons and a dedicated drag handle with native desktop drag-and-drop and mobile/touch pointer bindings.
 - Dragging starts only from the drag handle. The message bubble body is no longer draggable and keeps normal touch scrolling available for long text.
 - Desktop, touch, and pen dragging start immediately from the handle, show a floating preview of the dragged block, dim the source bubble, and render an insertion marker in the exact space where the block will land.
 - Drop detection first uses the pointer target when it is over a message, then falls back to the nearest before/after insertion slot based on visible message rectangles. This makes gaps, padding, insertion markers, and near-miss positions valid drop zones.
@@ -300,7 +309,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 ### Cross-conversation references
 
 - Messages can store structured `references` separately from body text. Conversation references point to another conversation by ID with a title snapshot; quote references also point to a source message and selected text offsets.
-- `src/components/ConversationPane.tsx` opens composer-side pickers for conversation links and quote citations. Quote selection happens inside the modal without leaving the active conversation.
+- `src/components/ConversationPane.tsx` opens composer-side pickers for conversation links and quote citations. `src/components/ReferencePickerModal.tsx` owns the picker-local conversation/message/word-range selection state, and quote selection happens inside the modal without leaving the active conversation.
 - `src/components/MessageBubble.tsx` renders reference cards below message text. Conversation references navigate to the source conversation; quote references navigate to the source message and temporarily highlight the cited text range when the source is still loaded.
 - Inline editing can remove existing references from a saved message. Adding new references is composer-only.
 - Old messages without `references` are normalized to an empty reference list by the message subscription path.
