@@ -117,7 +117,7 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, drag reorder, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context.
 
 src/components/ConversationPane.tsx
-  Active conversation view and orchestration for selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge flows, English conversion, index synthesis, insertion marker state, reference picker open mode, conversion picker state, and inline edit/image-paste state.
+  Active conversation view and orchestration for selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge flows, English conversion hook wiring, index synthesis, insertion marker state, reference picker open mode, and inline edit/image-paste state.
 
 src/components/SelectionToolbar.tsx
   Multi-block selection toolbar rendering for merge, copy-to-conversation, move-to-conversation, copy text, delete, cancel, selected count, busy states, and inline selection errors.
@@ -135,7 +135,7 @@ src/components/MessageComposer.tsx
   Draft composer rendering, pending reference chips, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, and `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`.
 
 src/components/EnglishPickerModal.tsx
-  English conversion dialog rendering. Receives picker state and callbacks from `ConversationPane`, renders loading/error/ready/saving states, a scrollable segment option list, and saved-message or draft-specific actions. It intentionally does not render a separate assembled preview so large conversions keep the options readable.
+  English conversion dialog rendering. Receives picker state and callbacks from `useEnglishConversionPicker` through `ConversationPane`, renders loading/error/ready/saving states, a scrollable segment option list, and saved-message or draft-specific actions. It intentionally does not render a separate assembled preview so large conversions keep the options readable.
 
 src/components/ForwardModal.tsx
   Transfer dialog used when forwarding or moving a message. It excludes the source conversation, renders the source text as selectable word tokens, supports tap toggling plus pointer drag select/unselect on mouse/touch/pen, previews the whole block or selected parts, and returns selected text ranges with the target conversation.
@@ -151,6 +151,9 @@ src/hooks/useListReorderDrag.ts
 
 src/hooks/useImagePreviews.ts
   Shared object-URL image preview lifecycle for composer and inline edit image files.
+
+src/hooks/useEnglishConversionPicker.ts
+  English conversion picker state machine for saved-message and draft conversion. Owns loading/ready/error/saving states, segment option selection, assembled English text saving, draft image/reference preservation, and the callback that clears sent draft image previews.
 
 src/services/
   Firebase auth, conversation, message, image preparation, search, translation, and synthesis request operations.
@@ -335,8 +338,9 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 - `src/services/translation.ts` posts `{ text }` to `VITE_TRANSLATION_API_URL` or `/api/to-english`.
 - The request includes the current Firebase ID token in the `Authorization` header.
-- `src/components/ConversationPane.tsx` owns the English picker state and save orchestration. It opens conversion for saved messages or draft text, snapshots composer image files for draft conversion, tracks loading/error/ready/creating/replacing/draft-send states, and routes saves back to message creation/editing callbacks.
-- `src/components/EnglishPickerModal.tsx` renders the English conversion dialog from that state. It does not call translation or Firestore directly, and it keeps the ready state focused on the scrollable segment option list rather than rendering a separate selected-text preview.
+- `src/hooks/useEnglishConversionPicker.ts` owns the English picker state and save orchestration. It opens conversion for saved messages or draft text, snapshots composer image files for draft conversion, tracks loading/error/ready/creating/replacing/draft-send states, and routes saves back to message creation/editing callbacks.
+- `src/components/ConversationPane.tsx` wires the English conversion hook into saved-message actions, composer draft conversion, pending references, and the modal.
+- `src/components/EnglishPickerModal.tsx` renders the English conversion dialog from hook state. It does not call translation or Firestore directly, and it keeps the ready state focused on the scrollable segment option list rather than rendering a separate selected-text preview.
 - `src/utils/englishConversion.ts` assembles the selected English options for saving or sending. Each AI segment returns exactly three options, the first option is selected by default, and selected options are joined with spaces.
 - Saved-message conversion can create a new English block below the source or replace the source message by calling the normal edit flow. Draft conversion sends the selected English text directly as a new message with current composer image attachments and pending references, then clears the composer draft, references, and image previews through the normal create-message path plus composer preview cleanup.
 - `src/services/messages.ts` has `createMessageAfter`, which inserts the English result directly below the source message by choosing a midpoint `sortOrder` when possible or rebalancing order when no numeric gap exists.

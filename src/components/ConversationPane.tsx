@@ -7,17 +7,17 @@ import {
   type ClipboardEvent
 } from 'react';
 import { ArrowLeft, Map as MapIcon, MoreVertical, X } from 'lucide-react';
-import { EnglishPickerModal, type EnglishPickerState } from './EnglishPickerModal';
+import { EnglishPickerModal } from './EnglishPickerModal';
 import { MessageDragPreview } from './MessageDragPreview';
 import { MessageComposer } from './MessageComposer';
 import { MessageBubble, type CopyFeedbackStatus } from './MessageBubble';
 import { ReferencePickerModal, type ReferencePickerMode } from './ReferencePickerModal';
 import { SelectionToolbar } from './SelectionToolbar';
+import { useEnglishConversionPicker } from '../hooks/useEnglishConversionPicker';
 import { useImagePreviews } from '../hooks/useImagePreviews';
 import { useListReorderDrag } from '../hooks/useListReorderDrag';
 import type { Conversation, EnglishConversion, Message, MessageReference } from '../types';
 import type { DropPosition } from '../utils/dropTargets';
-import { assembleEnglishText } from '../utils/englishConversion';
 import { getImageFilesFromClipboardData } from '../utils/imageFiles';
 import { copyMessageToClipboard } from '../utils/messageClipboard';
 import type { MessageReferenceNavigationTarget } from '../utils/messageReferences';
@@ -105,7 +105,6 @@ export function ConversationPane({
   onReplaceWithEnglish
 }: ConversationPaneProps) {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
-  const [englishPicker, setEnglishPicker] = useState<EnglishPickerState | null>(null);
   const [clearComposerImagePreviewsSignal, setClearComposerImagePreviewsSignal] = useState(0);
   const [isMergeSelectionMode, setIsMergeSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
@@ -151,6 +150,26 @@ export function ConversationPane({
     getItemId: (element) => element.dataset.messageId,
     itemCount: activeMessages.length,
     onReorder: onReorderMessage
+  });
+  const {
+    englishPicker,
+    isSaving: englishPickerIsSaving,
+    closePicker: closeEnglishPicker,
+    openMessagePicker: openMessageEnglishPicker,
+    openDraftPicker: openDraftEnglishPicker,
+    updateSelection: updateEnglishSelection,
+    saveResult: saveEnglishResult
+  } = useEnglishConversionPicker({
+    draft,
+    pendingReferences,
+    onConvertToEnglish,
+    onSubmitMessage,
+    onCreateEnglishBlock,
+    onReplaceWithEnglish,
+    onDraftEnglishSent: () => {
+      setPendingReferences([]);
+      setClearComposerImagePreviewsSignal((signal) => signal + 1);
+    }
   });
 
   const selectedMessages = activeMessages.filter((message) => selectedMessageIds.includes(message.id));
@@ -420,110 +439,6 @@ export function ConversationPane({
     addEditImageFiles(imageFiles);
   }
 
-  async function openMessageEnglishPicker(message: Message) {
-    setEnglishPicker({
-      source: { type: 'message', message },
-      status: 'loading',
-      conversion: null,
-      selections: [],
-      error: null
-    });
-
-    try {
-      const conversion = await onConvertToEnglish(message.text);
-      setEnglishPicker({
-        source: { type: 'message', message },
-        status: 'ready',
-        conversion,
-        selections: conversion.segments.map(() => 0),
-        error: null
-      });
-    } catch (error) {
-      setEnglishPicker({
-        source: { type: 'message', message },
-        status: 'error',
-        conversion: null,
-        selections: [],
-        error: error instanceof Error ? error.message : 'Unable to convert this text to English.'
-      });
-    }
-  }
-
-  async function openDraftEnglishPicker(imageFiles: File[] = []) {
-    if (!draft.trim()) return;
-    const draftImageFiles = [...imageFiles];
-    setEnglishPicker({
-      source: { type: 'draft', imageFiles: draftImageFiles },
-      status: 'loading',
-      conversion: null,
-      selections: [],
-      error: null
-    });
-
-    try {
-      const conversion = await onConvertToEnglish(draft);
-      setEnglishPicker({
-        source: { type: 'draft', imageFiles: draftImageFiles },
-        status: 'ready',
-        conversion,
-        selections: conversion.segments.map(() => 0),
-        error: null
-      });
-    } catch (error) {
-      setEnglishPicker({
-        source: { type: 'draft', imageFiles: draftImageFiles },
-        status: 'error',
-        conversion: null,
-        selections: [],
-        error: error instanceof Error ? error.message : 'Unable to convert this text to English.'
-      });
-    }
-  }
-
-  function updateEnglishSelection(segmentIndex: number, optionIndex: number) {
-    setEnglishPicker((current) => {
-      if (!current) return current;
-      const selections = [...current.selections];
-      selections[segmentIndex] = optionIndex;
-      return { ...current, selections };
-    });
-  }
-
-  async function saveEnglishResult(action: 'create' | 'replace' | 'draft') {
-    if (!englishPicker || !englishPicker.conversion) return;
-    const englishText = assembleEnglishText(englishPicker.conversion, englishPicker.selections);
-    if (!englishText) return;
-
-    const nextStatus =
-      action === 'create' ? 'creating' : action === 'replace' ? 'replacing' : 'sending-draft';
-    setEnglishPicker({ ...englishPicker, status: nextStatus, error: null });
-    try {
-      if (action === 'draft') {
-        const draftImageFiles = englishPicker.source.type === 'draft' ? englishPicker.source.imageFiles : [];
-        await onSubmitMessage(englishText, draftImageFiles, pendingReferences);
-        setPendingReferences([]);
-        setClearComposerImagePreviewsSignal((signal) => signal + 1);
-      } else if (englishPicker.source.type === 'message') {
-        if (action === 'create') {
-          await onCreateEnglishBlock(englishPicker.source.message, englishText);
-        } else {
-          await onReplaceWithEnglish(englishPicker.source.message, englishText);
-        }
-      }
-      setEnglishPicker(null);
-    } catch (error) {
-      setEnglishPicker({
-        ...englishPicker,
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unable to save the English text.'
-      });
-    }
-  }
-
-  const englishPickerIsSaving =
-    englishPicker?.status === 'creating' ||
-    englishPicker?.status === 'replacing' ||
-    englishPicker?.status === 'sending-draft';
   const selectionToolbar = isMergeSelectionMode ? (
     <SelectionToolbar
       selectedCount={selectedMessages.length}
@@ -682,7 +597,7 @@ export function ConversationPane({
             <EnglishPickerModal
               state={englishPicker}
               isSaving={englishPickerIsSaving}
-              onClose={() => setEnglishPicker(null)}
+              onClose={closeEnglishPicker}
               onSelectionChange={updateEnglishSelection}
               onSave={(action) => void saveEnglishResult(action)}
             />

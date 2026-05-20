@@ -1,17 +1,5 @@
 import { X } from 'lucide-react';
-import type { EnglishConversion, Message } from '../types';
-
-export type EnglishPickerSource = { type: 'message'; message: Message } | { type: 'draft'; imageFiles: File[] };
-
-export type EnglishPickerState = {
-  source: EnglishPickerSource;
-  status: 'loading' | 'ready' | 'creating' | 'replacing' | 'sending-draft' | 'error';
-  conversion: EnglishConversion | null;
-  selections: number[];
-  error: string | null;
-};
-
-type EnglishPickerAction = 'create' | 'replace' | 'draft';
+import type { EnglishPickerAction, EnglishPickerState } from '../hooks/useEnglishConversionPicker';
 
 type EnglishPickerModalProps = {
   state: EnglishPickerState;
