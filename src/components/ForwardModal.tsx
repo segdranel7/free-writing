@@ -2,6 +2,14 @@ import { useRef, useState, type PointerEvent } from 'react';
 import { X } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import { getSelectedTextFromRanges, getTextTokens, type TextSelectionRange } from '../utils/textSelection';
+import type { MessageSelection } from '../utils/transferActions';
+import {
+  buildMessageSelections,
+  getMessageSelectionRangeCount,
+  getSelectedMessageText,
+  isTextRangeSelected,
+  updateTextSelectionRanges
+} from '../utils/transferSelection';
 
 type ForwardModalProps = {
   conversations: Conversation[];
@@ -12,7 +20,7 @@ type ForwardModalProps = {
   onForward: (
     targetConversationId: string,
     ranges?: TextSelectionRange[],
-    messageSelections?: Array<{ messageId: string; ranges: TextSelectionRange[] }>
+    messageSelections?: MessageSelection[]
   ) => void;
 };
 
@@ -29,22 +37,19 @@ export function ForwardModal({ conversations, mode, sourceMessage, sourceMessage
   } | null>(null);
   const handledPointerClick = useRef(false);
   const selectedText = sourceMessage ? getSelectedTextFromRanges(sourceMessage.text, selectionRanges) : '';
-  const selectedMessageText = selectedMessages
-    .map((message) => getSelectedTextFromRanges(message.text, messageSelectionRanges[message.id] ?? []))
-    .filter(Boolean)
-    .join('\n\n');
+  const selectedMessageText = getSelectedMessageText(selectedMessages, messageSelectionRanges);
   const transferText = isSelectedBlockTransfer
     ? selectedMessageText || selectedMessages.map((message) => message.text.trim()).filter(Boolean).join('\n\n')
     : selectedText || (sourceMessage?.text ?? '');
   const selectedWordCount = isSelectedBlockTransfer
-    ? Object.values(messageSelectionRanges).reduce((total, ranges) => total + ranges.length, 0)
+    ? getMessageSelectionRangeCount(messageSelectionRanges)
     : selectionRanges.length;
 
   if (!primarySourceMessage) return null;
 
   function updateWordSelection(startOffset: number, endOffset: number, mode: 'toggle' | 'select' | 'unselect') {
     setSelectionRanges((currentSelectionRanges) => {
-      return updateRanges(currentSelectionRanges, startOffset, endOffset, mode);
+      return updateTextSelectionRanges(currentSelectionRanges, startOffset, endOffset, mode);
     });
   }
 
@@ -55,7 +60,12 @@ export function ForwardModal({ conversations, mode, sourceMessage, sourceMessage
     mode: 'toggle' | 'select' | 'unselect'
   ) {
     setMessageSelectionRanges((currentSelectionRanges) => {
-      const nextRanges = updateRanges(currentSelectionRanges[messageId] ?? [], startOffset, endOffset, mode);
+      const nextRanges = updateTextSelectionRanges(
+        currentSelectionRanges[messageId] ?? [],
+        startOffset,
+        endOffset,
+        mode
+      );
       return {
         ...currentSelectionRanges,
         [messageId]: nextRanges
@@ -63,30 +73,12 @@ export function ForwardModal({ conversations, mode, sourceMessage, sourceMessage
     });
   }
 
-  function updateRanges(
-    ranges: TextSelectionRange[],
-    startOffset: number,
-    endOffset: number,
-    mode: 'toggle' | 'select' | 'unselect'
-  ) {
-    const isAlreadySelected = ranges.some(
-      (range) => range.startOffset === startOffset && range.endOffset === endOffset
-    );
-    if (mode === 'unselect' || (mode === 'toggle' && isAlreadySelected)) {
-      return ranges.filter((range) => range.startOffset !== startOffset || range.endOffset !== endOffset);
-    }
-    if (isAlreadySelected) return ranges;
-    return [...ranges, { startOffset, endOffset }].sort((first, second) => first.startOffset - second.startOffset);
-  }
-
   function isWordSelected(startOffset: number, endOffset: number) {
-    return selectionRanges.some((range) => range.startOffset === startOffset && range.endOffset === endOffset);
+    return isTextRangeSelected(selectionRanges, startOffset, endOffset);
   }
 
   function isMessageWordSelected(messageId: string, startOffset: number, endOffset: number) {
-    return (messageSelectionRanges[messageId] ?? []).some(
-      (range) => range.startOffset === startOffset && range.endOffset === endOffset
-    );
+    return isTextRangeSelected(messageSelectionRanges[messageId] ?? [], startOffset, endOffset);
   }
 
   function getWordRangeFromElement(element: Element | null) {
@@ -261,9 +253,7 @@ export function ForwardModal({ conversations, mode, sourceMessage, sourceMessage
                       onForward(
                         conversation.id,
                         undefined,
-                        selectedMessages
-                          .map((message) => ({ messageId: message.id, ranges: messageSelectionRanges[message.id] ?? [] }))
-                          .filter((selection) => selection.ranges.length > 0)
+                        buildMessageSelections(selectedMessages, messageSelectionRanges)
                       );
                       return;
                     }

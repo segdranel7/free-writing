@@ -32,13 +32,8 @@ import type { DropPosition } from './utils/dropTargets';
 import { moveItemToDropPosition, moveMessageByDirection, moveMessageToDropPosition } from './utils/messageOrder';
 import type { MessageReferenceNavigationTarget } from './utils/messageReferences';
 import { getTagKey, getTagSummaries, messageMatchesAnyTag, normalizeTags } from './utils/tags';
-import { getSelectedTextFromRanges, type TextSelectionRange } from './utils/textSelection';
-
-type TransferAction = {
-  mode: 'forward' | 'move';
-  message?: Message;
-  messages?: Message[];
-};
+import { executeTransferAction, type TransferAction, type MessageSelection } from './utils/transferActions';
+import type { TextSelectionRange } from './utils/textSelection';
 
 type MoveNotice = {
   targetConversationId: string;
@@ -195,83 +190,29 @@ export default function App() {
   async function handleForwardMessage(
     targetConversationId: string,
     ranges?: TextSelectionRange[],
-    messageSelections?: Array<{ messageId: string; ranges: TextSelectionRange[] }>
+    messageSelections?: MessageSelection[]
   ) {
     if (!user || !transferAction) return;
-    if (transferAction.messages && transferAction.messages.length > 0) {
-      const selectedMessages = transferAction.messages;
-      if (messageSelections && messageSelections.length > 0) {
-        for (const selection of messageSelections) {
-          const message = selectedMessages.find((selectedMessage) => selectedMessage.id === selection.messageId);
-          if (!message) continue;
-          const selectedText = getSelectedTextFromRanges(message.text, selection.ranges);
-          if (!selectedText) continue;
-          if (transferAction.mode === 'move') {
-            await moveMessageTextSelection(user.uid, message, targetConversationId, selection.ranges);
-          } else {
-            await forwardMessage(
-              user.uid,
-              { ...message, text: selectedText },
-              targetConversationId,
-              getConversationTitle(message.conversationId)
-            );
-          }
-        }
-      } else if (transferAction.mode === 'move') {
-        for (const message of selectedMessages) {
-          await moveMessage(user.uid, message, targetConversationId);
-        }
-      } else {
-        for (const message of selectedMessages) {
-          await forwardMessage(user.uid, message, targetConversationId, getConversationTitle(message.conversationId));
-        }
-      }
-      setTransferAction(null);
-      if (transferAction.mode === 'move') {
-        setMoveNotice({
-          targetConversationId,
-          targetConversationTitle: getConversationTitle(targetConversationId) ?? 'target conversation'
-        });
-      } else {
-        selectConversation(targetConversationId);
-      }
-      return;
-    }
 
-    if (!transferAction.message) return;
-    const selectedText = ranges ? getSelectedTextFromRanges(transferAction.message.text, ranges) : '';
+    const result = await executeTransferAction(
+      user.uid,
+      transferAction,
+      targetConversationId,
+      ranges,
+      messageSelections,
+      {
+        forwardMessage,
+        moveMessage,
+        moveMessageTextSelection,
+        getConversationTitle
+      }
+    );
 
-    if (transferAction.mode === 'move' && ranges && selectedText) {
-      await moveMessageTextSelection(
-        user.uid,
-        transferAction.message,
-        targetConversationId,
-        ranges
-      );
-    } else if (transferAction.mode === 'move') {
-      await moveMessage(user.uid, transferAction.message, targetConversationId);
-    } else if (ranges && selectedText) {
-      await forwardMessage(
-        user.uid,
-        { ...transferAction.message, text: selectedText },
-        targetConversationId,
-        getConversationTitle(transferAction.message.conversationId)
-      );
-    } else {
-      await forwardMessage(
-        user.uid,
-        transferAction.message,
-        targetConversationId,
-        getConversationTitle(transferAction.message.conversationId)
-      );
-    }
     setTransferAction(null);
-    if (transferAction.mode === 'move') {
-      setMoveNotice({
-        targetConversationId,
-        targetConversationTitle: getConversationTitle(targetConversationId) ?? 'target conversation'
-      });
-    } else {
+
+    if (result.moveNoticeTarget) {
+      setMoveNotice(result.moveNoticeTarget);
+    } else if (result.navigateToTarget) {
       selectConversation(targetConversationId);
     }
   }

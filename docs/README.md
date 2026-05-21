@@ -1,6 +1,6 @@
 # Free Writing Documentation
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 This is the entry point for the Free Writing PWA documentation. The detailed base document has been split into smaller files so product intent, architecture, implementation status, and reusable prompts can be updated independently.
 
@@ -118,6 +118,7 @@ The first useful version should be:
 ## Maintenance guidance
 
 - Keep this file as the canonical documentation starting point.
+- Use `docs/ai-maintenance/refresh-base-docs.md` as the operating guide when meaningful app behavior, architecture, setup, deployment, constraints, or risks change.
 - Update the product docs when desired behavior changes.
 - Update the architecture doc when storage, auth, sync, offline behavior, or security decisions change.
 - Update the implementation doc when the actual codebase changes.
