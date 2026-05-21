@@ -161,6 +161,7 @@ Conversation `lastMessagePreview` is still stored and updated for possible futur
 - `npm run dev` starts the local Vite server.
 - `npm run test` runs the focused Vitest suite.
 - `npm run build` type-checks and builds the PWA.
+- `npm run security:check` runs tests, a production build, and `npm audit` without deploying.
 - `npm run preview` serves the production build locally.
 - `npm run deploy` builds and deploys Firebase Hosting.
 - `npm run ship -- "Context-rich commit message"` runs tests, builds with the production Worker URL, commits unignored changes, pushes the current branch, and deploys the hosted app.
@@ -177,6 +178,8 @@ npm run build
 ```
 
 Use `docs/qa-v1-verification.md` for the real-browser Firebase/offline QA pass, including Firestore user-isolation expectations and offline sync scenarios that need an actual configured Firebase project.
+
+Use `docs/ai-maintenance/security-check.md` for repeatable non-deploying audits focused on keeping writing and attachments inaccessible to other app users.
 
 ## Product documentation
 

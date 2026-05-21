@@ -29,6 +29,7 @@ Recommended Version 1 stack:
 - `npm run dev`
 - `npm run test`
 - `npm run build`
+- `npm run security:check`
 - `npm run preview`
 - `npm run deploy`
 - `npm run ship`
@@ -109,6 +110,8 @@ It contains:
 
 Use [QA verification checklist](qa-v1-verification.md) before treating Firebase, the Cloudflare Worker AI proxy, offline behavior, or browser-specific behavior as stable.
 
+Use [Repeatable security check](ai-maintenance/security-check.md) when auditing whether writing and attachments remain private to the signed-in user's account.
+
 ## Version 1 product summary
 
 The first useful version should be:
@@ -123,3 +126,4 @@ The first useful version should be:
 - Update the architecture doc when storage, auth, sync, offline behavior, or security decisions change.
 - Update the implementation doc when the actual codebase changes.
 - Update the prompt doc when the reusable AI-builder prompt or development order changes.
+- Use `docs/ai-maintenance/security-check.md` whenever security or privacy needs a repeatable non-deploying audit.

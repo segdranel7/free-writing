@@ -6,6 +6,7 @@ Use these prompt files whenever the project has changed enough that future devel
 
 - [Refresh base development docs](ai-maintenance/refresh-base-docs.md)
 - [Run an AI maintainability refactor](ai-maintenance/refactor.md)
+- [Run a repeatable security check](ai-maintenance/security-check.md)
 - [Sync hosted app with local](ai-maintenance/sync-hosted-with-local.md)
 - [Commit, push, and deploy a context checkpoint](ai-maintenance/commit-and-push.md)
 - [Run the full AI maintenance cycle](ai-maintenance/full-cycle.md)
@@ -20,6 +21,10 @@ Please use docs/ai-maintenance/refactor.md.
 
 ```text
 Please use docs/ai-maintenance/refresh-base-docs.md, then docs/ai-maintenance/commit-and-push.md.
+```
+
+```text
+Please use docs/ai-maintenance/security-check.md to run a full non-deploying security check.
 ```
 
 ```text

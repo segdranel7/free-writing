@@ -11,10 +11,29 @@ npm run test
 npm run build
 ```
 
+For a full non-deploying security pass, run:
+
+```bash
+npm run security:check
+```
+
 Expected result:
 
 - Vitest passes for app-level transfer and calendar navigation, forward/move transfer decision helpers, transfer word-selection helpers, search, calendar date grouping, tag normalization/filtering and inline tag suggestions, conversation service writes including top-list touches for new blocks, sidebar drag reordering with insertion markers, gap drop zones, edge autoscroll, and post-drag click suppression, message service writes including scheduled date/time preservation, image-only messages, composer image/date selection and paste, inline edit image/date behavior, text-only and rich block copy feedback/fallbacks, composer keyboard conversion behavior including draft English sends with pasted images, inline editing, copied-origin metadata/link rendering, post-move notice rendering, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, insertion markers, gap drop zones, and edge autoscroll, selected-block merge including desktop double-click and mobile double-tap entry, English conversion UI/service behavior, conversation index synthesis service/UI/Worker behavior, and the forward/move transfer modal including multi-part word selection.
 - The production build completes without TypeScript or Vite errors.
+- `npm run security:check` additionally runs `npm audit` and should report no known dependency vulnerabilities.
+
+## Repeatable security check
+
+Use `docs/ai-maintenance/security-check.md` when the goal is specifically to confirm that writing and attachments remain private to the signed-in user's account.
+
+Expected security boundary:
+
+- Firestore access remains scoped to `users/{request.auth.uid}`.
+- Image attachments remain inline Firestore data URLs, not public storage objects.
+- English conversion and conversation-index synthesis send text only through authenticated server-side proxy requests.
+- Secrets remain in ignored local files or platform secret stores, not tracked files or browser-exposed `VITE_...` variables.
+- Browser offline persistence is treated as an accepted device-local cache, not as cross-user access.
 
 ## AI conversion and synthesis setup
 

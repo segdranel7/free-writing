@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -349,6 +349,7 @@ Important privacy note:
 - English conversion sends the selected source text to a third-party AI provider through the server-side proxy.
 - Conversation-index synthesis sends the active conversation's current block text/fallback descriptions to the same third-party AI provider through the server-side proxy.
 - This is different from a local-only app.
+- Repeatable security audits should use `docs/ai-maintenance/security-check.md`, with the default privacy boundary that Firebase cloud storage and explicit AI egress are accepted but other users and unauthenticated visitors must not access another user's content.
 - For very sensitive content, future encryption should be considered.
 
 ## 13.1 Server-side AI requests

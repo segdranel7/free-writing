@@ -38,10 +38,12 @@ Implemented:
 - Calendar browsing runs across the same loaded message set as global search and tag browsing; it does not require a separate Firestore query or external index for v1.
 - Cloudflare Worker backend proxy for hosted English conversion and conversation index synthesis.
 - Local Vite development middleware for `/api/to-english` and `/api/synthesize-index` so Codespaces/Vite testing works without Firebase Hosting rewrites.
+- Repeatable non-deploying security-check workflow in `docs/ai-maintenance/security-check.md`, exposed through `npm run security:check`.
 
 Known development follow-ups:
 
 - Keep `docs/qa-v1-verification.md` current as Firebase/offline behavior changes.
+- Use `docs/ai-maintenance/security-check.md` whenever security or privacy needs a repeatable audit focused on keeping writing and attachments inaccessible to other app users.
 - Add emulator-backed Firestore rules tests if rule complexity grows beyond the current per-user UID isolation model.
 - Verify offline create, edit, delete, forward, move, conversation reorder, message reorder by controls, message reorder by drag handle on desktop and mobile/touch devices, and merge behavior in a real browser against Firebase/Firestore.
 - Consider loading only the active conversation's messages or adding a search index if large conversation lists become slow; this would require revisiting current loaded-message search behavior.
@@ -192,6 +194,8 @@ Development impact:
 - Subscription and data-loading behavior should usually start in `src/hooks/useMessagingData.ts`.
 - Small reusable helpers should live in `src/utils/`.
 - Recurring AI maintenance prompts live in `docs/ai-maintenance/`; `docs/ai-maintenance-prompts.md` is only the index.
+
+`docs/ai-maintenance/security-check.md` is the canonical repeatable security-audit workflow. It defines the default privacy boundary, read-only operating rules, manual inspection checklist, and `npm run security:check` command for tests, production build, and dependency audit.
 
 This structure makes the app easier for an AI coding tool or human developer to modify because each file has a narrower purpose and fewer unrelated concerns.
 
