@@ -59,6 +59,7 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     conversations: [conversation],
     activeMessages: [message('first', 'First'), message('second', 'Second')],
     availableTags: [],
+    tagSuggestions: [],
     selectedTags: [],
     messagesByConversation: {
       [conversation.id]: [message('first', 'First'), message('second', 'Second')]
@@ -404,6 +405,87 @@ describe('ConversationPane', () => {
 
     await waitFor(() => {
       expect(onUpdateMessageTags).toHaveBeenCalledWith(taggedMessage, []);
+    });
+  });
+
+  it('suggests previously created tags while editing block tags', async () => {
+    const taggedMessage = message('first', 'First');
+    taggedMessage.tags = ['Urgent'];
+    const onUpdateMessageTags = vi.fn(async () => undefined);
+
+    renderPane({
+      activeMessages: [taggedMessage],
+      messagesByConversation: {
+        [conversation.id]: [taggedMessage]
+      },
+      tagSuggestions: [
+        { name: 'Later', count: 3 },
+        { name: 'Project Idea', count: 2 },
+        { name: 'Urgent', count: 1 }
+      ],
+      onUpdateMessageTags
+    });
+
+    fireEvent.click(screen.getByTitle('Add tag'));
+
+    expect(screen.getByText('Later')).toBeInTheDocument();
+    expect(screen.getByText('Project Idea')).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Urgent/ })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('New tag'), { target: { value: 'proj' } });
+
+    expect(screen.queryByText('Later')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Project Idea'));
+
+    await waitFor(() => {
+      expect(onUpdateMessageTags).toHaveBeenCalledWith(taggedMessage, ['Urgent', 'Project Idea']);
+    });
+  });
+
+  it('selects the highlighted tag suggestion with Enter', async () => {
+    const taggedMessage = message('first', 'First');
+    const onUpdateMessageTags = vi.fn(async () => undefined);
+
+    renderPane({
+      activeMessages: [taggedMessage],
+      messagesByConversation: {
+        [conversation.id]: [taggedMessage]
+      },
+      tagSuggestions: [
+        { name: 'Later', count: 3 },
+        { name: 'Project Idea', count: 2 }
+      ],
+      onUpdateMessageTags
+    });
+
+    fireEvent.click(screen.getByTitle('Add tag'));
+    fireEvent.change(screen.getByLabelText('New tag'), { target: { value: 'pro' } });
+    fireEvent.keyDown(screen.getByLabelText('New tag'), { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(onUpdateMessageTags).toHaveBeenCalledWith(taggedMessage, ['Project Idea']);
+    });
+  });
+
+  it('creates a typed tag with Enter when there is no matching suggestion', async () => {
+    const taggedMessage = message('first', 'First');
+    const onUpdateMessageTags = vi.fn(async () => undefined);
+
+    renderPane({
+      activeMessages: [taggedMessage],
+      messagesByConversation: {
+        [conversation.id]: [taggedMessage]
+      },
+      tagSuggestions: [{ name: 'Later', count: 3 }],
+      onUpdateMessageTags
+    });
+
+    fireEvent.click(screen.getByTitle('Add tag'));
+    fireEvent.change(screen.getByLabelText('New tag'), { target: { value: 'Idea' } });
+    fireEvent.keyDown(screen.getByLabelText('New tag'), { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(onUpdateMessageTags).toHaveBeenCalledWith(taggedMessage, ['Idea']);
     });
   });
 

@@ -1,6 +1,6 @@
 # Version 1 Product Brief
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 Related docs: [features and screens](v1-features-and-screens.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -17,6 +17,7 @@ The app should let the user:
 - Create separate conversations
 - Reorder conversations with a drag handle
 - Search messages
+- Tag or flag message blocks, with fast reuse of tags already created
 - Edit messages
 - Delete messages
 - Open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`
@@ -86,16 +87,17 @@ The user should be able to:
 6. Edit messages.
 7. Delete messages.
 8. Search messages.
-9. Attach small images to message blocks by selecting files or pasting copied images.
-10. Copy saved blocks to the system clipboard, including attached images where rich clipboard support is available.
-11. Copy/forward whole text blocks or selected parts of a block from one conversation to another, with copied blocks showing their source conversation.
-12. Open draft English conversion from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
-13. Reorder conversations and reorder text blocks inside a conversation with touch-friendly controls and drag handles on desktop and touch/pointer devices.
-14. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
-15. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
-16. Synthesize a clickable conversation index that maps every current block back to its source.
-17. Access the same content from iPhone, desktop, and tablet.
-18. Continue reading and writing offline when the app has already loaded and local data is cached.
+9. Tag or flag message blocks for later filtering, with fast reuse of previously created tags.
+10. Attach small images to message blocks by selecting files or pasting copied images.
+11. Copy saved blocks to the system clipboard, including attached images where rich clipboard support is available.
+12. Copy/forward whole text blocks or selected parts of a block from one conversation to another, with copied blocks showing their source conversation.
+13. Open draft English conversion from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
+14. Reorder conversations and reorder text blocks inside a conversation with touch-friendly controls and drag handles on desktop and touch/pointer devices.
+15. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
+16. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
+17. Synthesize a clickable conversation index that maps every current block back to its source.
+18. Access the same content from iPhone, desktop, and tablet.
+19. Continue reading and writing offline when the app has already loaded and local data is cached.
 
 ## 5. What Version 1 should not include
 
@@ -123,7 +125,7 @@ This version is still for one private user.
 
 ## 6. Core user story
 
-As the only user of the app, I want to sign in with Gmail, create and organize private conversations, write and organize text/image message blocks, copy saved blocks out to other apps when needed, merge related blocks, move or copy full blocks and selected parts between conversations while keeping copied-block origins visible, convert text blocks to English when needed, synthesize clickable conversation maps, search them, edit them, delete them, and access them from my iPhone, desktop, and tablet, even with limited offline support.
+As the only user of the app, I want to sign in with Gmail, create and organize private conversations, write and organize text/image message blocks, tag or flag blocks for filtering, copy saved blocks out to other apps when needed, merge related blocks, move or copy full blocks and selected parts between conversations while keeping copied-block origins visible, convert text blocks to English when needed, synthesize clickable conversation maps, search them, edit them, delete them, and access them from my iPhone, desktop, and tablet, even with limited offline support.
 
 ---
 
@@ -131,4 +133,4 @@ As the only user of the app, I want to sign in with Gmail, create and organize p
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create and organize conversations, save text/image blocks, convert text to English, synthesize clickable conversation indexes, quickly convert draft text with keyboard shortcuts, edit/delete/search/reorder/merge blocks, copy or move whole blocks or selected parts between conversations while copied blocks show their source conversation, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create and organize conversations, save text/image blocks, tag or flag blocks with quick reuse suggestions, convert text to English, synthesize clickable conversation indexes, quickly convert draft text with keyboard shortcuts, edit/delete/search/reorder/merge blocks, copy or move whole blocks or selected parts between conversations while copied blocks show their source conversation, and access everything across iPhone, desktop, and tablet, with offline support for cached data.

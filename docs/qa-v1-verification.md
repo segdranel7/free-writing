@@ -13,7 +13,7 @@ npm run build
 
 Expected result:
 
-- Vitest passes for app-level transfer navigation, forward/move transfer decision helpers, transfer word-selection helpers, search, conversation service writes including top-list touches for new blocks, sidebar drag reordering with insertion markers, gap drop zones, edge autoscroll, and post-drag click suppression, message service writes, image-only messages, composer image selection/paste, inline edit image paste, text-only and rich block copy feedback/fallbacks, composer keyboard conversion behavior including draft English sends with pasted images, inline editing, copied-origin metadata/link rendering, post-move notice rendering, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, insertion markers, gap drop zones, and edge autoscroll, selected-block merge including desktop double-click and mobile double-tap entry, English conversion UI/service behavior, conversation index synthesis service/UI/Worker behavior, and the forward/move transfer modal including multi-part word selection.
+- Vitest passes for app-level transfer navigation, forward/move transfer decision helpers, transfer word-selection helpers, search, tag normalization/filtering and inline tag suggestions, conversation service writes including top-list touches for new blocks, sidebar drag reordering with insertion markers, gap drop zones, edge autoscroll, and post-drag click suppression, message service writes, image-only messages, composer image selection/paste, inline edit image paste, text-only and rich block copy feedback/fallbacks, composer keyboard conversion behavior including draft English sends with pasted images, inline editing, copied-origin metadata/link rendering, post-move notice rendering, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, insertion markers, gap drop zones, and edge autoscroll, selected-block merge including desktop double-click and mobile double-tap entry, English conversion UI/service behavior, conversation index synthesis service/UI/Worker behavior, and the forward/move transfer modal including multi-part word selection.
 - The production build completes without TypeScript or Vite errors.
 
 ## AI conversion and synthesis setup
@@ -71,38 +71,41 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 17. Copy one block that has text and an attached image, paste into a rich target such as a document/email editor where supported, and confirm the text and image paste together. If the target only accepts text, confirm at least the text pastes.
 18. Copy one image-only block, paste into a compatible image/rich target where supported, and confirm the image is available; if the browser or target does not support rich clipboard images, confirm the app shows clear copy feedback.
 19. Delete one message.
-20. Copy/forward one whole message to the second conversation and confirm the target conversation moves to the top of the list, the app opens the target conversation, and the copied block shows `Copied from [source conversation]` with only the source conversation name clickable.
-21. Click the copied block's source conversation name and confirm it opens the source conversation without requiring a lower source card.
-22. Open the copy/forward dialog for a text block, select one contiguous phrase by tapping words, select one separate non-adjacent word or phrase, deselect one selected word by tapping it again, then copy/forward the remaining selected parts to the second conversation. Confirm the preview and target message contain only the selected parts, with separate selected parts split into separate paragraphs.
-23. Open the move dialog for a text block, press/hold a word and drag across other words with mouse or touch to select a phrase, then move the selected part to the second conversation. Confirm the moved message contains only that selected part, the source block removes only the selected text, the target conversation moves to the top of the list, and the current conversation remains open with a notice that can open the target.
-24. In the move dialog, start a drag on an already selected word and drag across selected words to unselect them. Confirm the preview updates and visually selected words match the preview.
-25. Move one whole message to the second conversation without selecting text and confirm the target conversation moves to the top of the list, the current conversation remains open, and the move notice can open the target conversation.
-26. Reorder messages with the up/down controls.
-27. On desktop, use the block's drag handle to drag one text block between other blocks and confirm the visible order changes, the dragged block follows the pointer, and an insertion marker shows the exact landing space.
-28. On desktop, release a dragged block over a gap, padding, or near-miss spot in the message list and confirm it still moves to the nearest insertion marker.
-29. In a long conversation on desktop, drag a block handle near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
-30. On a phone or touch emulator, scroll by swiping the body of a long text block and confirm it scrolls normally without starting a reorder.
-31. On a phone or touch emulator, use the block's drag handle to drag one text block between other blocks and confirm the visible order changes, the dragged block follows the pointer, and an insertion marker shows the exact landing space.
-32. In a long conversation on a touch device or emulator, drag a block handle near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
-33. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments. On desktop, enter block selection by double-clicking the first block; on touch devices, enter it by double-tapping the first block. After selection mode starts, confirm single clicks/taps toggle the remaining blocks.
-34. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
-35. Confirm the active conversation header shows the conversation title without a message-count subtitle.
-36. Convert a message with several sentences to English, confirm the picker shows multiple sentence-level segment groups without a separate assembled preview, choose non-default options for at least one segment, and create the English block.
-37. Confirm the English block appears directly below the original, moves the receiving conversation to the top of the list, and remains after reload.
-38. Convert another message to English and replace the source block with the selected English text.
-39. Enter draft text in the composer, paste or select a small image, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message with the image attached, clears the composer image preview, and does not first place the English text in the composer.
-40. Click `Synthesize conversation index` in the active conversation header and confirm exactly one new index block appears at the bottom of the conversation.
-41. Confirm the synthesized index includes one clickable row per source block that existed before synthesis, including earlier synthesized index blocks if any existed.
-42. Click several index rows and confirm the message list scrolls to the matching source block and highlights it. Delete a referenced source block if practical and confirm that row becomes disabled rather than failing.
-43. Search for text that exists in loaded messages, including text from a synthesized index block.
-44. Disconnect the browser from the network.
-45. Reload the app.
-46. Confirm the app shell opens and cached conversations/messages remain readable.
-47. While offline, create, edit, paste or select a small image where supported, copy, delete, forward whole and selected text, move whole and selected text, reorder conversations, reorder messages by controls, reorder messages by drag handle where supported, and merge messages.
-48. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
-49. Confirm requesting a new conversation index while offline fails gracefully without creating a new index block.
-50. Reconnect to the network.
-51. Confirm all queued changes sync and remain visible after another reload.
+20. Add a tag to a block, add the same tag with different casing to another block, and confirm the tag is deduped/filterable case-insensitively.
+21. Open the tag editor on another block, type part of an existing tag, confirm suggestions filter as typed and exclude tags already on that block, then select a suggestion with Enter or click.
+22. Use the global tag browser and active conversation tag filter to confirm tagged blocks are shown, then remove a tag and confirm filters update.
+23. Copy/forward one whole message to the second conversation and confirm the target conversation moves to the top of the list, the app opens the target conversation, and the copied block shows `Copied from [source conversation]` with only the source conversation name clickable.
+24. Click the copied block's source conversation name and confirm it opens the source conversation without requiring a lower source card.
+25. Open the copy/forward dialog for a text block, select one contiguous phrase by tapping words, select one separate non-adjacent word or phrase, deselect one selected word by tapping it again, then copy/forward the remaining selected parts to the second conversation. Confirm the preview and target message contain only the selected parts, with separate selected parts split into separate paragraphs.
+26. Open the move dialog for a text block, press/hold a word and drag across other words with mouse or touch to select a phrase, then move the selected part to the second conversation. Confirm the moved message contains only that selected part, the source block removes only the selected text, the target conversation moves to the top of the list, and the current conversation remains open with a notice that can open the target.
+27. In the move dialog, start a drag on an already selected word and drag across selected words to unselect them. Confirm the preview updates and visually selected words match the preview.
+28. Move one whole message to the second conversation without selecting text and confirm the target conversation moves to the top of the list, the current conversation remains open, and the move notice can open the target conversation.
+29. Reorder messages with the up/down controls.
+30. On desktop, use the block's drag handle to drag one text block between other blocks and confirm the visible order changes, the dragged block follows the pointer, and an insertion marker shows the exact landing space.
+31. On desktop, release a dragged block over a gap, padding, or near-miss spot in the message list and confirm it still moves to the nearest insertion marker.
+32. In a long conversation on desktop, drag a block handle near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
+33. On a phone or touch emulator, scroll by swiping the body of a long text block and confirm it scrolls normally without starting a reorder.
+34. On a phone or touch emulator, use the block's drag handle to drag one text block between other blocks and confirm the visible order changes, the dragged block follows the pointer, and an insertion marker shows the exact landing space.
+35. In a long conversation on a touch device or emulator, drag a block handle near the top and bottom edges of the visible message list and confirm the list auto-scrolls while the drag stays active.
+36. Select at least two messages, including a block with an image when possible, merge them, and confirm one unified block replaces the originals and keeps selected attachments. On desktop, enter block selection by double-clicking the first block; on touch devices, enter it by double-tapping the first block. After selection mode starts, confirm single clicks/taps toggle the remaining blocks.
+37. Create or use a long conversation and confirm scrolling moves only the message list while the conversation header, merge toolbar, and bottom composer remain visible.
+38. Confirm the active conversation header shows the conversation title without a message-count subtitle.
+39. Convert a message with several sentences to English, confirm the picker shows multiple sentence-level segment groups without a separate assembled preview, choose non-default options for at least one segment, and create the English block.
+40. Confirm the English block appears directly below the original, moves the receiving conversation to the top of the list, and remains after reload.
+41. Convert another message to English and replace the source block with the selected English text.
+42. Enter draft text in the composer, paste or select a small image, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message with the image attached, clears the composer image preview, and does not first place the English text in the composer.
+43. Click `Synthesize conversation index` in the active conversation header and confirm exactly one new index block appears at the bottom of the conversation.
+44. Confirm the synthesized index includes one clickable row per source block that existed before synthesis, including earlier synthesized index blocks if any existed.
+45. Click several index rows and confirm the message list scrolls to the matching source block and highlights it. Delete a referenced source block if practical and confirm that row becomes disabled rather than failing.
+46. Search for text that exists in loaded messages, including text from a synthesized index block.
+47. Disconnect the browser from the network.
+48. Reload the app.
+49. Confirm the app shell opens and cached conversations/messages remain readable.
+50. While offline, create, edit, paste or select a small image where supported, copy, delete, tag/filter, forward whole and selected text, move whole and selected text, reorder conversations, reorder messages by controls, reorder messages by drag handle where supported, and merge messages.
+51. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
+52. Confirm requesting a new conversation index while offline fails gracefully without creating a new index block.
+53. Reconnect to the network.
+54. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 
@@ -111,6 +114,7 @@ Expected result:
 - Small images can be added without Firebase Storage; if an image is too large for inline Firestore storage, the UI shows a clear error and keeps the unsent draft/edit.
 - Saved image previews are inert when clicked.
 - Text-only block copy writes plain text. Blocks with attachments use best-effort rich clipboard data with text/html and image data where supported, and text fallback for text-bearing blocks.
+- Tag suggestions use previously created tags from loaded blocks, filter as the user types, exclude tags already on the block, and still allow new free-text tags.
 - Copied/forwarded messages are labeled `Copied` or `Copied from [source conversation]`; only the source conversation name is clickable, and there is no lower copied-source card. Moved messages are labeled `Moved`.
 - Forward/move dialogs transfer the whole block when no words are selected, and transfer only selected words when one or more word selections exist.
 - Forward/move word selection supports tap toggling, click-to-deselect, separate non-adjacent selections, and pointer drag selection/unselection on mouse and touch.

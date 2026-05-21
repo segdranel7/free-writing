@@ -679,6 +679,7 @@ button {
 
 .tag-editor-form {
   display: inline-flex;
+  position: relative;
   align-items: center;
   min-width: min(100%, 220px);
   gap: 4px;
@@ -694,6 +695,54 @@ button {
   color: #e8eef2;
   background: #101719;
   outline: 0;
+}
+
+.tag-suggestion-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  width: min(240px, 80vw);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid #3c6358;
+  border-radius: 8px;
+  background: #0c1415;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+}
+
+.tag-suggestion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 8px;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  color: #dff4ef;
+  background: transparent;
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.tag-suggestion span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-suggestion small {
+  color: #9fd7cc;
+  font-size: 0.72rem;
+}
+
+.tag-suggestion.active,
+.tag-suggestion:hover {
+  background: #153b35;
 }
 
 .tag-error {

@@ -29,6 +29,7 @@ type ConversationPaneProps = {
   conversations: Conversation[];
   activeMessages: Message[];
   availableTags: TagSummary[];
+  tagSuggestions: TagSummary[];
   selectedTags: string[];
   messagesByConversation: Record<string, Message[]>;
   navigationTarget: MessageReferenceNavigationTarget | null;
@@ -83,6 +84,7 @@ export function ConversationPane({
   conversations,
   activeMessages,
   availableTags,
+  tagSuggestions,
   selectedTags,
   messagesByConversation,
   navigationTarget,
@@ -586,6 +588,7 @@ export function ConversationPane({
                   onPointerUp={handleMessagePointerUp}
                   onPointerCancel={handleMessagePointerCancel}
                   onUpdateTags={onUpdateMessageTags}
+                  tagSuggestions={tagSuggestions}
                 />
                 {messageDropTarget?.itemId === message.id && messageDropTarget.position === 'after' && (
                   <div className="message-drop-indicator" aria-hidden="true" />

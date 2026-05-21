@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for app transfer navigation, forward/move transfer decision helpers, transfer word-selection helpers, conversation service writes, sidebar drag reordering, message service writes, inline image attachments and paste handling, loaded-message search, composer keyboard conversion behavior, inline editing, text/rich block copy feedback and fallbacks, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch, English conversion UI/service/helper behavior, conversation index synthesis service/UI/Worker behavior, and the shared forward/move modal.
+- Focused Vitest coverage for app transfer navigation, forward/move transfer decision helpers, transfer word-selection helpers, conversation service writes, sidebar drag reordering, message service writes, inline image attachments and paste handling, loaded-message search, tag normalization/filtering and inline tag suggestions, composer keyboard conversion behavior, inline editing, text/rich block copy feedback and fallbacks, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch, English conversion UI/service/helper behavior, conversation index synthesis service/UI/Worker behavior, and the shared forward/move modal.
 - React code organized into small components, subscription/shared UI hooks, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -330,7 +330,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 - Blocks store free-text tags/flags in a normalized `tags` array. `src/utils/tags.ts` trims values, removes empties, deduplicates case-insensitively, and preserves the first display casing.
 - `src/services/messages.ts` normalizes old records without `tags` to an empty array and exposes `updateMessageTags` for tag-only updates. Whole-block copy/move and English child blocks preserve tags, merged blocks get the union of source tags, and partial text transfers create untagged target blocks.
-- `src/components/MessageBubble.tsx` renders tag chips on each block and provides an inline add/remove tag editor.
+- `src/components/MessageBubble.tsx` renders tag chips on each block and provides an inline add/remove tag editor. The add editor suggests previously created tags from all loaded blocks, filters suggestions as the user types, excludes tags already on the block, and supports click or Enter selection.
 - `src/components/Sidebar.tsx` shows a global tag browser across loaded blocks. Selecting one or more tags shows matching blocks across conversations; opening a result navigates to and highlights that block.
 - `src/components/ConversationPane.tsx` shows active-conversation tag filters below the header. Filters use OR matching and disable reorder controls while blocks are hidden.
 

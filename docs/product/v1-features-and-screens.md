@@ -1,6 +1,6 @@
 # Version 1 Features and Screens
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 Related docs: [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -72,6 +72,7 @@ Required message actions:
 - Edit message
 - Copy block content to the system clipboard
 - Delete message
+- Add, remove, and reuse tags/flags on a message
 - Copy/forward message to another conversation
 - Move message to another conversation
 - Reorder message within the current conversation with explicit controls or a drag handle on desktop and touch/pointer devices
@@ -205,6 +206,28 @@ Requirements:
 - Reference cards should clearly show the source conversation or quoted text.
 - Users can remove references while editing an existing message.
 - References do not require additional external search infrastructure.
+
+---
+
+### 7.3.7 Tags and flags
+
+The user can tag or flag message blocks for later filtering.
+
+Version 1 behavior:
+
+- Each message can show one or more tag chips.
+- The user can add a free-text tag from the message block.
+- While typing a tag, the editor suggests previously created tags from all loaded blocks.
+- Suggestions filter case-insensitively, exclude tags already on the current block, and can be selected by click or Enter.
+- The user can remove tags from a message block.
+- The conversation screen can filter the active conversation by tag.
+- The conversation list/sidebar can browse global tags and show matching loaded blocks across conversations.
+
+Requirements:
+
+- Tags and flags share the same free-text `tags` field.
+- Tags should be trimmed, ignore empty values, and dedupe case-insensitively.
+- Filtering uses loaded/cached messages and should not require external search infrastructure.
 
 ---
 
@@ -458,6 +481,7 @@ Content:
 - Message actions: edit, delete, copy/forward
 - Message action: copy block content to the clipboard
 - Message action: move to another conversation
+- Message tag chips plus an inline add/remove editor with suggestions
 - Message action: convert to English
 - Header action: synthesize a clickable conversation index
 - Transfer dialog for copying/moving whole blocks or selected text parts with tap and drag word selection
@@ -510,6 +534,8 @@ Content:
 - User can edit a message.
 - User can paste images while editing a message and save them onto that block.
 - User can copy text-only, text/image, and image-only blocks to the system clipboard where browser support allows.
+- User can add, remove, and reuse tags/flags on message blocks.
+- User can filter loaded blocks by tags globally and within the active conversation.
 - User can delete a message.
 - User can copy/forward a whole message or selected text parts to another conversation.
 - User can move a whole message or selected text parts to another conversation.
@@ -586,6 +612,7 @@ Version 1 is complete when:
 - I can copy a block with images and paste text plus attached images into a rich paste target where supported by the browser and target app.
 - I can copy an image-only block and paste the image into a compatible target where supported.
 - I can delete a message.
+- I can tag or flag a block, reuse an existing tag from suggestions while typing, remove the tag, and filter loaded blocks by tag.
 - I can add a conversation or quote reference to a message and open it when the source is loaded.
 - I can open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`.
 - I can search messages.

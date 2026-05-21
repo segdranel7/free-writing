@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ClipboardEvent,
@@ -28,7 +29,7 @@ import {
 import type { Message, MessageReference } from '../types';
 import { formatDate } from '../utils/date';
 import { getReferenceNavigationTarget, truncateReferenceText, type MessageReferenceNavigationTarget } from '../utils/messageReferences';
-import { getTagKey, normalizeTags } from '../utils/tags';
+import { getTagKey, normalizeTags, type TagSummary } from '../utils/tags';
 
 export type CopyFeedbackStatus = 'copied' | 'failed';
 
@@ -73,6 +74,7 @@ type MessageBubbleProps = {
   onDeleteMessage: (message: Message) => void;
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
   onUpdateTags: (message: Message, tags: string[]) => void | Promise<void>;
+  tagSuggestions: TagSummary[];
   onDragStart: (event: DragEvent<HTMLElement>, messageId: string) => void;
   onDragOver: (event: DragEvent<HTMLElement>, messageId: string) => void;
   onDragLeave: (event: DragEvent<HTMLElement>, messageId: string) => void;
@@ -162,6 +164,7 @@ export function MessageBubble({
   onDeleteMessage,
   onMoveMessage,
   onUpdateTags,
+  tagSuggestions,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -178,6 +181,7 @@ export function MessageBubble({
   const suppressClickTimeoutRef = useRef<number | null>(null);
   const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
+  const [highlightedTagSuggestionIndex, setHighlightedTagSuggestionIndex] = useState(0);
   const [isSavingTags, setIsSavingTags] = useState(false);
   const [tagError, setTagError] = useState<string | null>(null);
   const messageClassName = [
@@ -197,6 +201,17 @@ export function MessageBubble({
   const copyTitle = hasAttachments ? 'Copy block' : 'Copy text';
   const isConversationIndex = message.blockKind === 'conversation-index' && (message.indexEntries?.length ?? 0) > 0;
   const tags = normalizeTags(message.tags ?? []);
+  const visibleTagSuggestions = useMemo(() => {
+    const currentTagKeys = new Set(tags.map(getTagKey));
+    const draftKey = getTagKey(tagDraft);
+
+    return tagSuggestions
+      .filter((tag) => {
+        const suggestionKey = getTagKey(tag.name);
+        return !currentTagKeys.has(suggestionKey) && (!draftKey || suggestionKey.includes(draftKey));
+      })
+      .slice(0, 8);
+  }, [tagDraft, tagSuggestions, tags]);
 
   useEffect(() => {
     return () => {
@@ -204,6 +219,10 @@ export function MessageBubble({
       if (suppressClickTimeoutRef.current !== null) window.clearTimeout(suppressClickTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    setHighlightedTagSuggestionIndex(0);
+  }, [tagDraft, visibleTagSuggestions.length]);
 
   function clearLastTap() {
     if (lastTapRef.current) window.clearTimeout(lastTapRef.current.timeoutId);
@@ -326,13 +345,23 @@ export function MessageBubble({
     }
   }
 
-  function addTag(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function addDraftTag() {
     const nextTags = normalizeTags([...tags, tagDraft]);
     if (nextTags.length === tags.length) {
       setTagDraft('');
       return;
     }
+    void saveTags(nextTags);
+  }
+
+  function addTag(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    addDraftTag();
+  }
+
+  function addExistingTag(tagName: string) {
+    const nextTags = normalizeTags([...tags, tagName]);
+    if (nextTags.length === tags.length) return;
     void saveTags(nextTags);
   }
 
@@ -418,6 +447,30 @@ export function MessageBubble({
                       setTagDraft('');
                       setIsTagEditorOpen(false);
                       setTagError(null);
+                      return;
+                    }
+
+                    if (event.key === 'ArrowDown' && visibleTagSuggestions.length > 0) {
+                      event.preventDefault();
+                      setHighlightedTagSuggestionIndex((current) => (current + 1) % visibleTagSuggestions.length);
+                      return;
+                    }
+
+                    if (event.key === 'ArrowUp' && visibleTagSuggestions.length > 0) {
+                      event.preventDefault();
+                      setHighlightedTagSuggestionIndex(
+                        (current) => (current - 1 + visibleTagSuggestions.length) % visibleTagSuggestions.length
+                      );
+                      return;
+                    }
+
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      if (visibleTagSuggestions[highlightedTagSuggestionIndex]) {
+                        addExistingTag(visibleTagSuggestions[highlightedTagSuggestionIndex].name);
+                      } else {
+                        addDraftTag();
+                      }
                     }
                   }}
                 />
@@ -437,6 +490,25 @@ export function MessageBubble({
                 >
                   <X size={14} />
                 </button>
+                {visibleTagSuggestions.length > 0 && (
+                  <div className="tag-suggestion-list" role="listbox" aria-label="Tag suggestions">
+                    {visibleTagSuggestions.map((tag, index) => (
+                      <button
+                        key={tag.name}
+                        className={index === highlightedTagSuggestionIndex ? 'tag-suggestion active' : 'tag-suggestion'}
+                        type="button"
+                        role="option"
+                        aria-selected={index === highlightedTagSuggestionIndex}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onMouseEnter={() => setHighlightedTagSuggestionIndex(index)}
+                        onClick={() => addExistingTag(tag.name)}
+                      >
+                        <span>{tag.name}</span>
+                        <small>{tag.count}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </form>
             ) : (
               <button className="add-tag-button" type="button" title="Add tag" onClick={() => setIsTagEditorOpen(true)}>

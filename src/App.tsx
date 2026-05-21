@@ -352,6 +352,7 @@ export default function App() {
         conversations={conversations}
         activeMessages={activeMessages}
         availableTags={conversationTagSummaries}
+        tagSuggestions={globalTagSummaries}
         selectedTags={selectedConversationTags}
         messagesByConversation={messagesByConversation}
         navigationTarget={navigationTarget}
