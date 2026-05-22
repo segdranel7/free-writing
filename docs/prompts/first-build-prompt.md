@@ -50,6 +50,8 @@ Messages:
 - Enter should insert a newline in the composer.
 - Ctrl+Enter should open draft English conversion on Windows/Linux.
 - Cmd+Enter should open draft English conversion on macOS and iPad hardware keyboards.
+- Ctrl+Shift+Enter should send the current draft directly on Windows/Linux.
+- Cmd+Shift+Enter should send the current draft directly on macOS and iPad hardware keyboards.
 - User can edit messages inline inside the message block, without moving the text into the composer.
 - User can paste images while editing a message, preview them, and save them onto that block.
 - User can add, edit, clear, and view one scheduled date/time on a block.
@@ -159,7 +161,7 @@ Build in this order:
 7. Open conversation
 8. Create message
 9. Add small inline image attachments through file selection and paste
-10. Add `Ctrl+Enter` / `Cmd+Enter` draft English conversion behavior
+10. Add composer keyboard behavior for `Ctrl+Enter` / `Cmd+Enter` draft English conversion and `Ctrl+Shift+Enter` / `Cmd+Shift+Enter` direct send
 11. Sync messages across devices
 12. Edit message
 13. Delete message

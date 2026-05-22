@@ -251,6 +251,12 @@ export function MessageComposer({
               }
             }
 
+            if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'Enter') {
+              event.preventDefault();
+              void submitMessage();
+              return;
+            }
+
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
               event.preventDefault();
               onConvertDraftToEnglish(getImageFiles());
@@ -376,7 +382,7 @@ export function MessageComposer({
         >
           <Languages size={17} />
         </button>
-        <button className="primary-button send-button" disabled={!canSend || isSending}>
+        <button className="primary-button send-button" title="Send (Ctrl+Shift+Enter)" disabled={!canSend || isSending}>
           <Send size={16} />
           {isSending ? 'Sending...' : 'Send'}
         </button>

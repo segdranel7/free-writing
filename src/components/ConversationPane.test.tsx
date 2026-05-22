@@ -596,6 +596,31 @@ describe('ConversationPane', () => {
     expect(onConvertToEnglish).toHaveBeenCalledTimes(2);
   });
 
+  it('sends the draft directly with Ctrl+Shift+Enter and skips English conversion', async () => {
+    const onSubmitMessage = vi.fn(async () => undefined);
+    const onConvertToEnglish = vi.fn(async () => ({
+      segments: [
+        {
+          original: 'Ready to send',
+          options: ['Ready to send', 'Ready to submit', 'Prepared to send'] as [string, string, string]
+        }
+      ]
+    }));
+    renderPane({ onSubmitMessage, onConvertToEnglish });
+
+    fireEvent.keyDown(screen.getByPlaceholderText('Write a message'), {
+      key: 'Enter',
+      ctrlKey: true,
+      shiftKey: true
+    });
+
+    await waitFor(() => {
+      expect(onSubmitMessage).toHaveBeenCalledWith(undefined, [], [], null);
+    });
+    expect(onConvertToEnglish).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Choose English versions' })).not.toBeInTheDocument();
+  });
+
   it('keeps the composer for new messages while editing a block inline', () => {
     const editingMessage = message('first', 'First');
     const onSaveEdit = vi.fn();

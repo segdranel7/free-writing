@@ -93,6 +93,8 @@ Requirements:
 - `Enter` inserts a new line in the message text.
 - `Ctrl+Enter` opens draft English conversion on Windows/Linux.
 - `Cmd+Enter` opens draft English conversion on macOS and iPad hardware keyboards.
+- `Ctrl+Shift+Enter` sends the current draft directly on Windows/Linux.
+- `Cmd+Shift+Enter` sends the current draft directly on macOS and iPad hardware keyboards.
 - Typing `[[` opens conversation-title suggestions for inline conversation links.
 - Conversation-title suggestions filter as the user types and support mouse/touch selection plus desktop keyboard navigation with `ArrowUp`, `ArrowDown`, `Enter`, `Tab`, and `Escape`.
 - The visible Send button sends the current draft.
@@ -589,6 +591,7 @@ Layout:
 - User can create an image-only message.
 - User can add image attachments by file selection, paste, or touch paste action where supported.
 - User can open draft English conversion from the composer with `Ctrl+Enter` / `Cmd+Enter`.
+- User can send the current draft directly from the composer with `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`.
 - User can save an inline edit with `Ctrl+Enter` / `Cmd+Enter`.
 - User can edit a message.
 - User can paste images while editing a message and save them onto that block.
@@ -682,6 +685,7 @@ Version 1 is complete when:
 - I can add a conversation or quote reference to a message and open it when the source is loaded.
 - I can type `[[`, choose a conversation suggestion by click or keyboard, send the block, and see the saved inline link render without bracket markers while still opening the target conversation.
 - I can open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`.
+- I can send the current draft directly with `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`.
 - I can search messages.
 - I can copy/forward a whole message or selected text parts from one conversation to another, see the copied block's source conversation in its metadata, and click the source conversation name to navigate there.
 - I can move a whole message or selected text parts from one conversation to another, remain in the current conversation afterward, and optionally open the target conversation from the move notice.

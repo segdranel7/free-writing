@@ -21,6 +21,7 @@ The app should let the user:
 - Edit messages
 - Delete messages
 - Open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`
+- Send the current draft directly with `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`
 - Copy/forward or move whole text blocks or selected parts of a block between conversations
 - Add structured references to another conversation or a quoted message block.
 - Reorder text blocks inside a conversation with explicit controls and a drag handle on desktop and touch/pointer devices
@@ -92,12 +93,13 @@ The user should be able to:
 11. Copy saved blocks to the system clipboard, including attached images where rich clipboard support is available.
 12. Copy/forward whole text blocks or selected parts of a block from one conversation to another, with copied blocks showing their source conversation.
 13. Open draft English conversion from the composer with `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards.
-14. Reorder conversations and reorder text blocks inside a conversation with touch-friendly controls and drag handles on desktop and touch/pointer devices.
-15. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
-16. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
-17. Synthesize a clickable conversation index that maps every current block back to its source.
-18. Access the same content from iPhone, desktop, and tablet.
-19. Continue reading and writing offline when the app has already loaded and local data is cached.
+14. Send the current draft directly from the composer with `Ctrl+Shift+Enter` on Windows/Linux and `Cmd+Shift+Enter` on macOS/iPad keyboards.
+15. Reorder conversations and reorder text blocks inside a conversation with touch-friendly controls and drag handles on desktop and touch/pointer devices.
+16. Select multiple text blocks in a conversation and merge them into one unified block, removing the originals.
+17. Convert a saved text block or draft text to English by selecting one of three English versions for each segment.
+18. Synthesize a clickable conversation index that maps every current block back to its source.
+19. Access the same content from iPhone, desktop, and tablet.
+20. Continue reading and writing offline when the app has already loaded and local data is cached.
 
 ## 5. What Version 1 should not include
 
@@ -133,4 +135,4 @@ As the only user of the app, I want to sign in with Gmail, create and organize p
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create and organize conversations, save text/image blocks, add date/time to blocks and view them on a calendar, tag or flag blocks with quick reuse suggestions, convert text to English, synthesize clickable conversation indexes, quickly convert draft text with keyboard shortcuts, edit/delete/search/reorder/merge blocks, copy or move whole blocks or selected parts between conversations while copied blocks show their source conversation, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create and organize conversations, save text/image blocks, add date/time to blocks and view them on a calendar, tag or flag blocks with quick reuse suggestions, convert text to English, synthesize clickable conversation indexes, quickly send or convert draft text with keyboard shortcuts, edit/delete/search/reorder/merge blocks, copy or move whole blocks or selected parts between conversations while copied blocks show their source conversation, and access everything across iPhone, desktop, and tablet, with offline support for cached data.

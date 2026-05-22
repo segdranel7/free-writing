@@ -19,7 +19,7 @@ npm run security:check
 
 Expected result:
 
-- Vitest passes for app-level transfer and calendar navigation, forward/move transfer decision helpers, transfer word-selection helpers, search, calendar date grouping, tag normalization/filtering and inline tag suggestions, inline conversation-link parsing/typeahead/rendering, conversation service writes including top-list touches for new blocks and inline wiki-link rename rewrites, sidebar drag reordering with insertion markers, gap drop zones, edge autoscroll, and post-drag click suppression, message service writes including scheduled date/time preservation, image-only messages, composer image/date selection and paste, inline edit image/date behavior, text-only and rich block copy feedback/fallbacks, composer keyboard conversion behavior including draft English sends with pasted images, inline editing, copied-origin metadata/link rendering, post-move notice rendering, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, insertion markers, gap drop zones, and edge autoscroll, selected-block merge including desktop double-click and mobile double-tap entry, English conversion UI/service behavior, conversation index synthesis service/UI/Worker behavior, and the forward/move transfer modal including multi-part word selection.
+- Vitest passes for app-level transfer and calendar navigation, forward/move transfer decision helpers, transfer word-selection helpers, search, calendar date grouping, tag normalization/filtering and inline tag suggestions, inline conversation-link parsing/typeahead/rendering, conversation service writes including top-list touches for new blocks and inline wiki-link rename rewrites, sidebar drag reordering with insertion markers, gap drop zones, edge autoscroll, and post-drag click suppression, message service writes including scheduled date/time preservation, image-only messages, composer image/date selection and paste, inline edit image/date behavior, text-only and rich block copy feedback/fallbacks, composer keyboard conversion and direct-send behavior including draft English sends with pasted images, inline editing, copied-origin metadata/link rendering, post-move notice rendering, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, insertion markers, gap drop zones, and edge autoscroll, selected-block merge including desktop double-click and mobile double-tap entry, English conversion UI/service behavior, conversation index synthesis service/UI/Worker behavior, and the forward/move transfer modal including multi-part word selection.
 - The production build completes without TypeScript or Vite errors.
 - `npm run security:check` additionally runs `npm audit` and should report no known dependency vulnerabilities.
 
@@ -119,23 +119,25 @@ Run against a configured Firebase project in Chrome or Safari after visiting the
 46. Convert a message with several sentences to English, confirm the picker shows multiple sentence-level segment groups without a separate assembled preview, choose non-default options for at least one segment, and create the English block.
 47. Confirm the English block appears directly below the original, moves the receiving conversation to the top of the list, and remains after reload.
 48. Convert another message to English and replace the source block with the selected English text.
-49. Enter draft text in the composer, paste or select a small image, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message with the image attached, clears the composer image preview, and does not first place the English text in the composer.
-50. Click `Synthesize conversation index` in the active conversation header and confirm exactly one new index block appears at the bottom of the conversation.
-51. Confirm the synthesized index includes one clickable row per source block that existed before synthesis, including earlier synthesized index blocks if any existed.
-52. Click several index rows and confirm the message list scrolls to the matching source block and highlights it. Delete a referenced source block if practical and confirm that row becomes disabled rather than failing.
-53. Search for text that exists in loaded messages, including text from a synthesized index block.
-54. Disconnect the browser from the network.
-55. Reload the app.
-56. Confirm the app shell opens and cached conversations/messages remain readable.
-57. While offline, create, edit, paste or select a small image where supported, copy, delete, tag/filter, forward whole and selected text, move whole and selected text, reorder conversations, reorder messages by controls, reorder messages by drag handle where supported, and merge messages.
-58. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
-59. Confirm requesting a new conversation index while offline fails gracefully without creating a new index block.
-60. Reconnect to the network.
-61. Confirm all queued changes sync and remain visible after another reload.
+49. Enter draft text in the composer and press `Ctrl+Shift+Enter` on Windows/Linux or `Cmd+Shift+Enter` on macOS/iPad hardware keyboards. Confirm the draft sends directly without opening English conversion.
+50. Enter draft text in the composer, paste or select a small image, convert the draft to English, choose an option, and confirm `Send English` creates the selected English text as a new message with the image attached, clears the composer image preview, and does not first place the English text in the composer.
+51. Click `Synthesize conversation index` in the active conversation header and confirm exactly one new index block appears at the bottom of the conversation.
+52. Confirm the synthesized index includes one clickable row per source block that existed before synthesis, including earlier synthesized index blocks if any existed.
+53. Click several index rows and confirm the message list scrolls to the matching source block and highlights it. Delete a referenced source block if practical and confirm that row becomes disabled rather than failing.
+54. Search for text that exists in loaded messages, including text from a synthesized index block.
+55. Disconnect the browser from the network.
+56. Reload the app.
+57. Confirm the app shell opens and cached conversations/messages remain readable.
+58. While offline, create, edit, paste or select a small image where supported, copy, delete, tag/filter, forward whole and selected text, move whole and selected text, reorder conversations, reorder messages by controls, reorder messages by drag handle where supported, and merge messages.
+59. Confirm requesting a new English conversion while offline fails gracefully without creating, replacing, sending, or changing draft text.
+60. Confirm requesting a new conversation index while offline fails gracefully without creating a new index block.
+61. Reconnect to the network.
+62. Confirm all queued changes sync and remain visible after another reload.
 
 Expected result:
 
 - `Ctrl+Enter` on Windows/Linux and `Cmd+Enter` on macOS/iPad keyboards opens draft English conversion from the composer and saves an inline edit from the message edit field.
+- `Ctrl+Shift+Enter` on Windows/Linux and `Cmd+Shift+Enter` on macOS/iPad keyboards sends the current composer draft directly without opening English conversion.
 - Plain `Enter` inserts a newline in the composer.
 - Small images can be added without Firebase Storage; if an image is too large for inline Firestore storage, the UI shows a clear error and keeps the unsent draft/edit.
 - Saved image previews are inert when clicked.
