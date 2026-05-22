@@ -136,7 +136,16 @@ src/components/MessageDragPreview.tsx
   Floating dragged-message preview rendering used by message drag reordering.
 
 src/components/MessageBubble.tsx
-  Per-message rendering and local action wiring. Owns message metadata display including scheduled date/time, clickable copied-origin conversation names, inline conversation-link rendering, inert image attachment previews, structured reference cards, synthesized index rows, inline edit form markup, copy feedback label, tag editor UI state, reorder buttons and drag handle, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`. Tag add/remove/suggestion rules are delegated to `src/utils/tags.ts`.
+  Per-message rendering and local action wiring. Owns message metadata display including scheduled date/time, clickable copied-origin conversation names, inert image attachment previews, structured reference cards, synthesized index rows, copy feedback label, reorder buttons and drag handle, transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`. Text rendering, inline edit form markup, and block tag rendering/editing are delegated to smaller message components.
+
+src/components/MessageText.tsx
+  Message body text rendering. Owns inline conversation-link rendering and reference-range highlighting while delegating marker parsing to `src/utils/inlineConversationLinks.ts`.
+
+src/components/MessageEditForm.tsx
+  Inline message edit form rendering. Owns the edit textarea, scheduled date/time input, existing/new image previews, editable reference cards, save/cancel controls, and edit-form keyboard behavior while receiving all edit state and callbacks from `MessageBubble`.
+
+src/components/MessageTagEditor.tsx
+  Per-message tag chip and inline tag editor rendering. Owns tag editor open/draft/highlight/saving/error state, suggestion keyboard handling, add/remove actions, and calls back to `ConversationPane` through `MessageBubble` for persistence. Pure tag normalization, dedupe, add/remove, and suggestion filtering stay in `src/utils/tags.ts`.
 
 src/components/MessageComposer.tsx
   Draft composer rendering, pending reference chips, inline conversation-link typeahead, labeled `Date` action, scheduled date/time input, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, `[[` suggestion list with click and keyboard completion, date action `aria-expanded` / `aria-controls` wiring, and `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`.
@@ -286,7 +295,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 ### Message editing
 
 - `src/App.tsx` tracks only which `Message` is currently being edited; it no longer copies edit text into the composer draft.
-- `src/components/MessageBubble.tsx` renders the active edit as an inline textarea inside the message bubble with `Save` and `Cancel` actions.
+- `src/components/MessageEditForm.tsx` renders the active edit as an inline textarea inside the message bubble with `Save` and `Cancel` actions. `src/components/MessageBubble.tsx` supplies the current edit state and callbacks.
 - The inline edit textarea auto-expands to its content height with `useLayoutEffect`, so the full message remains visible while editing without an internal scrollbar.
 - The bottom composer remains available for creating new messages while a message is being edited.
 - Pasting copied images into the inline edit textarea adds removable previews inside the edit form. Saving appends the prepared image attachments to the existing block; existing attachments remain visible while editing.
@@ -340,7 +349,8 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - Blocks store free-text tags/flags in a normalized `tags` array. `src/utils/tags.ts` trims values, removes empties, deduplicates case-insensitively, and preserves the first display casing.
 - `src/services/messages.ts` normalizes old records without `tags` to an empty array and exposes `updateMessageTags` for tag-only updates. Whole-block copy/move and English child blocks preserve tags, merged blocks get the union of source tags, and partial text transfers create untagged target blocks.
 - `src/utils/tags.ts` is the single home for pure tag behavior: add/remove helpers, case-insensitive selection toggles, editor suggestion filtering, summary counts, OR matching, and global loaded-message result derivation. Keep new tag rules there before wiring them into components.
-- `src/components/MessageBubble.tsx` renders tag chips on each block and provides the inline add/remove tag editor, but delegates add/remove/suggestion calculations to `src/utils/tags.ts`.
+- `src/components/MessageTagEditor.tsx` renders tag chips on each block and provides the inline add/remove tag editor. It owns editor-local UI state and delegates pure add/remove/suggestion calculations to `src/utils/tags.ts`.
+- `src/components/MessageBubble.tsx` mounts `MessageTagEditor` and passes the current message, selection-mode state, loaded tag suggestions, and `onUpdateTags` callback; it no longer owns tag editor state directly.
 - `src/components/Sidebar.tsx` shows a global tag browser across loaded blocks. Selecting one or more tags shows matching blocks across conversations; `App.tsx` derives those results through `src/utils/tags.ts`, and opening a result navigates to and highlights that block.
 - `src/components/ConversationPane.tsx` shows active-conversation tag filters below the header. Filters use OR matching from `src/utils/tags.ts` and disable reorder controls while blocks are hidden.
 
@@ -354,7 +364,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Inline conversation links
 
-- Message text can include `[[Conversation title]]` markers. The markers stay in stored `text` and `searchText`, but `src/components/MessageBubble.tsx` renders unique matches as inline clickable title chips without showing the `[[` / `]]` markers.
+- Message text can include `[[Conversation title]]` markers. The markers stay in stored `text` and `searchText`, but `src/components/MessageText.tsx` renders unique matches as inline clickable title chips without showing the `[[` / `]]` markers.
 - `src/components/MessageComposer.tsx` detects an active unfinished `[[` fragment at the textarea cursor, shows unique conversation-title suggestions, filters them case-insensitively as the user types, and completes the highlighted suggestion with click, `Enter`, or `Tab`. `ArrowUp` / `ArrowDown` move the highlight and `Escape` dismisses suggestions.
 - `src/utils/inlineConversationLinks.ts` keeps parsing, active-draft detection, suggestion filtering, completion, and title-rewrite behavior pure and covered by focused tests.
 - Inline links are title-based and schema-free. Missing or duplicate conversation titles render as plain text and are omitted from suggestions.

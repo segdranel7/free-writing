@@ -1,12 +1,8 @@
 import {
-  Fragment,
   useEffect,
-  useMemo,
   useRef,
-  useState,
   type ClipboardEvent,
   type DragEvent,
-  type FormEvent,
   type MouseEvent,
   type PointerEvent,
   type RefObject
@@ -22,24 +18,16 @@ import {
   Languages,
   Link2,
   MoveRight,
-  Plus,
   Quote,
-  Tag,
-  Trash2,
-  X
+  Trash2
 } from 'lucide-react';
+import { MessageEditForm } from './MessageEditForm';
+import { MessageTagEditor } from './MessageTagEditor';
+import { MessageText } from './MessageText';
 import type { Conversation, Message, MessageReference } from '../types';
 import { formatDate, formatFullDateTime } from '../utils/date';
-import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '../utils/calendar';
-import { parseInlineConversationLinks } from '../utils/inlineConversationLinks';
 import { getReferenceNavigationTarget, truncateReferenceText, type MessageReferenceNavigationTarget } from '../utils/messageReferences';
-import {
-  addTag as addTagToList,
-  getAvailableTagSuggestions,
-  normalizeTags,
-  removeTag as removeTagFromList,
-  type TagSummary
-} from '../utils/tags';
+import type { TagSummary } from '../utils/tags';
 
 export type CopyFeedbackStatus = 'copied' | 'failed';
 
@@ -123,54 +111,6 @@ function isInteractiveSelectionTarget(target: EventTarget | null) {
   return Boolean(target.closest('button, input, textarea, select, a, label, [role="button"]'));
 }
 
-function renderInlineConversationLinks(
-  text: string,
-  conversations: Conversation[],
-  onNavigateToConversation: (conversationId: string) => void
-) {
-  return parseInlineConversationLinks(text, conversations).map((segment, index) => {
-    if (segment.type === 'text') return <Fragment key={`text-${index}`}>{segment.text}</Fragment>;
-
-    return (
-      <button
-        key={`${segment.conversationId}-${index}`}
-        className="inline-conversation-link"
-        type="button"
-        title={`Open ${segment.title}`}
-        onClick={() => onNavigateToConversation(segment.conversationId)}
-      >
-        {segment.title}
-      </button>
-    );
-  });
-}
-
-function renderMessageText(
-  message: Message,
-  target: MessageReferenceNavigationTarget | null,
-  conversations: Conversation[],
-  onNavigateToConversation: (conversationId: string) => void
-) {
-  if (!message.text) return null;
-  const range = isMessageTarget(message, target) ? target?.range : null;
-  if (!range || range.endOffset <= range.startOffset) {
-    return <p>{renderInlineConversationLinks(message.text, conversations, onNavigateToConversation)}</p>;
-  }
-
-  const start = Math.max(0, Math.min(range.startOffset, message.text.length));
-  const end = Math.max(start, Math.min(range.endOffset, message.text.length));
-
-  return (
-    <p>
-      {renderInlineConversationLinks(message.text.slice(0, start), conversations, onNavigateToConversation)}
-      <mark className="reference-highlight">
-        {renderInlineConversationLinks(message.text.slice(start, end), conversations, onNavigateToConversation)}
-      </mark>
-      {renderInlineConversationLinks(message.text.slice(end), conversations, onNavigateToConversation)}
-    </p>
-  );
-}
-
 export function MessageBubble({
   message,
   conversations,
@@ -228,11 +168,6 @@ export function MessageBubble({
   const lastTapRef = useRef<{ timeoutId: number } | null>(null);
   const suppressNextClickRef = useRef(false);
   const suppressClickTimeoutRef = useRef<number | null>(null);
-  const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
-  const [tagDraft, setTagDraft] = useState('');
-  const [highlightedTagSuggestionIndex, setHighlightedTagSuggestionIndex] = useState(0);
-  const [isSavingTags, setIsSavingTags] = useState(false);
-  const [tagError, setTagError] = useState<string | null>(null);
   const messageClassName = [
     'message-bubble',
     isSelected ? 'selected' : '',
@@ -249,10 +184,6 @@ export function MessageBubble({
   const hasAttachments = (message.attachments?.length ?? 0) > 0;
   const copyTitle = hasAttachments ? 'Copy block' : 'Copy text';
   const isConversationIndex = message.blockKind === 'conversation-index' && (message.indexEntries?.length ?? 0) > 0;
-  const tags = useMemo(() => normalizeTags(message.tags ?? []), [message.tags]);
-  const visibleTagSuggestions = useMemo(() => {
-    return getAvailableTagSuggestions(tags, tagDraft, tagSuggestions);
-  }, [tagDraft, tagSuggestions, tags]);
   const scheduledAt = message.scheduledAt ?? null;
 
   useEffect(() => {
@@ -261,10 +192,6 @@ export function MessageBubble({
       if (suppressClickTimeoutRef.current !== null) window.clearTimeout(suppressClickTimeoutRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    setHighlightedTagSuggestionIndex(0);
-  }, [tagDraft, visibleTagSuggestions.length]);
 
   function clearLastTap() {
     if (lastTapRef.current) window.clearTimeout(lastTapRef.current.timeoutId);
@@ -372,45 +299,6 @@ export function MessageBubble({
     clearNativeTextSelection();
   }
 
-  async function saveTags(tagsToSave: string[]) {
-    if (isSavingTags) return;
-    setIsSavingTags(true);
-    setTagError(null);
-    try {
-      await onUpdateTags(message, tagsToSave);
-      setTagDraft('');
-      setIsTagEditorOpen(false);
-    } catch (error) {
-      setTagError(error instanceof Error ? error.message : 'Unable to update tags.');
-    } finally {
-      setIsSavingTags(false);
-    }
-  }
-
-  function addDraftTag() {
-    const nextTags = addTagToList(tags, tagDraft);
-    if (nextTags.length === tags.length) {
-      setTagDraft('');
-      return;
-    }
-    void saveTags(nextTags);
-  }
-
-  function addTag(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    addDraftTag();
-  }
-
-  function addExistingTag(tagName: string) {
-    const nextTags = addTagToList(tags, tagName);
-    if (nextTags.length === tags.length) return;
-    void saveTags(nextTags);
-  }
-
-  function removeTag(tagToRemove: string) {
-    void saveTags(removeTagFromList(tags, tagToRemove));
-  }
-
   return (
     <article
       className={messageClassName}
@@ -459,223 +347,30 @@ export function MessageBubble({
         <time>{formatDate(message.createdAt)}</time>
       </div>
 
-      <div className="message-tags" aria-label="Block tags">
-        {tags.map((tag) => (
-          <span key={tag} className="message-tag-chip">
-            <Tag size={12} />
-            {tag}
-            {!isSelectionMode && (
-              <button
-                className="tag-remove-button"
-                type="button"
-                title={`Remove ${tag}`}
-                disabled={isSavingTags}
-                onClick={() => removeTag(tag)}
-              >
-                <X size={12} />
-              </button>
-            )}
-          </span>
-        ))}
-        {!isSelectionMode && (
-          <>
-            {isTagEditorOpen ? (
-              <form className="tag-editor-form" onSubmit={addTag}>
-                <input
-                  aria-label="New tag"
-                  value={tagDraft}
-                  autoFocus
-                  placeholder="Add tag"
-                  disabled={isSavingTags}
-                  onChange={(event) => setTagDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      event.preventDefault();
-                      setTagDraft('');
-                      setIsTagEditorOpen(false);
-                      setTagError(null);
-                      return;
-                    }
-
-                    if (event.key === 'ArrowDown' && visibleTagSuggestions.length > 0) {
-                      event.preventDefault();
-                      setHighlightedTagSuggestionIndex((current) => (current + 1) % visibleTagSuggestions.length);
-                      return;
-                    }
-
-                    if (event.key === 'ArrowUp' && visibleTagSuggestions.length > 0) {
-                      event.preventDefault();
-                      setHighlightedTagSuggestionIndex(
-                        (current) => (current - 1 + visibleTagSuggestions.length) % visibleTagSuggestions.length
-                      );
-                      return;
-                    }
-
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      if (visibleTagSuggestions[highlightedTagSuggestionIndex]) {
-                        addExistingTag(visibleTagSuggestions[highlightedTagSuggestionIndex].name);
-                      } else {
-                        addDraftTag();
-                      }
-                    }
-                  }}
-                />
-                <button className="icon-button bare" type="submit" title="Save tag" disabled={!tagDraft.trim() || isSavingTags}>
-                  <Plus size={14} />
-                </button>
-                <button
-                  className="icon-button bare"
-                  type="button"
-                  title="Cancel tag"
-                  disabled={isSavingTags}
-                  onClick={() => {
-                    setTagDraft('');
-                    setIsTagEditorOpen(false);
-                    setTagError(null);
-                  }}
-                >
-                  <X size={14} />
-                </button>
-                {visibleTagSuggestions.length > 0 && (
-                  <div className="tag-suggestion-list" role="listbox" aria-label="Tag suggestions">
-                    {visibleTagSuggestions.map((tag, index) => (
-                      <button
-                        key={tag.name}
-                        className={index === highlightedTagSuggestionIndex ? 'tag-suggestion active' : 'tag-suggestion'}
-                        type="button"
-                        role="option"
-                        aria-selected={index === highlightedTagSuggestionIndex}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onMouseEnter={() => setHighlightedTagSuggestionIndex(index)}
-                        onClick={() => addExistingTag(tag.name)}
-                      >
-                        <span>{tag.name}</span>
-                        <small>{tag.count}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </form>
-            ) : (
-              <button className="add-tag-button" type="button" title="Add tag" onClick={() => setIsTagEditorOpen(true)}>
-                <Plus size={13} />
-                Tag
-              </button>
-            )}
-          </>
-        )}
-      </div>
-      {tagError && (
-        <p className="tag-error" role="alert">
-          {tagError}
-        </p>
-      )}
+      <MessageTagEditor
+        message={message}
+        isSelectionMode={isSelectionMode}
+        tagSuggestions={tagSuggestions}
+        onUpdateTags={onUpdateTags}
+      />
 
       {isEditing ? (
-        <form
-          className="message-edit-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSaveEdit(message);
-          }}
-        >
-          <textarea
-            aria-label="Edit message text"
-            ref={editTextareaRef}
-            value={editText}
-            rows={1}
-            onChange={(event) => onEditTextChange(event.target.value)}
-            onPaste={onEditImagePaste}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                event.preventDefault();
-                onSaveEdit(message);
-              }
-            }}
-          />
-          <div className="message-edit-schedule">
-            <CalendarClock size={16} />
-            <input
-              aria-label="Edit block date and time"
-              type="datetime-local"
-              value={formatDateTimeLocalInput(editScheduledAt)}
-              onChange={(event) => onEditScheduledAtChange(parseDateTimeLocalInput(event.target.value))}
-            />
-            {editScheduledAt && (
-              <button
-                className="icon-button bare"
-                type="button"
-                title="Clear date and time"
-                onClick={() => onEditScheduledAtChange(null)}
-              >
-                <X size={15} />
-              </button>
-            )}
-          </div>
-          {editReferences.length > 0 && (
-            <div className="message-reference-list" aria-label="Block references">
-              {editReferences.map((reference) => (
-                <div key={reference.id} className="message-reference-card">
-                  {reference.type === 'quote' ? <Quote size={15} /> : <Link2 size={15} />}
-                  <span>
-                    {reference.type === 'quote'
-                      ? `"${truncateReferenceText(reference.quoteText, 88)}"`
-                      : reference.sourceConversationTitle}
-                  </span>
-                  <button
-                    className="icon-button bare"
-                    type="button"
-                    title="Remove reference"
-                    onClick={() => onRemoveEditReference(reference.id)}
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {((message.attachments?.length ?? 0) > 0 || editImagePreviews.length > 0) && (
-            <div className="message-edit-images" aria-label="Block images">
-              {message.attachments?.map((attachment) => (
-                <div key={attachment.id} className="composer-image-preview" title={attachment.name}>
-                  <img src={attachment.url} alt={attachment.name || 'Attached image'} />
-                </div>
-              ))}
-              {editImagePreviews.map((preview) => (
-                <figure key={preview.id} className="composer-image-preview">
-                  <img src={preview.url} alt={preview.file.name} />
-                  <button
-                    className="icon-button bare remove-image-button"
-                    type="button"
-                    title="Remove image"
-                    onClick={() => onRemoveEditImage(preview.id)}
-                  >
-                    <X size={15} />
-                  </button>
-                </figure>
-              ))}
-            </div>
-          )}
-          <div className="message-edit-actions">
-            <button className="text-button" type="button" onClick={onCancelEdit}>
-              Cancel
-            </button>
-            <button
-              className="primary-button"
-              type="submit"
-              disabled={
-                (!editText.trim() &&
-                  (message.attachments?.length ?? 0) === 0 &&
-                  editImagePreviews.length === 0 &&
-                  editReferences.length === 0) ||
-                isSavingEdit
-              }
-            >
-              {isSavingEdit ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </form>
+        <MessageEditForm
+          message={message}
+          editText={editText}
+          editReferences={editReferences}
+          editScheduledAt={editScheduledAt}
+          editImagePreviews={editImagePreviews}
+          isSavingEdit={isSavingEdit}
+          editTextareaRef={editTextareaRef}
+          onCancelEdit={onCancelEdit}
+          onEditTextChange={onEditTextChange}
+          onEditScheduledAtChange={onEditScheduledAtChange}
+          onRemoveEditReference={onRemoveEditReference}
+          onEditImagePaste={onEditImagePaste}
+          onRemoveEditImage={onRemoveEditImage}
+          onSaveEdit={onSaveEdit}
+        />
       ) : (
         <>
           {hasAttachments && (
@@ -710,7 +405,12 @@ export function MessageBubble({
               })}
             </div>
           ) : (
-            renderMessageText(message, activeReferenceTarget, conversations, onNavigateToConversation)
+            <MessageText
+              message={message}
+              activeReferenceTarget={activeReferenceTarget}
+              conversations={conversations}
+              onNavigateToConversation={onNavigateToConversation}
+            />
           )}
           {message.references.length > 0 && (
             <div className="message-reference-list" aria-label="Message references">
