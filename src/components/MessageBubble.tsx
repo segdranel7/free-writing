@@ -1,7 +1,6 @@
 import {
   useEffect,
   useRef,
-  useState,
   type ClipboardEvent,
   type DragEvent,
   type MouseEvent,
@@ -12,8 +11,6 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarClock,
-  ChevronDown,
-  ChevronUp,
   Copy,
   Edit3,
   Forward,
@@ -21,17 +18,15 @@ import {
   Languages,
   Link2,
   MoveRight,
-  Quote,
   Trash2
 } from 'lucide-react';
 import { MessageEditForm } from './MessageEditForm';
+import { MessageConnections } from './MessageConnections';
 import { MessageTagEditor } from './MessageTagEditor';
 import { MessageText } from './MessageText';
 import type { Conversation, Message, MessageReference } from '../types';
 import { formatDate, formatFullDateTime } from '../utils/date';
 import {
-  getReferenceNavigationTarget,
-  truncateReferenceText,
   type MessageBacklink,
   type MessageReferenceNavigationTarget
 } from '../utils/messageReferences';
@@ -121,16 +116,6 @@ function isInteractiveSelectionTarget(target: EventTarget | null) {
   return Boolean(target.closest('button, input, textarea, select, a, label, [role="button"]'));
 }
 
-function getReferenceIcon(reference: MessageReference) {
-  return reference.type === 'quote' ? <Quote size={15} /> : <Link2 size={15} />;
-}
-
-function getReferenceDetail(reference: MessageReference) {
-  if (reference.type === 'quote') return `: "${truncateReferenceText(reference.quoteText)}"`;
-  if (reference.type === 'block') return `: "${truncateReferenceText(reference.sourceMessagePreview)}"`;
-  return '';
-}
-
 export function MessageBubble({
   message,
   conversations,
@@ -190,7 +175,6 @@ export function MessageBubble({
   const lastTapRef = useRef<{ timeoutId: number } | null>(null);
   const suppressNextClickRef = useRef(false);
   const suppressClickTimeoutRef = useRef<number | null>(null);
-  const [areBacklinksExpanded, setAreBacklinksExpanded] = useState(false);
   const messageClassName = [
     'message-bubble',
     isSelected ? 'selected' : '',
@@ -435,65 +419,12 @@ export function MessageBubble({
               onNavigateToConversation={onNavigateToConversation}
             />
           )}
-          {message.references.length > 0 && (
-            <div className="message-reference-list" aria-label="Message references">
-              {message.references.map((reference) => (
-                <button
-                  key={reference.id}
-                  className="message-reference-card"
-                  type="button"
-                  disabled={!canNavigateToReference(reference)}
-                  title={canNavigateToReference(reference) ? 'Open reference' : 'Original reference is unavailable'}
-                  onClick={() => onNavigateToReference(getReferenceNavigationTarget(reference))}
-                >
-                  {getReferenceIcon(reference)}
-                  <span>
-                    <strong>{reference.sourceConversationTitle}</strong>
-                    {getReferenceDetail(reference)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          {backlinks.length > 0 && (
-            <div className="message-backlinks" aria-label="Block backlinks">
-              <button
-                className="message-backlink-toggle"
-                type="button"
-                aria-expanded={areBacklinksExpanded}
-                onClick={() => setAreBacklinksExpanded((isExpanded) => !isExpanded)}
-              >
-                {areBacklinksExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                <span>
-                  Connected from {backlinks.length} block{backlinks.length === 1 ? '' : 's'}
-                </span>
-              </button>
-              {areBacklinksExpanded && (
-                <div className="message-reference-list">
-                  {backlinks.map((backlink) => (
-                    <button
-                      key={backlink.id}
-                      className="message-reference-card"
-                      type="button"
-                      title="Open connected block"
-                      onClick={() =>
-                        onNavigateToReference({
-                          conversationId: backlink.sourceConversationId,
-                          messageId: backlink.sourceMessageId
-                        })
-                      }
-                    >
-                      {backlink.reference.type === 'quote' ? <Quote size={15} /> : <Link2 size={15} />}
-                      <span>
-                        <strong>{backlink.sourceConversationTitle}</strong>
-                        {`: "${truncateReferenceText(backlink.sourceMessagePreview)}"`}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          <MessageConnections
+            references={message.references}
+            backlinks={backlinks}
+            canNavigateToReference={canNavigateToReference}
+            onNavigateToReference={onNavigateToReference}
+          />
           {!isSelectionMode && (
             <div className="message-actions">
               <div className="reorder-actions" aria-label="Reorder message">

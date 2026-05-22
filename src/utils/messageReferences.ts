@@ -18,8 +18,14 @@ export type MessageBacklink = {
   reference: Extract<MessageReference, { type: 'block' | 'quote' }>;
 };
 
+export type BacklinksByMessageKey = Record<string, MessageBacklink[]>;
+
 export function createReferenceId() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function getMessageReferenceKey(conversationId: string, messageId: string) {
+  return `${conversationId}:${messageId}`;
 }
 
 export function createConversationReference(conversation: Conversation): MessageReference {
@@ -103,6 +109,37 @@ export function isDuplicateReference(reference: MessageReference, existingRefere
 
 export function appendUniqueReference(references: MessageReference[], reference: MessageReference) {
   return isDuplicateReference(reference, references) ? references : [...references, reference];
+}
+
+export function getBacklinksByMessageKey(
+  conversations: Conversation[],
+  messagesByConversation: Record<string, Message[]>
+): BacklinksByMessageKey {
+  const conversationTitles = new Map(conversations.map((conversation) => [conversation.id, conversation.title]));
+  const backlinks: BacklinksByMessageKey = {};
+
+  conversations.forEach((conversation) => {
+    (messagesByConversation[conversation.id] ?? []).forEach((sourceMessage) => {
+      sourceMessage.references.forEach((reference) => {
+        if (reference.type !== 'block' && reference.type !== 'quote') return;
+
+        const key = getMessageReferenceKey(reference.sourceConversationId, reference.sourceMessageId);
+        backlinks[key] = [
+          ...(backlinks[key] ?? []),
+          {
+            id: `${sourceMessage.conversationId}:${sourceMessage.id}:${reference.id}`,
+            sourceConversationId: sourceMessage.conversationId,
+            sourceConversationTitle: conversationTitles.get(sourceMessage.conversationId) ?? conversation.title,
+            sourceMessageId: sourceMessage.id,
+            sourceMessagePreview: getMessageReferencePreview(sourceMessage),
+            reference
+          }
+        ];
+      });
+    });
+  });
+
+  return backlinks;
 }
 
 export function getReferenceNavigationTarget(reference: MessageReference): MessageReferenceNavigationTarget {

@@ -23,8 +23,8 @@ import { getImageFilesFromClipboardData } from '../utils/imageFiles';
 import { copyMessageToClipboard } from '../utils/messageClipboard';
 import {
   appendUniqueReference,
-  getMessageReferencePreview,
-  type MessageBacklink,
+  getBacklinksByMessageKey,
+  getMessageReferenceKey,
   type MessageReferenceNavigationTarget
 } from '../utils/messageReferences';
 import { messageMatchesAnyTag, type TagSummary } from '../utils/tags';
@@ -223,33 +223,10 @@ export function ConversationPane({
   const draggedMessage = dragPreview
     ? visibleMessages.find((message) => message.id === dragPreview.itemId) ?? null
     : null;
-  const backlinksByMessageKey = useMemo(() => {
-    const backlinks: Record<string, MessageBacklink[]> = {};
-
-    conversations.forEach((conversation) => {
-      (messagesByConversation[conversation.id] ?? []).forEach((sourceMessage) => {
-        sourceMessage.references.forEach((reference) => {
-          if (reference.type !== 'block' && reference.type !== 'quote') return;
-          const key = `${reference.sourceConversationId}:${reference.sourceMessageId}`;
-          const sourceConversationTitle =
-            conversations.find((item) => item.id === sourceMessage.conversationId)?.title ?? conversation.title;
-          backlinks[key] = [
-            ...(backlinks[key] ?? []),
-            {
-              id: `${sourceMessage.conversationId}:${sourceMessage.id}:${reference.id}`,
-              sourceConversationId: sourceMessage.conversationId,
-              sourceConversationTitle,
-              sourceMessageId: sourceMessage.id,
-              sourceMessagePreview: getMessageReferencePreview(sourceMessage),
-              reference
-            }
-          ];
-        });
-      });
-    });
-
-    return backlinks;
-  }, [conversations, messagesByConversation]);
+  const backlinksByMessageKey = useMemo(
+    () => getBacklinksByMessageKey(conversations, messagesByConversation),
+    [conversations, messagesByConversation]
+  );
 
   function getConversationTitle(conversationId: string | null) {
     if (!conversationId) return null;
@@ -656,7 +633,7 @@ export function ConversationPane({
                   sourceConversationTitle={
                     message.forwardedFromConversationTitle ?? getConversationTitle(message.forwardedFromConversationId)
                   }
-                  backlinks={backlinksByMessageKey[`${message.conversationId}:${message.id}`] ?? []}
+                  backlinks={backlinksByMessageKey[getMessageReferenceKey(message.conversationId, message.id)] ?? []}
                   onSelect={toggleMessageSelection}
                   onStartSelection={startMergeSelection}
                   onNavigateToReference={onNavigateToReference}

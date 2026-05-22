@@ -4,7 +4,9 @@ import {
   appendUniqueReference,
   createBlockReference,
   createQuoteReference,
+  getBacklinksByMessageKey,
   getMessageReferencePreview,
+  getMessageReferenceKey,
   getReferenceNavigationTarget,
   isDuplicateReference
 } from './messageReferences';
@@ -88,6 +90,36 @@ describe('message reference helpers', () => {
     expect(appendUniqueReference([existingBlockReference], differentQuoteReference)).toEqual([
       existingBlockReference,
       differentQuoteReference
+    ]);
+  });
+
+  it('groups loaded block and quote backlinks by target message key', () => {
+    const targetMessage = message({ id: 'target-message', text: 'Target' });
+    const sourceMessage = message({
+      id: 'source-message',
+      text: 'Source',
+      references: [
+        createBlockReference(conversation, targetMessage),
+        createQuoteReference(conversation, targetMessage, 0, 6)!
+      ]
+    });
+
+    const backlinks = getBacklinksByMessageKey([conversation], {
+      [conversation.id]: [sourceMessage, targetMessage]
+    });
+
+    expect(backlinks[getMessageReferenceKey(conversation.id, 'target-message')]).toEqual([
+      expect.objectContaining({
+        sourceConversationId: conversation.id,
+        sourceConversationTitle: 'Inbox',
+        sourceMessageId: 'source-message',
+        sourceMessagePreview: 'Source',
+        reference: expect.objectContaining({ type: 'block' })
+      }),
+      expect.objectContaining({
+        sourceMessageId: 'source-message',
+        reference: expect.objectContaining({ type: 'quote' })
+      })
     ]);
   });
 });
