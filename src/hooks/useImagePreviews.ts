@@ -32,20 +32,27 @@ export function useImagePreviews() {
         file,
         url: URL.createObjectURL(file)
       }));
-    setImagePreviews((current) => [...current, ...nextPreviews]);
+    setImagePreviews((current) => {
+      const nextImagePreviews = [...current, ...nextPreviews];
+      imagePreviewsRef.current = nextImagePreviews;
+      return nextImagePreviews;
+    });
   }, []);
 
   const removeImage = useCallback((previewId: string) => {
     setImagePreviews((current) => {
       const preview = current.find((item) => item.id === previewId);
       if (preview) URL.revokeObjectURL(preview.url);
-      return current.filter((item) => item.id !== previewId);
+      const nextImagePreviews = current.filter((item) => item.id !== previewId);
+      imagePreviewsRef.current = nextImagePreviews;
+      return nextImagePreviews;
     });
   }, []);
 
   const clearImagePreviews = useCallback(() => {
     setImagePreviews((current) => {
       current.forEach((preview) => URL.revokeObjectURL(preview.url));
+      imagePreviewsRef.current = [];
       return [];
     });
   }, []);

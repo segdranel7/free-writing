@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -27,9 +28,10 @@ import {
   Trash2,
   X
 } from 'lucide-react';
-import type { Message, MessageReference } from '../types';
+import type { Conversation, Message, MessageReference } from '../types';
 import { formatDate, formatFullDateTime } from '../utils/date';
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '../utils/calendar';
+import { parseInlineConversationLinks } from '../utils/inlineConversationLinks';
 import { getReferenceNavigationTarget, truncateReferenceText, type MessageReferenceNavigationTarget } from '../utils/messageReferences';
 import {
   addTag as addTagToList,
@@ -46,6 +48,7 @@ const TAP_MOVE_TOLERANCE_PX = 8;
 
 type MessageBubbleProps = {
   message: Message;
+  conversations: Conversation[];
   messageIndex: number;
   messageCount: number;
   isSelectionMode: boolean;
@@ -66,6 +69,7 @@ type MessageBubbleProps = {
   onSelect: (messageId: string) => void;
   onStartSelection: (messageId: string) => void;
   onNavigateToReference: (target: MessageReferenceNavigationTarget) => void;
+  onNavigateToConversation: (conversationId: string) => void;
   canNavigateToReference: (reference: MessageReference) => boolean;
   onNavigateToMessage: (messageId: string) => void;
   canNavigateToMessage: (messageId: string) => boolean;
@@ -119,25 +123,57 @@ function isInteractiveSelectionTarget(target: EventTarget | null) {
   return Boolean(target.closest('button, input, textarea, select, a, label, [role="button"]'));
 }
 
-function renderMessageText(message: Message, target: MessageReferenceNavigationTarget | null) {
+function renderInlineConversationLinks(
+  text: string,
+  conversations: Conversation[],
+  onNavigateToConversation: (conversationId: string) => void
+) {
+  return parseInlineConversationLinks(text, conversations).map((segment, index) => {
+    if (segment.type === 'text') return <Fragment key={`text-${index}`}>{segment.text}</Fragment>;
+
+    return (
+      <button
+        key={`${segment.conversationId}-${index}`}
+        className="inline-conversation-link"
+        type="button"
+        title={`Open ${segment.title}`}
+        onClick={() => onNavigateToConversation(segment.conversationId)}
+      >
+        {segment.title}
+      </button>
+    );
+  });
+}
+
+function renderMessageText(
+  message: Message,
+  target: MessageReferenceNavigationTarget | null,
+  conversations: Conversation[],
+  onNavigateToConversation: (conversationId: string) => void
+) {
   if (!message.text) return null;
   const range = isMessageTarget(message, target) ? target?.range : null;
-  if (!range || range.endOffset <= range.startOffset) return <p>{message.text}</p>;
+  if (!range || range.endOffset <= range.startOffset) {
+    return <p>{renderInlineConversationLinks(message.text, conversations, onNavigateToConversation)}</p>;
+  }
 
   const start = Math.max(0, Math.min(range.startOffset, message.text.length));
   const end = Math.max(start, Math.min(range.endOffset, message.text.length));
 
   return (
     <p>
-      {message.text.slice(0, start)}
-      <mark className="reference-highlight">{message.text.slice(start, end)}</mark>
-      {message.text.slice(end)}
+      {renderInlineConversationLinks(message.text.slice(0, start), conversations, onNavigateToConversation)}
+      <mark className="reference-highlight">
+        {renderInlineConversationLinks(message.text.slice(start, end), conversations, onNavigateToConversation)}
+      </mark>
+      {renderInlineConversationLinks(message.text.slice(end), conversations, onNavigateToConversation)}
     </p>
   );
 }
 
 export function MessageBubble({
   message,
+  conversations,
   messageIndex,
   messageCount,
   isSelectionMode,
@@ -158,6 +194,7 @@ export function MessageBubble({
   onSelect,
   onStartSelection,
   onNavigateToReference,
+  onNavigateToConversation,
   canNavigateToReference,
   onNavigateToMessage,
   canNavigateToMessage,
@@ -673,7 +710,7 @@ export function MessageBubble({
               })}
             </div>
           ) : (
-            renderMessageText(message, activeReferenceTarget)
+            renderMessageText(message, activeReferenceTarget, conversations, onNavigateToConversation)
           )}
           {message.references.length > 0 && (
             <div className="message-reference-list" aria-label="Message references">

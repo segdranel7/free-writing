@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -173,7 +173,7 @@ Useful user fields:
 : Conversation where the message belongs.
 
 `text`
-: Message content.
+: Message content. Inline conversation links are stored directly in text as `[[Conversation title]]`; rendering resolves them against the user's loaded conversations and hides the bracket markers only when exactly one conversation title matches.
 
 `searchText`
 : Lowercase version of message content for simple search.
@@ -221,6 +221,8 @@ Useful user fields:
 : Optional structured entries for synthesized conversation-index blocks. Each entry points to a source message ID in the same conversation and stores display text for the clickable index row. Old or normal messages without this field are treated as having no index entries.
 
 Forwarded and moved source metadata is kept for transfer labeling and compatibility. Copied/forwarded blocks can expose conversation-level source navigation through `forwardedFromConversationId` plus `forwardedFromConversationTitle`; quote-level navigation is rendered from structured `references` instead of text markers.
+
+Inline conversation links are deliberately schema-free: they use the existing `text` and `searchText` fields, not the structured `references` array. Missing or duplicate title matches remain plain text. Conversation rename writes update matching inline title markers in saved message text and `searchText`, while structured reference title snapshots remain unchanged.
 
 Whole-block copy and move operations preserve tags and `scheduledAt`. Partial text transfers intentionally create untagged, unscheduled target blocks because the metadata may describe the full source block rather than the selected fragment.
 

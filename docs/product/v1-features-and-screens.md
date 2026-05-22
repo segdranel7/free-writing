@@ -1,6 +1,6 @@
 # Version 1 Features and Screens
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 Related docs: [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -93,6 +93,8 @@ Requirements:
 - `Enter` inserts a new line in the message text.
 - `Ctrl+Enter` opens draft English conversion on Windows/Linux.
 - `Cmd+Enter` opens draft English conversion on macOS and iPad hardware keyboards.
+- Typing `[[` opens conversation-title suggestions for inline conversation links.
+- Conversation-title suggestions filter as the user types and support mouse/touch selection plus desktop keyboard navigation with `ArrowUp`, `ArrowDown`, `Enter`, `Tab`, and `Escape`.
 - The visible Send button sends the current draft.
 - Empty or whitespace-only messages should not be sent.
 - Image-only messages may be sent when at least one image is attached.
@@ -190,11 +192,16 @@ Requirements:
 
 ### 7.3.6 Message references
 
-The user can attach structured references to another conversation or a quoted message block.
+The user can attach structured references to another conversation or a quoted message block. The user can also write inline conversation links in the message text with `[[Conversation title]]`.
 
 Version 1 behavior:
 
 - The composer can add a reference to another conversation or a selected quote from an existing message.
+- The composer supports `[[Conversation title]]` inline links through typeahead suggestions from unique conversation titles.
+- Saved inline conversation links render as the conversation title with a visual linked/quoted cue; the `[[` and `]]` markers do not show in the message body.
+- Inline conversation links open the matching conversation when exactly one loaded conversation has that title.
+- Missing or duplicate conversation titles remain plain text.
+- Renaming a conversation should update matching inline `[[Old title]]` markers to the new title in saved messages.
 - Reference cards render below the message text once saved.
 - Conversation references open the source conversation when the source is loaded.
 - Quote references open the source message and highlight the quoted text range when the source is loaded.
@@ -206,6 +213,7 @@ Requirements:
 - Reference cards should clearly show the source conversation or quoted text.
 - Users can remove references while editing an existing message.
 - References do not require additional external search infrastructure.
+- Inline conversation links are stored in normal message text and do not add a separate schema field.
 
 ---
 
@@ -594,6 +602,8 @@ Layout:
 - User can copy/forward a whole message or selected text parts to another conversation.
 - User can move a whole message or selected text parts to another conversation.
 - User can add a conversation or quote reference to a message.
+- User can create an inline conversation link by typing `[[`, filtering conversation suggestions, selecting one, and sending the completed link.
+- User can open an inline conversation link from a saved message when its title uniquely matches a conversation.
 - User can reorder conversations in the conversation list with a drag handle and see the same order after refresh.
 - User stays on the conversation list after releasing a reordered conversation.
 - Conversations that receive newly created blocks move to the top of the conversation list.
@@ -670,6 +680,7 @@ Version 1 is complete when:
 - I can add, edit, clear, and view a date/time on a block.
 - I can open the global calendar, browse dated blocks by today, this week, or this month, and open a source block from a calendar item.
 - I can add a conversation or quote reference to a message and open it when the source is loaded.
+- I can type `[[`, choose a conversation suggestion by click or keyboard, send the block, and see the saved inline link render without bracket markers while still opening the target conversation.
 - I can open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`.
 - I can search messages.
 - I can copy/forward a whole message or selected text parts from one conversation to another, see the copied block's source conversation in its metadata, and click the source conversation name to navigate there.

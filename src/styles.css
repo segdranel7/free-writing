@@ -574,6 +574,27 @@ button {
   overflow-wrap: anywhere;
 }
 
+.inline-conversation-link {
+  display: inline-flex;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid rgba(84, 214, 191, 0.42);
+  border-radius: 5px;
+  padding: 0 4px;
+  color: #6ce5cf;
+  background: rgba(84, 214, 191, 0.1);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  vertical-align: baseline;
+}
+
+.inline-conversation-link:hover {
+  border-color: rgba(84, 214, 191, 0.74);
+  color: #a7fff0;
+  background: rgba(84, 214, 191, 0.16);
+}
+
 .word-token {
   display: inline;
   min-width: 0;
@@ -1312,6 +1333,38 @@ button {
   border-radius: 8px;
   padding: 11px 12px;
   background: #101719;
+}
+
+.inline-link-suggestions {
+  display: grid;
+  width: min(100%, 360px);
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #315047;
+  border-radius: 8px;
+  padding: 4px;
+  gap: 2px;
+  background: #102a27;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
+}
+
+.inline-link-suggestion {
+  min-height: 34px;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: #dff4ef;
+  background: transparent;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.inline-link-suggestion.active,
+.inline-link-suggestion:hover,
+.inline-link-suggestion:focus-visible {
+  color: #effffb;
+  background: #123b36;
 }
 
 .composer-error {

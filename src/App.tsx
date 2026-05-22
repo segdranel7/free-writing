@@ -116,7 +116,7 @@ export default function App() {
 
   async function handleRenameConversation(conversation: Conversation) {
     if (!user || !renameDraft.trim()) return;
-    await renameConversation(user.uid, conversation.id, renameDraft);
+    await renameConversation(user.uid, conversation.id, renameDraft, conversation.title);
     setRenamingId(null);
     setRenameDraft('');
   }

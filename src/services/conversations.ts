@@ -13,11 +13,17 @@ import {
 } from 'firebase/firestore';
 import { requireDb } from '../firebase';
 import type { Conversation } from '../types';
+import { rewriteInlineConversationLinkTitles } from '../utils/inlineConversationLinks';
 
 const conversationsPath = (userId: string) => collection(requireDb(), 'users', userId, 'conversations');
 const conversationPath = (userId: string, conversationId: string) =>
   doc(requireDb(), 'users', userId, 'conversations', conversationId);
+const messagesPath = (userId: string, conversationId: string) =>
+  collection(requireDb(), 'users', userId, 'conversations', conversationId, 'messages');
+const messagePath = (userId: string, conversationId: string, messageId: string) =>
+  doc(requireDb(), 'users', userId, 'conversations', conversationId, 'messages', messageId);
 const sortStep = 1000;
+const batchWriteLimit = 450;
 
 type TouchConversationOptions = {
   moveToTop?: boolean;
@@ -72,11 +78,61 @@ export async function createConversation(userId: string, title: string) {
   });
 }
 
-export function renameConversation(userId: string, conversationId: string, title: string) {
-  return updateDoc(conversationPath(userId, conversationId), {
-    title: title.trim(),
+async function rewriteConversationTitleLinks(userId: string, oldTitle: string, newTitle: string) {
+  const conversations = await getDocs(conversationsPath(userId));
+  const updates: Array<{ conversationId: string; messageId: string; text: string }> = [];
+
+  for (const conversation of conversations.docs) {
+    const messages = await getDocs(messagesPath(userId, conversation.id));
+    messages.docs.forEach((message) => {
+      const data = message.data() as { text?: unknown };
+      if (typeof data.text !== 'string') return;
+      const nextText = rewriteInlineConversationLinkTitles(data.text, oldTitle, newTitle);
+      if (nextText === data.text) return;
+      updates.push({
+        conversationId: conversation.id,
+        messageId: message.id,
+        text: nextText
+      });
+    });
+  }
+
+  let batch = writeBatch(requireDb());
+  let pendingWrites = 0;
+
+  for (const update of updates) {
+    batch.update(messagePath(userId, update.conversationId, update.messageId), {
+      text: update.text,
+      searchText: update.text.toLowerCase(),
+      updatedAt: serverTimestamp()
+    });
+    pendingWrites += 1;
+
+    if (pendingWrites === batchWriteLimit) {
+      await batch.commit();
+      batch = writeBatch(requireDb());
+      pendingWrites = 0;
+    }
+  }
+
+  if (pendingWrites > 0) await batch.commit();
+}
+
+export async function renameConversation(
+  userId: string,
+  conversationId: string,
+  title: string,
+  previousTitle?: string
+) {
+  const nextTitle = title.trim();
+  await updateDoc(conversationPath(userId, conversationId), {
+    title: nextTitle,
     updatedAt: serverTimestamp()
   });
+
+  if (previousTitle?.trim() && previousTitle.trim() !== nextTitle) {
+    await rewriteConversationTitleLinks(userId, previousTitle, nextTitle);
+  }
 }
 
 export async function deleteConversation(userId: string, conversationId: string) {

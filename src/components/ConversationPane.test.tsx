@@ -1,5 +1,5 @@
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { ComponentProps } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConversationPane } from './ConversationPane';
 import type { Conversation, Message } from '../types';
@@ -54,8 +54,8 @@ function imageMessage(id: string, text = ''): Message {
   };
 }
 
-function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> = {}) {
-  const props: ComponentProps<typeof ConversationPane> = {
+function getPaneProps(overrides: Partial<ComponentProps<typeof ConversationPane>> = {}) {
+  return {
     activeConversation: conversation,
     conversations: [conversation],
     activeMessages: [message('first', 'First'), message('second', 'Second')],
@@ -104,8 +104,36 @@ function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> 
     onUpdateMessageTags: vi.fn(async () => undefined),
     ...overrides
   };
+}
+
+function renderPane(overrides: Partial<ComponentProps<typeof ConversationPane>> = {}) {
+  const props: ComponentProps<typeof ConversationPane> = getPaneProps(overrides);
 
   render(<ConversationPane {...props} />);
+  return props;
+}
+
+function renderStatefulPane(overrides: Partial<ComponentProps<typeof ConversationPane>> = {}) {
+  const onDraftChange = overrides.onDraftChange ?? vi.fn();
+  const initialDraft = overrides.draft ?? '';
+  const props = getPaneProps({ ...overrides, draft: initialDraft, onDraftChange });
+
+  function StatefulPane() {
+    const [draft, setDraft] = useState(initialDraft);
+
+    return (
+      <ConversationPane
+        {...props}
+        draft={draft}
+        onDraftChange={(value) => {
+          setDraft(value);
+          onDraftChange(value);
+        }}
+      />
+    );
+  }
+
+  render(<StatefulPane />);
   return props;
 }
 
@@ -1383,6 +1411,71 @@ describe('ConversationPane', () => {
     });
   });
 
+  it('suggests conversation wiki links while typing in the composer and completes the selected title', async () => {
+    const onDraftChange = vi.fn();
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+    const personalConversation = { ...conversation, id: 'personal-conversation', title: 'Personal notes' };
+
+    renderStatefulPane({
+      draft: '',
+      conversations: [conversation, sourceConversation, personalConversation],
+      onDraftChange
+    });
+
+    const composer = screen.getByPlaceholderText('Write a message') as HTMLTextAreaElement;
+    fireEvent.change(composer, { target: { value: '[[' } });
+    composer.setSelectionRange(2, 2);
+    fireEvent.keyUp(composer);
+
+    expect(await screen.findByRole('option', { name: 'Source chat' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Personal notes' })).toBeInTheDocument();
+
+    fireEvent.change(composer, { target: { value: '[[sou' } });
+    composer.setSelectionRange(5, 5);
+    fireEvent.keyUp(composer);
+
+    expect(await screen.findByRole('option', { name: 'Source chat' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Personal notes' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('option', { name: 'Source chat' }));
+
+    await waitFor(() => {
+      expect(composer).toHaveValue('[[Source chat]]');
+    });
+    expect(onDraftChange).toHaveBeenLastCalledWith('[[Source chat]]');
+  });
+
+  it('navigates conversation wiki link suggestions with arrow keys and completes the highlighted option', async () => {
+    const onDraftChange = vi.fn();
+    const firstConversation = { ...conversation, id: 'alpha-conversation', title: 'Alpha notes' };
+    const secondConversation = { ...conversation, id: 'beta-conversation', title: 'Beta notes' };
+
+    renderStatefulPane({
+      draft: '',
+      conversations: [firstConversation, secondConversation],
+      onDraftChange
+    });
+
+    const composer = screen.getByPlaceholderText('Write a message') as HTMLTextAreaElement;
+    fireEvent.change(composer, { target: { value: '[[' } });
+    composer.setSelectionRange(2, 2);
+    fireEvent.keyUp(composer);
+
+    expect(await screen.findByRole('option', { name: 'Alpha notes' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('option', { name: 'Beta notes' })).toHaveAttribute('aria-selected', 'false');
+
+    fireEvent.keyDown(composer, { key: 'ArrowDown' });
+    expect(screen.getByRole('option', { name: 'Alpha notes' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('option', { name: 'Beta notes' })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(composer, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(composer).toHaveValue('[[Beta notes]]');
+    });
+    expect(onDraftChange).toHaveBeenLastCalledWith('[[Beta notes]]');
+  });
+
   it('renders reference cards and navigates to their targets', () => {
     const props = renderPane({
       activeMessages: [
@@ -1410,6 +1503,68 @@ describe('ConversationPane', () => {
       conversationId: conversation.id,
       messageId: 'second',
       range: { startOffset: 0, endOffset: 6 }
+    });
+  });
+
+  it('renders inline conversation wiki links and navigates to the target conversation', () => {
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+    const linkedMessage = message('first', 'See [[Source chat]] today.');
+    const props = renderPane({
+      conversations: [conversation, sourceConversation],
+      activeMessages: [linkedMessage],
+      messagesByConversation: {
+        [conversation.id]: [linkedMessage],
+        [sourceConversation.id]: []
+      }
+    });
+
+    expect(screen.queryByText('[[Source chat]]')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Source chat' }));
+
+    expect(props.onNavigateToReference).toHaveBeenCalledWith({
+      conversationId: sourceConversation.id
+    });
+  });
+
+  it('keeps missing and duplicate inline conversation wiki links as plain text', () => {
+    const firstSource = { ...conversation, id: 'first-source', title: 'Source chat' };
+    const secondSource = { ...conversation, id: 'second-source', title: 'Source chat' };
+    const linkedMessage = message('first', 'See [[Missing]] and [[Source chat]].');
+
+    renderPane({
+      conversations: [conversation, firstSource, secondSource],
+      activeMessages: [linkedMessage],
+      messagesByConversation: {
+        [conversation.id]: [linkedMessage],
+        [firstSource.id]: [],
+        [secondSource.id]: []
+      }
+    });
+
+    expect(screen.queryByRole('button', { name: '[[Missing]]' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Source chat' })).not.toBeInTheDocument();
+    expect(screen.getByText('See [[Missing]] and [[Source chat]].')).toBeInTheDocument();
+  });
+
+  it('renders inline conversation wiki links from edited message text', () => {
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+    const editedMessage = {
+      ...message('first', 'Updated link to [[Source chat]]'),
+      updatedAt: timestamp
+    };
+    const props = renderPane({
+      conversations: [conversation, sourceConversation],
+      activeMessages: [editedMessage],
+      messagesByConversation: {
+        [conversation.id]: [editedMessage],
+        [sourceConversation.id]: []
+      }
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Source chat' }));
+
+    expect(props.onNavigateToReference).toHaveBeenCalledWith({
+      conversationId: sourceConversation.id
     });
   });
 

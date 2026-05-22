@@ -554,6 +554,7 @@ export function ConversationPane({
                 )}
                 <MessageBubble
                   message={message}
+                  conversations={conversations}
                   messageIndex={messageIndex}
                   messageCount={activeMessages.length}
                   isReorderDisabled={isTagFilterActive}
@@ -576,6 +577,7 @@ export function ConversationPane({
                   onSelect={toggleMessageSelection}
                   onStartSelection={startMergeSelection}
                   onNavigateToReference={onNavigateToReference}
+                  onNavigateToConversation={(conversationId) => onNavigateToReference({ conversationId })}
                   canNavigateToReference={canNavigateToReference}
                   onNavigateToMessage={(messageId) =>
                     onNavigateToReference({ conversationId: message.conversationId, messageId })
@@ -646,6 +648,7 @@ export function ConversationPane({
           {!isMergeSelectionMode && (
             <MessageComposer
               draft={draft}
+              conversations={conversations}
               pendingReferences={pendingReferences}
               scheduledAt={draftScheduledAt}
               onDraftChange={onDraftChange}
