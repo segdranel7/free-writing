@@ -190,6 +190,40 @@ export async function createMessage(
   return message;
 }
 
+export function reserveMessageId(userId: string, conversationId: string) {
+  return doc(messagesPath(userId, conversationId)).id;
+}
+
+export async function createMessageWithId(
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  text: string,
+  sortOrder: number,
+  attachments: MessageAttachment[] = [],
+  references: MessageReference[] = [],
+  scheduledAt: Date | null = null
+) {
+  const cleanText = text.trim();
+  if (!messageId || (!cleanText && attachments.length === 0 && references.length === 0)) return null;
+  const message = messagePath(userId, conversationId, messageId);
+  const batch = writeBatch(requireDb());
+  batch.set(message, buildMessageWrite({
+    userId,
+    conversationId,
+    text: cleanText,
+    attachments,
+    references,
+    scheduledAt,
+    sortOrder
+  }));
+  await batch.commit();
+  await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments, references), {
+    moveToTop: true
+  });
+  return message;
+}
+
 export async function createConversationIndexMessage(
   userId: string,
   conversationId: string,

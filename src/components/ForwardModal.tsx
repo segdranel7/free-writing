@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import {
@@ -23,7 +24,7 @@ type ForwardModalProps = {
     targetConversationId: string,
     ranges?: TextSelectionRange[],
     messageSelections?: MessageSelection[],
-  ) => void;
+  ) => void | Promise<void>;
 };
 
 export function ForwardModal({
@@ -34,6 +35,9 @@ export function ForwardModal({
   onClose,
   onForward,
 }: ForwardModalProps) {
+  const [isForwarding, setIsForwarding] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const isForwardingRef = useRef(false);
   const actionLabel = mode === 'move' ? 'Move' : 'Forward';
   const selectedMessages =
     sourceMessages.length > 0
@@ -75,6 +79,39 @@ export function ForwardModal({
     : selectionRanges.length;
 
   if (!primarySourceMessage) return null;
+
+  async function forwardToConversation(targetConversationId: string) {
+    if (isForwardingRef.current) return;
+    isForwardingRef.current = true;
+    setIsForwarding(true);
+    setTransferError('');
+
+    try {
+      if (isSelectedBlockTransfer && selectedWordCount > 0) {
+        await onForward(
+          targetConversationId,
+          undefined,
+          buildMessageSelections(
+            selectedMessages,
+            messageSelectionRanges,
+          ),
+        );
+        return;
+      }
+
+      await onForward(
+        targetConversationId,
+        !isSelectedBlockTransfer && selectionRanges.length > 0
+          ? selectionRanges
+          : undefined,
+      );
+    } catch (error) {
+      setTransferError(error instanceof Error ? error.message : `Unable to ${actionLabel.toLowerCase()} this block.`);
+    } finally {
+      isForwardingRef.current = false;
+      setIsForwarding(false);
+    }
+  }
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -208,6 +245,11 @@ export function ForwardModal({
               )}
             </div>
             <p className="transfer-preview">{transferText}</p>
+            {transferError && (
+              <p className="notice error" role="alert">
+                {transferError}
+              </p>
+            )}
           </div>
           <div className="transfer-target-list">
             {conversations
@@ -219,25 +261,8 @@ export function ForwardModal({
                 <button
                   key={conversation.id}
                   className="target-row"
-                  onClick={() => {
-                    if (isSelectedBlockTransfer && selectedWordCount > 0) {
-                      onForward(
-                        conversation.id,
-                        undefined,
-                        buildMessageSelections(
-                          selectedMessages,
-                          messageSelectionRanges,
-                        ),
-                      );
-                      return;
-                    }
-                    onForward(
-                      conversation.id,
-                      !isSelectedBlockTransfer && selectionRanges.length > 0
-                        ? selectionRanges
-                        : undefined,
-                    );
-                  }}
+                  disabled={isForwarding}
+                  onClick={() => void forwardToConversation(conversation.id)}
                 >
                   {conversation.title}
                 </button>

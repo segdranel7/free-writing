@@ -54,6 +54,7 @@ export function MessageComposer({
   const lastClearImagePreviewsSignal = useRef(clearImagePreviewsSignal);
   const pendingCursorOffset = useRef<number | null>(null);
   const skipNextDraftCursorUpdate = useRef(false);
+  const isSendingRef = useRef(false);
   const canSend = Boolean(draft.trim() || imagePreviews.length > 0 || pendingReferences.length > 0);
   const isScheduleVisible = isScheduleOpen || Boolean(scheduledAt);
   const activeInlineLinkDraft = useMemo(() => {
@@ -139,7 +140,8 @@ export function MessageComposer({
   }
 
   async function submitMessage() {
-    if (!canSend || isSending) return;
+    if (!canSend || isSendingRef.current) return;
+    isSendingRef.current = true;
     setIsSending(true);
     setSendError('');
     try {
@@ -150,6 +152,7 @@ export function MessageComposer({
       console.error('Unable to send message.', error);
       setSendError(error instanceof Error ? error.message : 'Unable to send this message.');
     } finally {
+      isSendingRef.current = false;
       setIsSending(false);
     }
   }

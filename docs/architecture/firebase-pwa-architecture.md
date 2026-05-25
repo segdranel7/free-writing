@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-22
+Last updated: 2026-05-25
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -174,6 +174,8 @@ Useful user fields:
 `id`
 : Unique message ID.
 
+New composer text/reference/date-only sends reserve a Firestore document ID on the client before writing. The local pending UI block and the persisted message use the same ID so listener confirmation replaces the optimistic block instead of rendering a duplicate. The pending marker is client-only UI state and is not stored in Firestore.
+
 `userId`
 : Owner of the message.
 
@@ -314,6 +316,7 @@ AI-backed English conversion and conversation-index synthesis are online-only fe
 When online:
 
 - New messages should sync to the cloud.
+- Text/reference/date-only sends may render locally before the Firestore write confirms. They should reconcile by message ID when the listener returns the persisted document, and failed writes should remove the pending block and restore the composer state.
 - Edited messages should sync to the cloud.
 - Deleted messages should sync to the cloud.
 - Forwarded messages should sync to the cloud.

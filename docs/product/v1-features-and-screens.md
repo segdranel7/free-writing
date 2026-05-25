@@ -101,7 +101,11 @@ Requirements:
 - Conversation-title suggestions filter as the user types and support mouse/touch selection plus desktop keyboard navigation with `ArrowUp`, `ArrowDown`, `Enter`, `Tab`, and `Escape`.
 - The visible Send button sends the current draft.
 - Empty or whitespace-only messages should not be sent.
+- Text/reference/date-only messages should appear in the active conversation immediately after sending, with a pending state if the network write has not confirmed yet.
+- A rapid double-click or repeated keyboard submit should create only one block for the same send attempt.
+- If a text/reference/date-only send fails, the pending block should disappear, the draft/reference/date state should be restored, and a clear composer error should appear.
 - Image-only messages may be sent when at least one image is attached.
+- Messages with image files may wait until image preparation succeeds before appearing, because the app must first compress and validate the attachment payload.
 - While editing a message inline, `Ctrl+Enter` / `Cmd+Enter` should save the edit.
 - The visible Send and inline Save buttons remain available for touch users.
 
@@ -328,6 +332,7 @@ Version 1 behavior:
 - Selected words may be adjacent or non-adjacent.
 - Adjacent selected words are transferred as one phrase; separate selected parts are transferred as separate paragraphs.
 - User selects target conversation.
+- Target selection should be single-flight: repeated taps/clicks while the transfer write is pending must not create duplicate target blocks.
 - App creates a new message in the target conversation using the whole text or selected text parts.
 - After copying, the app opens the target conversation.
 - The copied message shows a small `Copied from [conversation name]` metadata line. The conversation name is clickable and opens the source conversation.
@@ -358,6 +363,7 @@ Intended behavior:
 - If partial moving leaves no text, attachments, or references in the source block, the source block is deleted.
 - Whole-block moves create the target message and delete the original message from the source conversation in the same Firestore batch.
 - Partial moves update or delete the source message and create the target message in the same Firestore batch.
+- Target selection should be single-flight: repeated taps/clicks while the move write is pending must not create duplicate target blocks.
 - After moving, the user stays in the current conversation and sees a non-blocking option to open the target conversation.
 - The moved message stores source metadata for transfer history. User-visible cross-conversation navigation is provided by structured conversation links and quote citations.
 - The moved message displays a small `Moved` label.

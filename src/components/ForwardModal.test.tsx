@@ -63,6 +63,27 @@ describe('ForwardModal', () => {
     expect(onForward).toHaveBeenCalledWith('target', undefined);
   });
 
+  it('ignores duplicate target clicks while a transfer is pending', () => {
+    const onForward = vi.fn(() => new Promise<void>(() => undefined));
+
+    render(
+      <ForwardModal
+        conversations={conversations}
+        mode="move"
+        sourceMessage={sourceMessage}
+        onClose={vi.fn()}
+        onForward={onForward}
+      />
+    );
+
+    const targetButton = screen.getByRole('button', { name: 'Target' });
+    fireEvent.click(targetButton);
+    fireEvent.click(targetButton);
+
+    expect(onForward).toHaveBeenCalledTimes(1);
+    expect(targetButton).toBeDisabled();
+  });
+
   it('selects words in the transfer dialog and forwards only that range', () => {
     const onForward = vi.fn();
 

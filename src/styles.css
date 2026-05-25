@@ -568,6 +568,10 @@ button {
   box-shadow: 0 -4px 0 #54d6bf, 0 0 0 2px rgba(84, 214, 191, 0.72), 0 10px 24px rgba(0, 0, 0, 0.28);
 }
 
+.message-bubble.pending {
+  opacity: 0.78;
+}
+
 .message-bubble p {
   margin: 6px 0 10px;
   white-space: pre-wrap;
@@ -1703,6 +1707,11 @@ button {
 .conversation-row:hover,
 .icon-button:hover {
   background: #203035;
+}
+
+.target-row:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .transfer-modal {

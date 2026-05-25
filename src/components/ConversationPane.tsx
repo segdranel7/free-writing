@@ -467,9 +467,27 @@ export function ConversationPane({
   }
 
   async function submitComposerMessage(imageFiles: File[], scheduledAt: Date | null) {
-    await onSubmitMessage(undefined, imageFiles, pendingReferences, scheduledAt);
-    setPendingReferences([]);
-    setDraftScheduledAt(null);
+    const referencesToSubmit = pendingReferences;
+    const scheduledAtToSubmit = scheduledAt;
+
+    if (imageFiles.length === 0) {
+      setPendingReferences([]);
+      setDraftScheduledAt(null);
+    }
+
+    try {
+      await onSubmitMessage(undefined, imageFiles, referencesToSubmit, scheduledAtToSubmit);
+      if (imageFiles.length > 0) {
+        setPendingReferences([]);
+        setDraftScheduledAt(null);
+      }
+    } catch (error) {
+      if (imageFiles.length === 0) {
+        setPendingReferences(referencesToSubmit);
+        setDraftScheduledAt(scheduledAtToSubmit);
+      }
+      throw error;
+    }
   }
 
   function openReferencePicker(mode: ReferencePickerMode) {

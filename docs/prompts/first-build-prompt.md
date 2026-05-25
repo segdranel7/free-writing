@@ -45,6 +45,8 @@ Conversations:
 
 Messages:
 - User can create text messages inside a conversation.
+- Text/reference/date-only sends should render immediately as a pending block, reconcile to one confirmed block by shared Firestore message ID, and restore the composer content if the write fails.
+- Repeated Send clicks or direct-send shortcuts while a send is pending should not create duplicate blocks.
 - Opening a conversation should position the latest visible block at the bottom of the message list, and sending/appending a new visible block should scroll that block to the bottom.
 - Long text blocks should show only a compact preview of roughly three lines until the user expands them with an icon-only control. The same control should collapse the block again.
 - User can attach small images to messages by selecting image files or pasting copied images.
@@ -67,6 +69,7 @@ Messages:
 - User can copy/forward a whole message or selected text parts to another conversation.
 - User can move a whole message or selected text parts to another conversation.
 - Copy/move should use a transfer dialog that shows the source text and target conversations. If no text is selected, transfer the whole block.
+- Repeated target clicks/taps while the transfer write is pending should not create duplicate copied or moved blocks.
 - In the transfer dialog, tapping a word toggles it selected/unselected. Pressing and dragging across words with mouse, touch, or pen selects or unselects multiple words depending on the first word's state.
 - The transfer dialog should support separate non-adjacent selections. Adjacent selected words stay together as a phrase; separate selected parts are sent as separate paragraphs.
 - User can reorder text blocks inside a conversation with touch-friendly controls and a dedicated drag handle on desktop and touch/pointer devices.

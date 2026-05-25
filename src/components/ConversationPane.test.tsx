@@ -335,6 +335,17 @@ describe('ConversationPane', () => {
     });
   });
 
+  it('submits the composer only once while a send is pending', () => {
+    const onSubmitMessage = vi.fn(() => new Promise<void>(() => undefined));
+    renderPane({ draft: 'One pending block', onSubmitMessage });
+
+    const sendButton = screen.getByRole('button', { name: 'Send' });
+    fireEvent.click(sendButton);
+    fireEvent.click(sendButton);
+
+    expect(onSubmitMessage).toHaveBeenCalledTimes(1);
+  });
+
   it('copies message text with one click', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, {

@@ -20,6 +20,7 @@ Implemented:
 - Conversation create, rename, open, delete, and drag-handle reorder with floating preview, insertion marker, gap-tolerant drops, and edge autoscroll.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
 - Message create, compact display of long text blocks with icon-only expand/collapse, edit, copy-to-clipboard for text-only, text/image, and image-only blocks, delete, copy/forward to another conversation with clickable source-conversation metadata, move to another conversation with a post-move open-target notice, partial text copying/moving from the transfer dialog, structured conversation links, quote citations, saved block-to-block connections with derived backlinks, inline `[[Conversation title]]` links with composer suggestions, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, selected-block merge, and synthesized clickable conversation index blocks.
+- Optimistic composer sends for text/reference/date-only blocks. `App.tsx` reserves a Firestore message ID, appends a local pending block immediately, clears the composer, writes with that same ID, and removes the pending copy when the listener returns the confirmed document. If the write fails, the pending block is removed and the draft is restored.
 - Optional block date/time scheduling with a top-level global Calendar screen. Dated blocks from all loaded conversations appear in Today, This week, and This month views; calendar items open and highlight the source block.
 - Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
 - Image attachments are compressed in the browser and stored inline in Firestore message documents. Firebase Storage is intentionally not used so the app stays on the free Spark plan.
@@ -112,7 +113,7 @@ The current React implementation is organized by responsibility so future change
 
 ```text
 src/App.tsx
-  Coordinates app state, derived data, and user action handlers. Cross-component workflows remain here, while pure tag filtering/selection rules and conversation-index text formatting are delegated to `src/utils/tags.ts` and `src/services/synthesis.ts`.
+  Coordinates app state, derived data, and user action handlers. Owns local optimistic pending-message state for text/reference/date-only sends and merges pending blocks with Firestore listener data by shared message ID. Cross-component workflows remain here, while pure tag filtering/selection rules and conversation-index text formatting are delegated to `src/utils/tags.ts` and `src/services/synthesis.ts`.
 
 src/components/SignInScreen.tsx
   Logged-out Firebase sign-in screen.
@@ -136,7 +137,7 @@ src/components/MessageDragPreview.tsx
   Floating dragged-message preview rendering used by message drag reordering.
 
 src/components/MessageBubble.tsx
-  Per-message rendering and local action wiring. Owns message metadata display including scheduled date/time, clickable copied-origin conversation names, inert image attachment previews, synthesized index rows, copy feedback label, reorder buttons and drag handle, connect/transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`. Text rendering, connection cards/backlinks, inline edit form markup, and block tag rendering/editing are delegated to smaller message components.
+  Per-message rendering and local action wiring. Owns message metadata display including scheduled date/time, client-only `Sending...` pending state, clickable copied-origin conversation names, inert image attachment previews, synthesized index rows, copy feedback label, reorder buttons and drag handle, connect/transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`. Pending blocks hide normal block actions until confirmed. Text rendering, connection cards/backlinks, inline edit form markup, and block tag rendering/editing are delegated to smaller message components.
 
 src/components/MessageConnections.tsx
   Per-message structured reference and backlink rendering. Owns outbound reference cards, collapsed/expanded backlink rows, reference icons, and navigation target construction for cards while receiving loaded backlink data from `ConversationPane`.
@@ -151,13 +152,13 @@ src/components/MessageTagEditor.tsx
   Per-message tag chip and inline tag editor rendering. Owns tag editor open/draft/highlight/saving/error state, suggestion keyboard handling, add/remove actions, and calls back to `ConversationPane` through `MessageBubble` for persistence. Pure tag normalization, dedupe, add/remove, and suggestion filtering stay in `src/utils/tags.ts`.
 
 src/components/MessageComposer.tsx
-  Draft composer rendering, pending reference chips, inline conversation-link typeahead, labeled `Date` action, scheduled date/time input, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, `[[` suggestion list with click and keyboard completion, date action `aria-expanded` / `aria-controls` wiring, `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`, and `Ctrl+Shift+Enter` / `Cmd+Shift+Enter` direct-send shortcut through the same submit path as the Send button.
+  Draft composer rendering, pending reference chips, inline conversation-link typeahead, labeled `Date` action, scheduled date/time input, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, a synchronous submit guard for rapid clicks/shortcuts, `[[` suggestion list with click and keyboard completion, date action `aria-expanded` / `aria-controls` wiring, `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`, and `Ctrl+Shift+Enter` / `Cmd+Shift+Enter` direct-send shortcut through the same submit path as the Send button.
 
 src/components/EnglishPickerModal.tsx
   English conversion dialog rendering. Receives picker state and callbacks from `useEnglishConversionPicker` through `ConversationPane`, renders loading/error/ready/saving states, a scrollable segment option list, and saved-message or draft-specific actions. It intentionally does not render a separate assembled preview so large conversions keep the options readable.
 
 src/components/ForwardModal.tsx
-  Transfer dialog used when forwarding or moving a message. It excludes the source conversation, renders the source text as selectable word tokens, supports tap toggling plus pointer drag select/unselect on mouse/touch/pen, previews the whole block or selected parts, and returns selected text ranges or per-message selection ranges with the target conversation. It owns modal UI state and rendering while delegating shared click/drag word-selection gestures to `src/hooks/useWordRangeSelection.ts` and pure selected-message previews/payload construction to `src/utils/transferSelection.ts`.
+  Transfer dialog used when forwarding or moving a message. It excludes the source conversation, renders the source text as selectable word tokens, supports tap toggling plus pointer drag select/unselect on mouse/touch/pen, previews the whole block or selected parts, and returns selected text ranges or per-message selection ranges with the target conversation. It owns modal UI state, a synchronous single-flight target-selection guard, disabled target buttons while the transfer is pending, and inline transfer errors while delegating shared click/drag word-selection gestures to `src/hooks/useWordRangeSelection.ts` and pure selected-message previews/payload construction to `src/utils/transferSelection.ts`.
 
 src/hooks/useMessagingData.ts
   Authentication, conversation, and message subscription lifecycle.
@@ -179,7 +180,7 @@ src/hooks/useEnglishConversionPicker.ts
 
 src/services/
   Firebase auth, conversation, message, image preparation, search, translation, and synthesis request operations.
-  `messages.ts` keeps Firestore message write payload construction in small local helpers so create, transfer, merge, image attachment, English-result, and synthesized-index writes share the same field defaults.
+  `messages.ts` keeps Firestore message write payload construction in small local helpers so create, client-reserved-ID create, transfer, merge, image attachment, English-result, and synthesized-index writes share the same field defaults. `reserveMessageId` and `createMessageWithId` support optimistic composer sends without storing pending-only fields in Firestore.
   `storage.ts` is named for historical upload intent but currently performs free-plan client-side image compression and inline attachment construction; it does not call Firebase Storage.
   `synthesis.ts` posts the active conversation title and all visible blocks to the AI proxy, validates one returned index entry per source block, normalizes empty/image-only blocks to fallback descriptions, and formats the plain-text fallback/search body for persisted index messages.
 
@@ -275,6 +276,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Forward, move, and merge messages
 
+- `src/components/ForwardModal.tsx` keeps target selection single-flight while `App.tsx` awaits the forward/move operation. Repeated target clicks during that pending window are ignored, target buttons are disabled, and failures show an inline modal error.
 - `src/services/messages.ts` has `moveMessage`, which writes the target message and deletes the source message in a Firestore batch.
 - `src/services/messages.ts` has `moveMessageTextSelection`, which creates the moved target text from selected source ranges and updates or deletes the source message in the same Firestore batch.
 - `src/services/messages.ts` uses local write-payload helpers to keep normal, forwarded, moved, merged, and English-result message fields consistent.
@@ -309,6 +311,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### Image attachments
 
+- `src/App.tsx` only uses optimistic pending blocks for sends without image files. Image sends wait until client-side compression and size validation complete, because the final attachment data is not available at click time.
 - `src/types.ts` models optional `attachments` on messages. The only current attachment type is `image`.
 - `src/services/storage.ts` compresses images client-side to JPEG data URLs, enforces per-image and per-message inline size limits, and returns message attachment metadata. The service name is historical; there is no Firebase Storage upload path.
 - `src/App.tsx` prepares image files before message create/edit writes by calling `uploadMessageImages`, then passes inline attachments into `createMessage` or `editMessage`.

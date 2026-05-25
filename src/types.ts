@@ -82,6 +82,7 @@ export type Message = {
   forwardedFromMessageId: string | null;
   blockKind?: 'conversation-index';
   indexEntries?: ConversationIndexEntry[];
+  isPending?: boolean;
 };
 
 export type EnglishSegment = {

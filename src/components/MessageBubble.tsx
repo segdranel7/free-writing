@@ -180,6 +180,7 @@ export function MessageBubble({
     isSelected ? 'selected' : '',
     isDragging ? 'dragging' : '',
     isDragOver ? 'drag-over' : '',
+    message.isPending ? 'pending' : '',
     isMessageTarget(message, activeReferenceTarget) ? 'reference-target' : ''
   ]
     .filter(Boolean)
@@ -345,6 +346,7 @@ export function MessageBubble({
           </span>
         )}
         {message.updatedAt && <span>edited</span>}
+        {message.isPending && <span>Sending...</span>}
         {scheduledAt && (
           <span className="message-scheduled-meta">
             <CalendarClock size={13} />
@@ -356,7 +358,7 @@ export function MessageBubble({
 
       <MessageTagEditor
         message={message}
-        isSelectionMode={isSelectionMode}
+        isSelectionMode={isSelectionMode || Boolean(message.isPending)}
         tagSuggestions={tagSuggestions}
         onUpdateTags={onUpdateTags}
       />
@@ -425,7 +427,7 @@ export function MessageBubble({
             canNavigateToReference={canNavigateToReference}
             onNavigateToReference={onNavigateToReference}
           />
-          {!isSelectionMode && (
+          {!isSelectionMode && !message.isPending && (
             <div className="message-actions">
               <div className="reorder-actions" aria-label="Reorder message">
                 <button

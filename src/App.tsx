@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CalendarPane } from './components/CalendarPane';
 import { ConversationPane } from './components/ConversationPane';
 import { ForwardModal } from './components/ForwardModal';
@@ -13,6 +13,7 @@ import {
 } from './services/conversations';
 import {
   createMessage,
+  createMessageWithId,
   createConversationIndexMessage,
   createMessageAfter,
   deleteMessage,
@@ -21,6 +22,7 @@ import {
   mergeMessages,
   moveMessage,
   moveMessageTextSelection,
+  reserveMessageId,
   reorderMessages,
   updateMessageReferences,
   updateMessageTags
@@ -41,6 +43,54 @@ type MoveNotice = {
   targetConversationId: string;
   targetConversationTitle: string;
 };
+
+const messageSortStep = 1000;
+
+function timestampFromDate(date: Date) {
+  return {
+    toDate: () => date,
+    toMillis: () => date.getTime()
+  } as Message['createdAt'];
+}
+
+function getMessageMillis(message: Message) {
+  return message.createdAt?.toMillis?.() ?? 0;
+}
+
+function getNextLocalSortOrder(messages: Message[]) {
+  return Math.max(0, ...messages.map((message) => message.sortOrder ?? 0)) + messageSortStep;
+}
+
+function sortMessages(messages: Message[]) {
+  return [...messages].sort(
+    (first, second) =>
+      first.sortOrder - second.sortOrder ||
+      getMessageMillis(first) - getMessageMillis(second) ||
+      first.id.localeCompare(second.id)
+  );
+}
+
+function mergePendingMessages(
+  messagesByConversation: Record<string, Message[]>,
+  pendingMessagesByConversation: Record<string, Message[]>
+) {
+  const conversationIds = new Set([
+    ...Object.keys(messagesByConversation),
+    ...Object.keys(pendingMessagesByConversation)
+  ]);
+  const mergedMessagesByConversation: Record<string, Message[]> = {};
+
+  conversationIds.forEach((conversationId) => {
+    const persistedMessages = messagesByConversation[conversationId] ?? [];
+    const persistedMessageIds = new Set(persistedMessages.map((message) => message.id));
+    const pendingMessages = (pendingMessagesByConversation[conversationId] ?? []).filter(
+      (message) => !persistedMessageIds.has(message.id)
+    );
+    mergedMessagesByConversation[conversationId] = sortMessages([...persistedMessages, ...pendingMessages]);
+  });
+
+  return mergedMessagesByConversation;
+}
 
 export default function App() {
   const {
@@ -64,23 +114,44 @@ export default function App() {
   const [selectedGlobalTags, setSelectedGlobalTags] = useState<string[]>([]);
   const [selectedConversationTags, setSelectedConversationTags] = useState<string[]>([]);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [pendingMessagesByConversation, setPendingMessagesByConversation] = useState<Record<string, Message[]>>({});
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
-  const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
+  const displayMessagesByConversation = useMemo(
+    () => mergePendingMessages(messagesByConversation, pendingMessagesByConversation),
+    [messagesByConversation, pendingMessagesByConversation]
+  );
+  const activeMessages = activeConversationId ? displayMessagesByConversation[activeConversationId] ?? [] : [];
   const searchResults = useMemo(
-    () => searchLoadedMessages(searchTerm, conversations, messagesByConversation),
-    [searchTerm, conversations, messagesByConversation]
+    () => searchLoadedMessages(searchTerm, conversations, displayMessagesByConversation),
+    [searchTerm, conversations, displayMessagesByConversation]
   );
   const allMessages = useMemo(
-    () => conversations.flatMap((conversation) => messagesByConversation[conversation.id] ?? []),
-    [conversations, messagesByConversation]
+    () => conversations.flatMap((conversation) => displayMessagesByConversation[conversation.id] ?? []),
+    [conversations, displayMessagesByConversation]
   );
   const globalTagSummaries = useMemo(() => getTagSummaries(allMessages), [allMessages]);
   const conversationTagSummaries = useMemo(() => getTagSummaries(activeMessages), [activeMessages]);
   const globalTagResults = useMemo(
-    () => getTaggedMessageResults(conversations, messagesByConversation, selectedGlobalTags),
-    [conversations, messagesByConversation, selectedGlobalTags]
+    () => getTaggedMessageResults(conversations, displayMessagesByConversation, selectedGlobalTags),
+    [conversations, displayMessagesByConversation, selectedGlobalTags]
   );
+
+  useEffect(() => {
+    setPendingMessagesByConversation((current) => {
+      let didChange = false;
+      const next: Record<string, Message[]> = {};
+
+      Object.entries(current).forEach(([conversationId, pendingMessages]) => {
+        const persistedMessageIds = new Set((messagesByConversation[conversationId] ?? []).map((message) => message.id));
+        const unconfirmedMessages = pendingMessages.filter((message) => !persistedMessageIds.has(message.id));
+        if (unconfirmedMessages.length !== pendingMessages.length) didChange = true;
+        if (unconfirmedMessages.length > 0) next[conversationId] = unconfirmedMessages;
+      });
+
+      return didChange ? next : current;
+    });
+  }, [messagesByConversation]);
 
   function getConversationTitle(conversationId: string) {
     return conversations.find((conversation) => conversation.id === conversationId)?.title ?? null;
@@ -141,6 +212,50 @@ export default function App() {
   ) {
     const messageText = textOverride ?? draft;
     if (!user || !activeConversationId || (!messageText.trim() && imageFiles.length === 0 && references.length === 0)) return;
+    if (imageFiles.length === 0) {
+      const conversationId = activeConversationId;
+      const cleanText = messageText.trim();
+      const messageId = reserveMessageId(user.uid, conversationId);
+      const sortOrder = getNextLocalSortOrder(displayMessagesByConversation[conversationId] ?? []);
+      const pendingMessage: Message = {
+        id: messageId,
+        userId: user.uid,
+        conversationId,
+        text: cleanText,
+        searchText: cleanText.toLowerCase(),
+        tags: [],
+        references,
+        createdAt: timestampFromDate(new Date()),
+        updatedAt: null,
+        scheduledAt: scheduledAt as Message['scheduledAt'],
+        sortOrder,
+        isForwarded: false,
+        transferType: null,
+        forwardedFromConversationId: null,
+        forwardedFromConversationTitle: null,
+        forwardedFromMessageId: null,
+        isPending: true
+      };
+
+      setDraft('');
+      setPendingMessagesByConversation((current) => ({
+        ...current,
+        [conversationId]: [...(current[conversationId] ?? []), pendingMessage]
+      }));
+
+      try {
+        await createMessageWithId(user.uid, conversationId, messageId, messageText, sortOrder, [], references, scheduledAt);
+      } catch (error) {
+        setPendingMessagesByConversation((current) => ({
+          ...current,
+          [conversationId]: (current[conversationId] ?? []).filter((message) => message.id !== messageId)
+        }));
+        setDraft((currentDraft) => (currentDraft.trim() ? `${cleanText}\n\n${currentDraft}` : cleanText));
+        throw error;
+      }
+      return;
+    }
+
     const attachments =
       imageFiles.length > 0 ? await uploadMessageImages(user.uid, activeConversationId, imageFiles) : [];
     await createMessage(user.uid, activeConversationId, messageText, attachments, references, scheduledAt);
@@ -251,7 +366,7 @@ export default function App() {
 
   async function handleCreateEnglishBlock(source: Message, text: string) {
     if (!user) return;
-    const sourceConversationMessages = messagesByConversation[source.conversationId] ?? [];
+    const sourceConversationMessages = displayMessagesByConversation[source.conversationId] ?? [];
     await createMessageAfter(user.uid, source.conversationId, source, sourceConversationMessages, text);
   }
 
@@ -363,7 +478,7 @@ export default function App() {
         <CalendarPane
           isOpen={isCalendarOpen}
           conversations={conversations}
-          messagesByConversation={messagesByConversation}
+          messagesByConversation={displayMessagesByConversation}
           onBack={() => selectConversation(null)}
           onOpenMessage={handleOpenCalendarMessage}
         />
@@ -375,7 +490,7 @@ export default function App() {
           availableTags={conversationTagSummaries}
           tagSuggestions={globalTagSummaries}
           selectedTags={selectedConversationTags}
-          messagesByConversation={messagesByConversation}
+          messagesByConversation={displayMessagesByConversation}
           navigationTarget={navigationTarget}
           draft={draft}
           editingMessage={editingMessage}
@@ -423,7 +538,7 @@ export default function App() {
           sourceMessages={transferAction.messages}
           onClose={() => setTransferAction(null)}
           onForward={(conversationId, ranges, messageSelections) =>
-            void handleForwardMessage(conversationId, ranges, messageSelections)
+            handleForwardMessage(conversationId, ranges, messageSelections)
           }
         />
       )}
