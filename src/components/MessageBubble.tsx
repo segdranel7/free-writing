@@ -12,6 +12,7 @@ import {
   ArrowUp,
   CalendarClock,
   Copy,
+  Download,
   Edit3,
   Forward,
   GripVertical,
@@ -74,6 +75,7 @@ type MessageBubbleProps = {
   onSaveEdit: (message: Message) => void;
   onEditMessage: (message: Message) => void;
   onCopyMessage: (message: Message) => void;
+  onDownloadMessage: (message: Message) => void;
   onConnectMessage: (message: Message) => void;
   onConvertToEnglish: (message: Message) => void;
   onForwardMessage: (message: Message) => void;
@@ -153,6 +155,7 @@ export function MessageBubble({
   onSaveEdit,
   onEditMessage,
   onCopyMessage,
+  onDownloadMessage,
   onConnectMessage,
   onConvertToEnglish,
   onForwardMessage,
@@ -474,6 +477,14 @@ export function MessageBubble({
                 onClick={() => onCopyMessage(message)}
               >
                 <Copy size={16} />
+              </button>
+              <button
+                className="icon-button bare"
+                title="Download text as Markdown"
+                disabled={!message.text.trim()}
+                onClick={() => onDownloadMessage(message)}
+              >
+                <Download size={16} />
               </button>
               <button
                 className="icon-button bare"

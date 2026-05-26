@@ -1,6 +1,6 @@
 # Current Implementation
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [QA checklist](../qa-v1-verification.md).
 
@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for app transfer navigation, forward/move transfer decision helpers, transfer word-selection helpers, conversation service writes including inline wiki-link rename rewrites, sidebar drag reordering, message service writes, block connection/backlink helpers and UI, inline conversation-link parsing/typeahead/rendering, long text block expand/collapse rendering, inline image attachments and paste handling, loaded-message search, tag normalization/filtering and inline tag suggestions, composer keyboard conversion and direct-send behavior, composer date action expansion and submission, inline editing, text/rich block copy feedback and fallbacks, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch, English conversion UI/service/helper behavior, conversation index synthesis service/UI/Worker behavior, and the shared forward/move modal.
+- Focused Vitest coverage for app transfer navigation, forward/move transfer decision helpers, transfer word-selection helpers, conversation service writes including inline wiki-link rename rewrites, sidebar drag reordering, message service writes, block connection/backlink helpers and UI, inline conversation-link parsing/typeahead/rendering, long text block expand/collapse rendering, inline image attachments and paste handling, loaded-message search, tag normalization/filtering and inline tag suggestions, composer keyboard conversion and direct-send behavior, composer date action expansion and submission, inline editing, text/rich block copy feedback and fallbacks, Markdown text-block download helpers, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch, English conversion UI/service/helper behavior, conversation index synthesis service/UI/Worker behavior, and the shared forward/move modal.
 - React code organized into small components, subscription/shared UI hooks, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -19,7 +19,7 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, delete, and drag-handle reorder with floating preview, insertion marker, gap-tolerant drops, and edge autoscroll.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
-- Message create, compact display of long text blocks with icon-only expand/collapse, edit, copy-to-clipboard for text-only, text/image, and image-only blocks, delete, copy/forward to another conversation with clickable source-conversation metadata, move to another conversation with a post-move open-target notice, partial text copying/moving from the transfer dialog, structured conversation links, quote citations, saved block-to-block connections with derived backlinks, inline `[[Conversation title]]` links with composer suggestions, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, selected-block merge, and synthesized clickable conversation index blocks.
+- Message create, compact display of long text blocks with icon-only expand/collapse, edit, copy-to-clipboard for text-only, text/image, and image-only blocks, Markdown `.md` download for text-bearing blocks, delete, copy/forward to another conversation with clickable source-conversation metadata, move to another conversation with a post-move open-target notice, partial text copying/moving from the transfer dialog, structured conversation links, quote citations, saved block-to-block connections with derived backlinks, inline `[[Conversation title]]` links with composer suggestions, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, selected-block merge, and synthesized clickable conversation index blocks.
 - Optimistic composer sends for text/reference/date-only blocks. `App.tsx` reserves a Firestore message ID, appends a local pending block immediately, clears the composer, writes with that same ID, and removes the pending copy when the listener returns the confirmed document. If the write fails, the pending block is removed and the draft is restored.
 - Optional block date/time scheduling with a top-level global Calendar screen. Dated blocks from all loaded conversations appear in Today, This week, and This month views; calendar items open and highlight the source block.
 - Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
@@ -122,7 +122,7 @@ src/components/Sidebar.tsx
   Search, conversation list, create, rename, delete, drag reorder, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context.
 
 src/components/ConversationPane.tsx
-  Active conversation view and orchestration for selected-message state, copy/edit/transfer/reorder/drag-and-drop/merge flows, English conversion hook wiring, index synthesis, insertion marker state, reference picker open mode, bottom-aligned latest-block scrolling on conversation entry/new block append, and inline edit/image-paste state. Backlink grouping is delegated to `src/utils/messageReferences.ts`.
+  Active conversation view and orchestration for selected-message state, copy/download/edit/transfer/reorder/drag-and-drop/merge flows, English conversion hook wiring, index synthesis, insertion marker state, reference picker open mode, bottom-aligned latest-block scrolling on conversation entry/new block append, and inline edit/image-paste state. Backlink grouping is delegated to `src/utils/messageReferences.ts`.
 
 src/components/CalendarPane.tsx
   Global dated-block calendar. Owns Today/This week/This month view selection, groups loaded blocks by local date, and opens source messages through the same navigation/highlight path as references.
@@ -137,7 +137,7 @@ src/components/MessageDragPreview.tsx
   Floating dragged-message preview rendering used by message drag reordering.
 
 src/components/MessageBubble.tsx
-  Per-message rendering and local action wiring. Owns message metadata display including scheduled date/time, client-only `Sending...` pending state, clickable copied-origin conversation names, inert image attachment previews, synthesized index rows, copy feedback label, reorder buttons and drag handle, connect/transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`. Pending blocks hide normal block actions until confirmed. Text rendering, connection cards/backlinks, inline edit form markup, and block tag rendering/editing are delegated to smaller message components.
+  Per-message rendering and local action wiring. Owns message metadata display including scheduled date/time, client-only `Sending...` pending state, clickable copied-origin conversation names, inert image attachment previews, synthesized index rows, copy feedback label, reorder buttons and drag handle, connect/download/transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`. Pending blocks hide normal block actions until confirmed. Text rendering, connection cards/backlinks, inline edit form markup, and block tag rendering/editing are delegated to smaller message components.
 
 src/components/MessageConnections.tsx
   Per-message structured reference and backlink rendering. Owns outbound reference cards, collapsed/expanded backlink rows, reference icons, and navigation target construction for cards while receiving loaded backlink data from `ConversationPane`.
@@ -183,6 +183,9 @@ src/services/
   `messages.ts` keeps Firestore message write payload construction in small local helpers so create, client-reserved-ID create, transfer, merge, image attachment, English-result, and synthesized-index writes share the same field defaults. `reserveMessageId` and `createMessageWithId` support optimistic composer sends without storing pending-only fields in Firestore.
   `storage.ts` is named for historical upload intent but currently performs free-plan client-side image compression and inline attachment construction; it does not call Firebase Storage.
   `synthesis.ts` posts the active conversation title and all visible blocks to the AI proxy, validates one returned index entry per source block, normalizes empty/image-only blocks to fallback descriptions, and formats the plain-text fallback/search body for persisted index messages.
+
+src/utils/messageDownload.ts
+  Browser-only Markdown download helper for saved text blocks. It builds a `text/markdown;charset=utf-8` blob from the raw message text, creates a temporary anchor download, and names files with a sanitized conversation title, message creation date, message ID, and `.md` extension. It rejects empty text blocks and does not persist anything to Firestore or embed image attachments.
 
 workers/translation/index.ts
   Cloudflare Worker for authenticated AI requests. Verifies Firebase ID tokens through Google Identity Toolkit, calls Groq with the `GROQ_API_KEY` secret, validates the JSON shape, and returns either English segment/options data or conversation-index entries.

@@ -20,6 +20,7 @@ import { useListReorderDrag } from '../hooks/useListReorderDrag';
 import type { Conversation, EnglishConversion, Message, MessageReference } from '../types';
 import type { DropPosition } from '../utils/dropTargets';
 import { getImageFilesFromClipboardData } from '../utils/imageFiles';
+import { downloadMessageAsMarkdown } from '../utils/messageDownload';
 import { copyMessageToClipboard } from '../utils/messageClipboard';
 import {
   appendUniqueReference,
@@ -447,6 +448,15 @@ export function ConversationPane({
     }
   }
 
+  function downloadMessageText(message: Message) {
+    try {
+      downloadMessageAsMarkdown(message, activeConversation);
+    } catch (error) {
+      console.error('Unable to download message text.', error);
+      setCopyFeedback({ messageId: message.id, status: 'failed' });
+    }
+  }
+
   async function saveInlineEdit(message: Message) {
     if (
       (!editText.trim() &&
@@ -673,6 +683,7 @@ export function ConversationPane({
                   onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
                   onEditMessage={onEditMessage}
                   onCopyMessage={(messageToCopy) => void copyMessageText(messageToCopy)}
+                  onDownloadMessage={downloadMessageText}
                   onConnectMessage={openConnectionPicker}
                   onConvertToEnglish={(messageToConvert) => void openMessageEnglishPicker(messageToConvert)}
                   onForwardMessage={onForwardMessage}

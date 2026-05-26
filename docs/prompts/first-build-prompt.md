@@ -1,6 +1,6 @@
 # First Build Prompt
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md).
 
@@ -63,6 +63,7 @@ Messages:
 - Today should use a time-sorted agenda list. This week should group blocks by day. This month should use a month grid on desktop and a date-grouped list on mobile.
 - Clicking a calendar item should open the source conversation and highlight the source block.
 - User can copy saved blocks to the system clipboard. Text-only blocks copy plain text; blocks with images use best-effort rich clipboard data containing text and attached images, with plain-text fallback when possible.
+- User can download a saved text-bearing block as a Markdown `.md` file containing the raw block text. The filename should include a sanitized conversation title, the block creation date, and the block ID.
 - User can delete messages with confirmation.
 - User can add and remove tags/flags on message blocks. The tag editor should suggest previously created tags from loaded blocks as the user types, exclude tags already on the current block, and support click or Enter selection.
 - User can filter loaded blocks by tag globally and within the active conversation.

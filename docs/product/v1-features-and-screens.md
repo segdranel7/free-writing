@@ -1,6 +1,6 @@
 # Version 1 Features and Screens
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 Related docs: [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -73,6 +73,7 @@ Required message actions:
 - Add small image attachments from the file picker or copied image paste
 - Edit message
 - Copy block content to the system clipboard
+- Download text block content as a Markdown `.md` file
 - Delete message
 - Add, remove, and reuse tags/flags on a message
 - Copy/forward message to another conversation
@@ -148,6 +149,22 @@ Requirements:
 - Copying is a browser clipboard API action only and does not change Firestore data.
 - Attached images should be included in display order in the rich HTML clipboard payload.
 - Actual paste results depend on the target app; plain text fields may only receive the text.
+
+### 7.3.3.1 Download text blocks as Markdown
+
+The user can download a saved text block as a local Markdown file.
+
+Version 1 behavior:
+
+- Text-bearing blocks expose a `Download text as Markdown` action.
+- The downloaded file contains the block's raw text content.
+- The filename uses a sanitized conversation title, the block creation date, the block ID, and the `.md` extension.
+- Blocks with no text do not expose an enabled Markdown download action.
+
+Requirements:
+
+- Downloading is a browser-only action and does not change Firestore data.
+- Image attachments are not embedded in the Markdown file in Version 1.
 
 ### 7.3.4 Convert text to English
 
@@ -533,6 +550,7 @@ Content:
 - Image preview strip in the composer when images are selected or pasted
 - Message actions: edit, delete, copy/forward
 - Message action: copy block content to the clipboard
+- Message action: download text block content as a Markdown file
 - Message action: move to another conversation
 - Long message text preview with an icon-only expand/collapse control
 - Message tag chips plus an inline add/remove editor with suggestions
@@ -612,6 +630,7 @@ Layout:
 - User can edit a message.
 - User can paste images while editing a message and save them onto that block.
 - User can copy text-only, text/image, and image-only blocks to the system clipboard where browser support allows.
+- User can download a text-bearing block as a Markdown `.md` file.
 - User can add, remove, and reuse tags/flags on message blocks.
 - User can filter loaded blocks by tags globally and within the active conversation.
 - User can add, edit, clear, and view a scheduled date/time on a block.
@@ -696,6 +715,7 @@ Version 1 is complete when:
 - I can copy a text-only block and paste its text elsewhere.
 - I can copy a block with images and paste text plus attached images into a rich paste target where supported by the browser and target app.
 - I can copy an image-only block and paste the image into a compatible target where supported.
+- I can download a text-bearing block as a Markdown `.md` file whose contents match the block text.
 - I can delete a message.
 - I can tag or flag a block, reuse an existing tag from suggestions while typing, remove the tag, and filter loaded blocks by tag.
 - I can add, edit, clear, and view a date/time on a block.
