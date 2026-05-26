@@ -83,6 +83,7 @@ type ConversationPaneProps = {
 };
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
+const SUPPRESS_SELECTION_CLICK_TIMEOUT_MS = 350;
 
 type CopyFeedback = {
   messageId: string;
@@ -164,6 +165,8 @@ export function ConversationPane({
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const selectionAnchorRef = useRef<{ messageId: string; top: number } | null>(null);
+  const suppressNextSelectionClickRef = useRef(false);
+  const suppressSelectionClickTimeoutRef = useRef<number | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const previousAutoScrollStateRef = useRef<{
     conversationId: string | null;
@@ -245,6 +248,14 @@ export function ConversationPane({
 
     return () => window.clearTimeout(timeoutId);
   }, [copyFeedback]);
+
+  useEffect(() => {
+    return () => {
+      if (suppressSelectionClickTimeoutRef.current !== null) {
+        window.clearTimeout(suppressSelectionClickTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const activeMessageIds = new Set(visibleMessages.map((message) => message.id));
@@ -340,8 +351,31 @@ export function ConversationPane({
     return undefined;
   }, [activeConversation?.id, navigationTarget, onNavigationHandled]);
 
+  function clearSuppressedSelectionClick() {
+    suppressNextSelectionClickRef.current = false;
+    if (suppressSelectionClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressSelectionClickTimeoutRef.current);
+      suppressSelectionClickTimeoutRef.current = null;
+    }
+  }
+
+  function suppressNextSelectionClick() {
+    suppressNextSelectionClickRef.current = true;
+    if (suppressSelectionClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressSelectionClickTimeoutRef.current);
+    }
+    suppressSelectionClickTimeoutRef.current = window.setTimeout(() => {
+      suppressNextSelectionClickRef.current = false;
+      suppressSelectionClickTimeoutRef.current = null;
+    }, SUPPRESS_SELECTION_CLICK_TIMEOUT_MS);
+  }
+
   function toggleMessageSelection(messageId: string) {
     if (!isMergeSelectionMode) return;
+    if (suppressNextSelectionClickRef.current) {
+      clearSuppressedSelectionClick();
+      return;
+    }
     setMergeError(null);
     setSelectedMessageIds((currentIds) => {
       const nextIds = currentIds.includes(messageId)
@@ -357,13 +391,16 @@ export function ConversationPane({
     });
   }
 
-  function startMergeSelection(messageId: string) {
+  function startMergeSelection(messageId: string, options?: { suppressNextClick?: boolean }) {
     const messageElement = findMessageElement(messagesRef.current, messageId);
     if (messageElement) {
       selectionAnchorRef.current = {
         messageId,
         top: messageElement.getBoundingClientRect().top
       };
+    }
+    if (options?.suppressNextClick) {
+      suppressNextSelectionClick();
     }
     setIsMergeSelectionMode(true);
     setMergeError(null);

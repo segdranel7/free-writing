@@ -1401,6 +1401,29 @@ describe('ConversationPane', () => {
     expect(screen.getByText('2 selected')).toBeInTheDocument();
   });
 
+  it('ignores the delayed click after a mobile double tap when layout changes retarget it', () => {
+    renderPane();
+
+    const firstBlock = screen.getByText('First').closest('article');
+    const secondBlock = screen.getByText('Second').closest('article');
+    expect(firstBlock).not.toBeNull();
+    expect(secondBlock).not.toBeNull();
+
+    fireEvent.pointerDown(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
+    fireEvent.pointerUp(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
+    fireEvent.pointerDown(firstBlock!, { pointerId: 2, pointerType: 'touch', button: 0, clientX: 13, clientY: 12 });
+    fireEvent.pointerUp(firstBlock!, { pointerId: 2, pointerType: 'touch', button: 0, clientX: 13, clientY: 12 });
+
+    fireEvent.click(secondBlock!);
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
+
+    fireEvent.click(secondBlock!);
+
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+  });
+
   it('exits block selection when the last selected block is deselected', () => {
     renderPane();
 
