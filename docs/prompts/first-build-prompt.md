@@ -68,11 +68,12 @@ Messages:
 - User can add and remove tags/flags on message blocks. The tag editor should suggest previously created tags from loaded blocks as the user types, exclude tags already on the current block, and support click or Enter selection.
 - User can filter loaded blocks by tag globally and within the active conversation.
 - User can copy/forward a whole message or selected text parts to another conversation.
-- User can move a whole message or selected text parts to another conversation.
-- Copy/move should use a transfer dialog that shows the source text and target conversations. If no text is selected, transfer the whole block.
+- User can move a whole message to another conversation.
+- Copy/forward should use a two-step transfer dialog: first select source text with an option to leave nothing selected for the whole block, then choose the target conversation. The source selection step should not show a separate preview because the selected words are visible in the selection area.
+- Move should go straight to target conversation selection without a source text selection step.
 - Repeated target clicks/taps while the transfer write is pending should not create duplicate copied or moved blocks.
-- In the transfer dialog, tapping a word toggles it selected/unselected. Pressing and dragging across words with mouse, touch, or pen selects or unselects multiple words depending on the first word's state.
-- The transfer dialog should support separate non-adjacent selections. Adjacent selected words stay together as a phrase; separate selected parts are sent as separate paragraphs.
+- In the forward transfer dialog, tapping a word toggles it selected/unselected. Pressing and dragging across words with mouse, touch, or pen selects or unselects multiple words depending on the first word's state.
+- The forward transfer dialog should support separate non-adjacent selections. Adjacent selected words stay together as a phrase; separate selected parts are sent as separate paragraphs.
 - User can reorder text blocks inside a conversation with touch-friendly controls and a dedicated drag handle on desktop and touch/pointer devices.
 - Dragging should show a floating preview of the dragged block and an insertion marker in the exact space where the block will land, while normal scrolling remains available from the message body.
 - The message list should resolve gaps, padding, and near-miss pointer positions to a valid nearest insertion slot.
@@ -84,14 +85,14 @@ Messages:
 - User can synthesize a clickable conversation index from the active conversation header.
 - Index synthesis should send all visible blocks in display order in one contextual AI request, include previous index blocks, append the new index block to the bottom, and render each generated row as a link to its source block.
 - User can connect a saved block to any loaded saved block, including same-conversation blocks and self-links, as either a whole-block connection or selected quote-fragment connections.
-- Quote-fragment connection selection should use the same click and drag word-selection behavior as the forward/move transfer dialog, including separate non-adjacent fragments.
+- Quote-fragment connection selection should use the same click and drag word-selection behavior as the forward transfer dialog, including separate non-adjacent fragments.
 - Blocks with incoming saved-block connections should show collapsed backlink rows that expand to clickable source-block cards.
 - Copying/forwarding creates a new message in the target conversation with the same text, or with the selected text parts, opens the target conversation, and shows `Copied from [conversation name]` in the copied block metadata with the conversation name clickable.
-- Moving creates a message in the target conversation and removes the original from the source conversation, or removes only the selected text parts from the source block when partial text is selected.
+- Moving creates a message in the target conversation and removes the original from the source conversation.
 - Moving leaves the user in the current conversation after completion and shows a non-blocking action to open the target conversation.
 - Merging creates one normal replacement message from the selected blocks in display order and removes the selected originals.
 - Merging preserves selected image attachments in display order.
-- Whole-block copy/move preserves scheduled date/time. Partial text moves create unscheduled target blocks. Merging keeps the earliest scheduled date/time from the selected blocks.
+- Whole-block copy/move preserves scheduled date/time. Partial text forwards create target blocks from the selected text. Merging keeps the earliest scheduled date/time from the selected blocks.
 - English conversion breaks the source text into sentence-level segments, offers three selectable English versions for each segment, and can create the selected English result as a new message below the original.
 - For saved messages, English conversion can also replace the source block with the selected English text.
 - For draft text, English conversion sends the selected English text directly as a new message.

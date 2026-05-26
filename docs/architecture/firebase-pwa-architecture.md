@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -234,7 +234,7 @@ Forwarded and moved source metadata is kept for transfer labeling and compatibil
 
 Inline conversation links are deliberately schema-free: they use the existing `text` and `searchText` fields, not the structured `references` array. Missing or duplicate title matches remain plain text. Conversation rename writes update matching inline title markers in saved message text and `searchText`, while structured reference title snapshots remain unchanged.
 
-Whole-block copy and move operations preserve tags and `scheduledAt`. Partial text transfers intentionally create untagged, unscheduled target blocks because the metadata may describe the full source block rather than the selected fragment.
+Whole-block copy and move operations preserve tags and `scheduledAt`. Selected-text forwards create target blocks from the selected text; because that text may be only a fragment of the source block, future metadata changes should avoid assuming selected-text forwards describe the full source block.
 
 English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. The created English block preserves the source block's tags but is unscheduled. Replacing a source block with English text updates the same message through the normal edit path and preserves its existing `scheduledAt`. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments, structured references, and draft date/time on that new message.
 
@@ -321,7 +321,7 @@ When online:
 - Deleted messages should sync to the cloud.
 - Forwarded messages should sync to the cloud.
 - Moved messages should sync to the cloud.
-- Conversations that receive newly created messages, forwarded blocks, moved blocks, selected moved text, or English result blocks should sync their new top-list `sortOrder`.
+- Conversations that receive newly created messages, forwarded blocks, moved whole blocks, or English result blocks should sync their new top-list `sortOrder`.
 - Merged replacement messages and deletion of their originals should sync to the cloud.
 - English conversion result messages and replacement edits should sync to the cloud.
 - Synthesized conversation index messages should sync to the cloud.

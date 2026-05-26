@@ -1,17 +1,12 @@
 import { useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import type { Conversation, Message } from '../types';
-import {
-  getSelectedTextFromRanges,
-  getTextTokens,
-  type TextSelectionRange,
-} from '../utils/textSelection';
+import { getTextTokens, type TextSelectionRange } from '../utils/textSelection';
 import { useWordRangeSelection } from '../hooks/useWordRangeSelection';
 import type { MessageSelection } from '../utils/transferActions';
 import {
   buildMessageSelections,
   getMessageSelectionRangeCount,
-  getSelectedMessageText,
 } from '../utils/transferSelection';
 
 type ForwardModalProps = {
@@ -35,6 +30,9 @@ export function ForwardModal({
   onClose,
   onForward,
 }: ForwardModalProps) {
+  const [step, setStep] = useState<'select' | 'target'>(() =>
+    mode === 'move' ? 'target' : 'select',
+  );
   const [isForwarding, setIsForwarding] = useState(false);
   const [transferError, setTransferError] = useState('');
   const isForwardingRef = useRef(false);
@@ -60,20 +58,6 @@ export function ForwardModal({
     wordSelector: '[data-transfer-word="true"]',
     captureSelector: '.transfer-source-text',
   });
-  const selectedText = sourceMessage
-    ? getSelectedTextFromRanges(sourceMessage.text, selectionRanges)
-    : '';
-  const selectedMessageText = getSelectedMessageText(
-    selectedMessages,
-    messageSelectionRanges,
-  );
-  const transferText = isSelectedBlockTransfer
-    ? selectedMessageText ||
-      selectedMessages
-        .map((message) => message.text.trim())
-        .filter(Boolean)
-        .join('\n\n')
-    : selectedText || (sourceMessage?.text ?? '');
   const selectedWordCount = isSelectedBlockTransfer
     ? getMessageSelectionRangeCount(messageSelectionRanges)
     : selectionRanges.length;
@@ -117,12 +101,22 @@ export function ForwardModal({
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <section className="modal transfer-modal">
         <header>
-          <h2>{actionLabel} to</h2>
-          <button className="icon-button bare" title="Close" onClick={onClose}>
+          {mode === 'forward' && step === 'target' && (
+            <button
+              className="icon-button bare"
+              type="button"
+              title="Back"
+              onClick={() => setStep('select')}
+            >
+              <ArrowLeft size={18} />
+            </button>
+          )}
+          <h2>{step === 'select' ? `${actionLabel} text` : `${actionLabel} to`}</h2>
+          <button className="icon-button bare" type="button" title="Close" onClick={onClose}>
             <X size={18} />
           </button>
         </header>
-        <div className="transfer-modal-grid">
+        {step === 'select' ? (
           <div className="transfer-selection-panel">
             <div
               className="transfer-source-text"
@@ -244,13 +238,15 @@ export function ForwardModal({
                 </button>
               )}
             </div>
-            <p className="transfer-preview">{transferText}</p>
-            {transferError && (
-              <p className="notice error" role="alert">
-                {transferError}
-              </p>
-            )}
+            <button
+              className="primary-button transfer-next-button"
+              type="button"
+              onClick={() => setStep('target')}
+            >
+              Choose conversation
+            </button>
           </div>
+        ) : (
           <div className="transfer-target-list">
             {conversations
               .filter(
@@ -268,7 +264,12 @@ export function ForwardModal({
                 </button>
               ))}
           </div>
-        </div>
+        )}
+        {transferError && (
+          <p className="notice error" role="alert">
+            {transferError}
+          </p>
+        )}
       </section>
     </div>
   );
