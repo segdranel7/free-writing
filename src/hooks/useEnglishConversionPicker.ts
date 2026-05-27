@@ -4,7 +4,16 @@ import { assembleEnglishText } from '../utils/englishConversion';
 
 export type EnglishPickerSource = { type: 'message'; message: Message } | { type: 'draft'; imageFiles: File[] };
 
-export type EnglishPickerStatus = 'loading' | 'ready' | 'creating' | 'replacing' | 'sending-draft' | 'error';
+export type EnglishPickerStatus =
+  | 'loading'
+  | 'ready'
+  | 'formatting-create'
+  | 'formatting-replace'
+  | 'formatting-draft'
+  | 'creating'
+  | 'replacing'
+  | 'sending-draft'
+  | 'error';
 
 export type EnglishPickerState = {
   source: EnglishPickerSource;
@@ -21,6 +30,7 @@ type UseEnglishConversionPickerOptions = {
   pendingReferences: MessageReference[];
   draftScheduledAt: Date | null;
   onConvertToEnglish: (text: string) => Promise<EnglishConversion>;
+  onFormatEnglishText: (text: string) => Promise<string>;
   onSubmitMessage: (
     textOverride?: string,
     imageFiles?: File[],
@@ -40,6 +50,12 @@ function getSavingStatus(action: EnglishPickerAction): EnglishPickerStatus {
   if (action === 'create') return 'creating';
   if (action === 'replace') return 'replacing';
   return 'sending-draft';
+}
+
+function getFormattingStatus(action: EnglishPickerAction): EnglishPickerStatus {
+  if (action === 'create') return 'formatting-create';
+  if (action === 'replace') return 'formatting-replace';
+  return 'formatting-draft';
 }
 
 function createLoadingState(source: EnglishPickerSource): EnglishPickerState {
@@ -77,6 +93,7 @@ export function useEnglishConversionPicker({
   pendingReferences,
   draftScheduledAt,
   onConvertToEnglish,
+  onFormatEnglishText,
   onSubmitMessage,
   onCreateEnglishBlock,
   onReplaceWithEnglish,
@@ -84,6 +101,9 @@ export function useEnglishConversionPicker({
 }: UseEnglishConversionPickerOptions) {
   const [englishPicker, setEnglishPicker] = useState<EnglishPickerState | null>(null);
   const isSaving =
+    englishPicker?.status === 'formatting-create' ||
+    englishPicker?.status === 'formatting-replace' ||
+    englishPicker?.status === 'formatting-draft' ||
     englishPicker?.status === 'creating' ||
     englishPicker?.status === 'replacing' ||
     englishPicker?.status === 'sending-draft';
@@ -127,17 +147,21 @@ export function useEnglishConversionPicker({
     const englishText = assembleEnglishText(englishPicker.conversion, englishPicker.selections);
     if (!englishText) return;
 
-    setEnglishPicker({ ...englishPicker, status: getSavingStatus(action), error: null });
+    setEnglishPicker({ ...englishPicker, status: getFormattingStatus(action), error: null });
     try {
+      const formattedEnglishText = await onFormatEnglishText(englishText);
+      const textToSave = formattedEnglishText.trim() || englishText;
+      setEnglishPicker({ ...englishPicker, status: getSavingStatus(action), error: null });
+
       if (action === 'draft') {
         const draftImageFiles = englishPicker.source.type === 'draft' ? englishPicker.source.imageFiles : [];
-        await onSubmitMessage(englishText, draftImageFiles, pendingReferences, draftScheduledAt);
+        await onSubmitMessage(textToSave, draftImageFiles, pendingReferences, draftScheduledAt);
         onDraftEnglishSent();
       } else if (englishPicker.source.type === 'message') {
         if (action === 'create') {
-          await onCreateEnglishBlock(englishPicker.source.message, englishText);
+          await onCreateEnglishBlock(englishPicker.source.message, textToSave);
         } else {
-          await onReplaceWithEnglish(englishPicker.source.message, englishText);
+          await onReplaceWithEnglish(englishPicker.source.message, textToSave);
         }
       }
       setEnglishPicker(null);

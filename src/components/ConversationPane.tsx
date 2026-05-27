@@ -20,6 +20,7 @@ import { useListReorderDrag } from '../hooks/useListReorderDrag';
 import type { Conversation, EnglishConversion, Message, MessageReference } from '../types';
 import type { DropPosition } from '../utils/dropTargets';
 import { getImageFilesFromClipboardData } from '../utils/imageFiles';
+import { downloadMessageAsMarkdown } from '../utils/messageDownload';
 import { copyMessageToClipboard } from '../utils/messageClipboard';
 import {
   appendUniqueReference,
@@ -75,6 +76,7 @@ type ConversationPaneProps = {
   onMergeMessages: (messages: Message[]) => Promise<void>;
   onSynthesizeIndex: (messages: Message[], conversationTitle: string) => Promise<void>;
   onConvertToEnglish: (text: string) => Promise<EnglishConversion>;
+  onFormatEnglishText: (text: string) => Promise<string>;
   onCreateEnglishBlock: (message: Message, text: string) => Promise<void>;
   onReplaceWithEnglish: (message: Message, text: string) => Promise<void>;
   onUpdateMessageTags: (message: Message, tags: string[]) => void | Promise<void>;
@@ -82,6 +84,7 @@ type ConversationPaneProps = {
 };
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
+const SUPPRESS_SELECTION_CLICK_TIMEOUT_MS = 350;
 
 type CopyFeedback = {
   messageId: string;
@@ -131,6 +134,7 @@ export function ConversationPane({
   onMergeMessages,
   onSynthesizeIndex,
   onConvertToEnglish,
+  onFormatEnglishText,
   onCreateEnglishBlock,
   onReplaceWithEnglish,
   onUpdateMessageTags,
@@ -163,6 +167,8 @@ export function ConversationPane({
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const selectionAnchorRef = useRef<{ messageId: string; top: number } | null>(null);
+  const suppressNextSelectionClickRef = useRef(false);
+  const suppressSelectionClickTimeoutRef = useRef<number | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const previousAutoScrollStateRef = useRef<{
     conversationId: string | null;
@@ -209,6 +215,7 @@ export function ConversationPane({
     pendingReferences,
     draftScheduledAt,
     onConvertToEnglish,
+    onFormatEnglishText,
     onSubmitMessage,
     onCreateEnglishBlock,
     onReplaceWithEnglish,
@@ -244,6 +251,14 @@ export function ConversationPane({
 
     return () => window.clearTimeout(timeoutId);
   }, [copyFeedback]);
+
+  useEffect(() => {
+    return () => {
+      if (suppressSelectionClickTimeoutRef.current !== null) {
+        window.clearTimeout(suppressSelectionClickTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const activeMessageIds = new Set(visibleMessages.map((message) => message.id));
@@ -339,8 +354,31 @@ export function ConversationPane({
     return undefined;
   }, [activeConversation?.id, navigationTarget, onNavigationHandled]);
 
+  function clearSuppressedSelectionClick() {
+    suppressNextSelectionClickRef.current = false;
+    if (suppressSelectionClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressSelectionClickTimeoutRef.current);
+      suppressSelectionClickTimeoutRef.current = null;
+    }
+  }
+
+  function suppressNextSelectionClick() {
+    suppressNextSelectionClickRef.current = true;
+    if (suppressSelectionClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressSelectionClickTimeoutRef.current);
+    }
+    suppressSelectionClickTimeoutRef.current = window.setTimeout(() => {
+      suppressNextSelectionClickRef.current = false;
+      suppressSelectionClickTimeoutRef.current = null;
+    }, SUPPRESS_SELECTION_CLICK_TIMEOUT_MS);
+  }
+
   function toggleMessageSelection(messageId: string) {
     if (!isMergeSelectionMode) return;
+    if (suppressNextSelectionClickRef.current) {
+      clearSuppressedSelectionClick();
+      return;
+    }
     setMergeError(null);
     setSelectedMessageIds((currentIds) => {
       const nextIds = currentIds.includes(messageId)
@@ -356,13 +394,16 @@ export function ConversationPane({
     });
   }
 
-  function startMergeSelection(messageId: string) {
+  function startMergeSelection(messageId: string, options?: { suppressNextClick?: boolean }) {
     const messageElement = findMessageElement(messagesRef.current, messageId);
     if (messageElement) {
       selectionAnchorRef.current = {
         messageId,
         top: messageElement.getBoundingClientRect().top
       };
+    }
+    if (options?.suppressNextClick) {
+      suppressNextSelectionClick();
     }
     setIsMergeSelectionMode(true);
     setMergeError(null);
@@ -443,6 +484,15 @@ export function ConversationPane({
       setCopyFeedback({ messageId: message.id, status: 'copied' });
     } catch (error) {
       console.error('Unable to copy message text.', error);
+      setCopyFeedback({ messageId: message.id, status: 'failed' });
+    }
+  }
+
+  function downloadMessageText(message: Message) {
+    try {
+      downloadMessageAsMarkdown(message, activeConversation);
+    } catch (error) {
+      console.error('Unable to download message text.', error);
       setCopyFeedback({ messageId: message.id, status: 'failed' });
     }
   }
@@ -673,6 +723,7 @@ export function ConversationPane({
                   onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
                   onEditMessage={onEditMessage}
                   onCopyMessage={(messageToCopy) => void copyMessageText(messageToCopy)}
+                  onDownloadMessage={downloadMessageText}
                   onConnectMessage={openConnectionPicker}
                   onConvertToEnglish={(messageToConvert) => void openMessageEnglishPicker(messageToConvert)}
                   onForwardMessage={onForwardMessage}

@@ -34,7 +34,7 @@ const sourceMessage: Message = {
   references: [],
   createdAt: timestamp,
   updatedAt: null,
-    scheduledAt: null,
+  scheduledAt: null,
   sortOrder: 1000,
   isForwarded: false,
   transferType: null,
@@ -43,7 +43,7 @@ const sourceMessage: Message = {
 };
 
 describe('ForwardModal', () => {
-  it('filters out the source conversation and selects a valid target', () => {
+  it('starts on text selection without showing target conversations', () => {
     const onForward = vi.fn();
 
     render(
@@ -56,8 +56,46 @@ describe('ForwardModal', () => {
       />
     );
 
-    expect(screen.queryByRole('button', { name: 'Source' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Forward text' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Choose text to transfer')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Target' })).not.toBeInTheDocument();
+  });
 
+  it('advances to target selection and filters out the source conversation', () => {
+    const onForward = vi.fn();
+
+    render(
+      <ForwardModal
+        conversations={conversations}
+        mode="forward"
+        sourceMessage={sourceMessage}
+        onClose={vi.fn()}
+        onForward={onForward}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
+
+    expect(screen.getByRole('heading', { name: 'Forward to' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Choose text to transfer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Source' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Target' })).toBeInTheDocument();
+  });
+
+  it('forwards the whole block when no words are selected', () => {
+    const onForward = vi.fn();
+
+    render(
+      <ForwardModal
+        conversations={conversations}
+        mode="forward"
+        sourceMessage={sourceMessage}
+        onClose={vi.fn()}
+        onForward={onForward}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
     fireEvent.click(screen.getByRole('button', { name: 'Target' }));
 
     expect(onForward).toHaveBeenCalledWith('target', undefined);
@@ -98,6 +136,7 @@ describe('ForwardModal', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'this' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
     fireEvent.click(screen.getByRole('button', { name: 'Target' }));
 
     expect(onForward).toHaveBeenCalledWith('target', [
@@ -123,6 +162,7 @@ describe('ForwardModal', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     fireEvent.click(screen.getByRole('button', { name: 'elsewhere' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
     fireEvent.click(screen.getByRole('button', { name: 'Target' }));
 
     expect(onForward).toHaveBeenCalledWith('target', [
@@ -156,6 +196,7 @@ describe('ForwardModal', () => {
     fireEvent.click(sendWord);
     fireEvent.click(thisWord);
     fireEvent.click(sendWord);
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
     fireEvent.click(screen.getByRole('button', { name: 'Target' }));
 
     expect(onForward).toHaveBeenCalledWith('target', [
@@ -188,6 +229,7 @@ describe('ForwardModal', () => {
     fireEvent.pointerDown(sendWord, { pointerId: 1, clientX: 4, clientY: 4 });
     fireEvent.pointerMove(sourceText, { pointerId: 1, clientX: 40, clientY: 4 });
     fireEvent.pointerUp(sourceText, { pointerId: 1 });
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
     fireEvent.click(screen.getByRole('button', { name: 'Target' }));
 
     expect(onForward).toHaveBeenCalledWith('target', [
@@ -218,10 +260,75 @@ describe('ForwardModal', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Move to' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Choose text to transfer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Choose conversation' })).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Back')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Target' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle('Close'));
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('moves directly to the chosen conversation without text selection', () => {
+    const onForward = vi.fn();
+
+    render(
+      <ForwardModal
+        conversations={conversations}
+        mode="move"
+        sourceMessage={sourceMessage}
+        onClose={vi.fn()}
+        onForward={onForward}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target' }));
+
+    expect(onForward).toHaveBeenCalledWith('target', undefined);
+  });
+
+  it('returns to text selection without losing selected words', () => {
+    render(
+      <ForwardModal
+        conversations={conversations}
+        mode="forward"
+        sourceMessage={sourceMessage}
+        onClose={vi.fn()}
+        onForward={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'this' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
+    fireEvent.click(screen.getByTitle('Back'));
+
+    expect(screen.getByRole('heading', { name: 'Forward text' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'this' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+
+  it('transfers all selected blocks when no words are selected', () => {
+    const onForward = vi.fn();
+
+    render(
+      <ForwardModal
+        conversations={conversations}
+        mode="forward"
+        sourceMessages={[
+          sourceMessage,
+          { ...sourceMessage, id: 'message-2', text: 'Second selected block', searchText: 'second selected block' }
+        ]}
+        onClose={vi.fn()}
+        onForward={onForward}
+      />
+    );
+
+    expect(screen.getByText('2 blocks')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Target' }));
+
+    expect(onForward).toHaveBeenCalledWith('target', undefined);
   });
 
   it('selects words from selected blocks and transfers only those parts', () => {
@@ -246,6 +353,7 @@ describe('ForwardModal', () => {
 
     expect(screen.getByText('2 selected')).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Choose conversation' }));
     fireEvent.click(screen.getByRole('button', { name: 'Target' }));
 
     expect(onForward).toHaveBeenCalledWith('target', undefined, [

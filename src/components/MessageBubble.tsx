@@ -12,6 +12,7 @@ import {
   ArrowUp,
   CalendarClock,
   Copy,
+  Download,
   Edit3,
   Forward,
   GripVertical,
@@ -59,7 +60,7 @@ type MessageBubbleProps = {
   sourceConversationTitle?: string | null;
   backlinks: MessageBacklink[];
   onSelect: (messageId: string) => void;
-  onStartSelection: (messageId: string) => void;
+  onStartSelection: (messageId: string, options?: { suppressNextClick?: boolean }) => void;
   onNavigateToReference: (target: MessageReferenceNavigationTarget) => void;
   onNavigateToConversation: (conversationId: string) => void;
   canNavigateToReference: (reference: MessageReference) => boolean;
@@ -74,6 +75,7 @@ type MessageBubbleProps = {
   onSaveEdit: (message: Message) => void;
   onEditMessage: (message: Message) => void;
   onCopyMessage: (message: Message) => void;
+  onDownloadMessage: (message: Message) => void;
   onConnectMessage: (message: Message) => void;
   onConvertToEnglish: (message: Message) => void;
   onForwardMessage: (message: Message) => void;
@@ -153,6 +155,7 @@ export function MessageBubble({
   onSaveEdit,
   onEditMessage,
   onCopyMessage,
+  onDownloadMessage,
   onConnectMessage,
   onConvertToEnglish,
   onForwardMessage,
@@ -173,8 +176,6 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const tapStartRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const lastTapRef = useRef<{ timeoutId: number } | null>(null);
-  const suppressNextClickRef = useRef(false);
-  const suppressClickTimeoutRef = useRef<number | null>(null);
   const messageClassName = [
     'message-bubble',
     isSelected ? 'selected' : '',
@@ -197,30 +198,12 @@ export function MessageBubble({
   useEffect(() => {
     return () => {
       if (lastTapRef.current) window.clearTimeout(lastTapRef.current.timeoutId);
-      if (suppressClickTimeoutRef.current !== null) window.clearTimeout(suppressClickTimeoutRef.current);
     };
   }, []);
 
   function clearLastTap() {
     if (lastTapRef.current) window.clearTimeout(lastTapRef.current.timeoutId);
     lastTapRef.current = null;
-  }
-
-  function clearSuppressedClick() {
-    suppressNextClickRef.current = false;
-    if (suppressClickTimeoutRef.current !== null) {
-      window.clearTimeout(suppressClickTimeoutRef.current);
-      suppressClickTimeoutRef.current = null;
-    }
-  }
-
-  function suppressClickSoon() {
-    suppressNextClickRef.current = true;
-    if (suppressClickTimeoutRef.current !== null) window.clearTimeout(suppressClickTimeoutRef.current);
-    suppressClickTimeoutRef.current = window.setTimeout(() => {
-      suppressNextClickRef.current = false;
-      suppressClickTimeoutRef.current = null;
-    }, DOUBLE_TAP_TIMEOUT_MS);
   }
 
   function handleSelectionPointerDown(event: PointerEvent<HTMLElement>) {
@@ -261,11 +244,10 @@ export function MessageBubble({
 
     if (lastTapRef.current) {
       clearLastTap();
-      suppressClickSoon();
       event.preventDefault();
       event.stopPropagation();
       clearNativeTextSelection();
-      onStartSelection(message.id);
+      onStartSelection(message.id, { suppressNextClick: true });
       return;
     }
 
@@ -281,13 +263,6 @@ export function MessageBubble({
   }
 
   function handleSelectionClick(event: MouseEvent<HTMLElement>) {
-    if (suppressNextClickRef.current) {
-      clearSuppressedClick();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-
     if (!isSelectionMode || isEditing || isInteractiveSelectionTarget(event.target)) return;
     event.preventDefault();
     clearNativeTextSelection();
@@ -474,6 +449,14 @@ export function MessageBubble({
                 onClick={() => onCopyMessage(message)}
               >
                 <Copy size={16} />
+              </button>
+              <button
+                className="icon-button bare"
+                title="Download text as Markdown"
+                disabled={!message.text.trim()}
+                onClick={() => onDownloadMessage(message)}
+              >
+                <Download size={16} />
               </button>
               <button
                 className="icon-button bare"

@@ -16,10 +16,15 @@ export type WorkerEnv = {
 type EnglishSegment = {
   original: string;
   options: [string, string, string];
+  separatorAfter?: 'space' | 'line' | 'blankLine';
 };
 
 type EnglishConversion = {
   segments: EnglishSegment[];
+};
+
+type FormattedEnglishText = {
+  text: string;
 };
 
 type ConversationIndexBlock = {
@@ -38,6 +43,8 @@ type ConversationIndexEntry = {
 type ConversationIndexResponse = {
   entries: ConversationIndexEntry[];
 };
+
+const englishSegmentSeparators = new Set(['space', 'line', 'blankLine']);
 
 function getAllowedOrigins(env: WorkerEnv) {
   const configuredOrigins = env.ALLOWED_ORIGINS?.split(',')
@@ -97,13 +104,15 @@ function getBearerToken(authorizationHeader: string | null) {
 
 function isEnglishSegment(value: unknown): value is EnglishSegment {
   if (!value || typeof value !== 'object') return false;
-  const candidate = value as { original?: unknown; options?: unknown };
+  const candidate = value as { original?: unknown; options?: unknown; separatorAfter?: unknown };
   return (
     typeof candidate.original === 'string' &&
     candidate.original.trim().length > 0 &&
     Array.isArray(candidate.options) &&
     candidate.options.length === 3 &&
-    candidate.options.every((option) => typeof option === 'string' && option.trim().length > 0)
+    candidate.options.every((option) => typeof option === 'string' && option.trim().length > 0) &&
+    (candidate.separatorAfter === undefined ||
+      (typeof candidate.separatorAfter === 'string' && englishSegmentSeparators.has(candidate.separatorAfter)))
   );
 }
 
@@ -133,9 +142,24 @@ function parseEnglishConversion(content: string): EnglishConversion {
   return {
     segments: segments.map((segment) => ({
       original: segment.original.trim(),
-      options: segment.options.map((option) => option.trim()) as [string, string, string]
+      options: segment.options.map((option) => option.trim()) as [string, string, string],
+      ...(segment.separatorAfter ? { separatorAfter: segment.separatorAfter } : {})
     }))
   };
+}
+
+function parseFormattedEnglishText(content: string): FormattedEnglishText {
+  const parsed = JSON.parse(content) as unknown;
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Groq returned a non-object response.');
+  }
+
+  const text = (parsed as { text?: unknown }).text;
+  if (typeof text !== 'string' || text.trim().length === 0) {
+    throw new Error('Groq returned no usable formatted English text.');
+  }
+
+  return { text: text.trim() };
 }
 
 function parseConversationIndex(content: string, blocks: ConversationIndexBlock[]): ConversationIndexResponse {
@@ -181,23 +205,53 @@ function buildEnglishPrompt(text: string) {
 You are a translation editor. Convert the provided text to English.
 
 Task:
-1. Divide the text into sentence-level segments. Prefer one segment per complete sentence or short standalone line.
-2. Do not merge separate sentences into one segment.
-3. Split a very long or compound sentence when it contains multiple ideas.
-4. Preserve the original order and meaning across all segments.
-5. For each segment, provide exactly three distinct, natural English versions.
+1. Preserve Markdown-like structure from the original text, including bullet points, numbered lists, dashes, headings, line breaks, and paragraph breaks.
+2. Divide the text into sentence-level or line-level segments. Prefer one segment per complete sentence, list item, heading, quote, or short standalone line.
+3. Do not merge separate sentences, list items, headings, quotes, or lines into one segment.
+4. Split a very long or compound sentence when it contains multiple ideas.
+5. Preserve the original order and meaning across all segments.
+6. For each segment, provide exactly three distinct, natural English versions.
+7. If the original segment is a Markdown structure, keep that structure in every option, such as "- item", "1. item", "> quote", or "# Heading".
+8. Set separatorAfter to the spacing that should follow this segment before the next segment:
+   - "space" for normal sentence flow in the same paragraph.
+   - "line" for a single line break, including between list items or standalone lines.
+   - "blankLine" for a paragraph break.
 
 Return ONLY valid JSON with this exact structure:
 {
   "segments": [
     {
       "original": "Original segment",
-      "options": ["First English version", "Second English version", "Third English version"]
+      "options": ["First English version", "Second English version", "Third English version"],
+      "separatorAfter": "space"
     }
   ]
 }
 
 Text to process:
+${text}
+`.trim();
+}
+
+function buildEnglishFormattingPrompt(text: string) {
+  return `
+You are an English writing editor. Organize the selected English text into a clear Markdown block before it is submitted.
+
+Task:
+1. Keep the user's meaning and wording as intact as possible.
+2. Arrange the selected English into a readable structure using Markdown when helpful.
+3. You may add concise Markdown elements such as "# Title", "## Subtitle", "- bullet", "1. numbered item", and "> quote" to organize the existing ideas.
+4. Preserve all facts, nuance, and ordering from the selected English text.
+5. Do not add new facts, conclusions, examples, calls to action, or decorative filler.
+6. Prefer readable paragraphs and lists over one flat paragraph.
+7. Do not wrap the result in a Markdown code fence.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "text": "Final Markdown text"
+}
+
+Selected English text:
 ${text}
 `.trim();
 }
@@ -353,6 +407,74 @@ async function handleTranslation(request: Request, env: WorkerEnv) {
   }
 }
 
+async function handleEnglishFormatting(request: Request, env: WorkerEnv) {
+  if (!getCorsOrigin(request, env)) {
+    return jsonResponse(request, env, 403, { error: 'This origin is not allowed to organize English text.' });
+  }
+
+  if (!env.FIREBASE_API_KEY || !env.GROQ_API_KEY) {
+    return jsonResponse(request, env, 500, { error: 'The English formatting service is not configured.' });
+  }
+
+  const token = getBearerToken(request.headers.get('Authorization'));
+  if (!token) {
+    return jsonResponse(request, env, 401, { error: 'Sign in before organizing English text.' });
+  }
+
+  if (!await verifyFirebaseToken(env.FIREBASE_API_KEY, token)) {
+    return jsonResponse(request, env, 401, { error: 'Sign in again before organizing English text.' });
+  }
+
+  let text = '';
+  try {
+    text = await readRequestText(request);
+  } catch {
+    return jsonResponse(request, env, 400, { error: 'Text is required.' });
+  }
+
+  if (!text) {
+    return jsonResponse(request, env, 400, { error: 'Text is required.' });
+  }
+
+  try {
+    const groqResponse = await fetch(groqEndpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-oss-120b',
+        messages: [{ role: 'user', content: buildEnglishFormattingPrompt(text) }],
+        temperature: 0.5,
+        max_completion_tokens: 4096,
+        top_p: 1,
+        reasoning_effort: 'medium',
+        stream: false,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    const groqBody = await groqResponse.json() as {
+      error?: { message?: string };
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    if (!groqResponse.ok) {
+      return jsonResponse(request, env, 502, { error: groqBody.error?.message ?? 'Unable to organize this English text.' });
+    }
+
+    const content = groqBody.choices?.[0]?.message?.content;
+    if (!content) {
+      return jsonResponse(request, env, 502, { error: 'The English formatting service returned no content.' });
+    }
+
+    return jsonResponse(request, env, 200, parseFormattedEnglishText(content));
+  } catch {
+    return jsonResponse(request, env, 502, { error: 'Unable to organize this English text.' });
+  }
+}
+
 async function handleSynthesis(request: Request, env: WorkerEnv) {
   if (!getCorsOrigin(request, env)) {
     return jsonResponse(request, env, 403, { error: 'This origin is not allowed to synthesize conversation indexes.' });
@@ -427,7 +549,11 @@ async function handleSynthesis(request: Request, env: WorkerEnv) {
 export default {
   async fetch(request: Request, env: WorkerEnv) {
     const { pathname } = new URL(request.url);
-    const validPath = pathname === '/' || pathname === '/api/to-english' || pathname === '/api/synthesize-index';
+    const validPath =
+      pathname === '/' ||
+      pathname === '/api/to-english' ||
+      pathname === '/api/format-english' ||
+      pathname === '/api/synthesize-index';
 
     if (request.method === 'OPTIONS') {
       return optionsResponse(request, env);
@@ -441,6 +567,8 @@ export default {
       return jsonResponse(request, env, 405, { error: 'Use POST for English conversion.' });
     }
 
-    return pathname === '/api/synthesize-index' ? handleSynthesis(request, env) : handleTranslation(request, env);
+    if (pathname === '/api/synthesize-index') return handleSynthesis(request, env);
+    if (pathname === '/api/format-english') return handleEnglishFormatting(request, env);
+    return handleTranslation(request, env);
   }
 };

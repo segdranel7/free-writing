@@ -29,7 +29,7 @@ import {
 } from './services/messages';
 import { searchLoadedMessages } from './services/search';
 import { uploadMessageImages } from './services/storage';
-import { requestEnglishVersions } from './services/translation';
+import { requestEnglishVersions, requestStructuredEnglishText } from './services/translation';
 import { formatConversationIndexText, requestConversationIndex } from './services/synthesis';
 import type { Conversation, Message, MessageReference } from './types';
 import type { DropPosition } from './utils/dropTargets';
@@ -523,6 +523,7 @@ export default function App() {
           onMergeMessages={handleMergeMessages}
           onSynthesizeIndex={handleSynthesizeConversationIndex}
           onConvertToEnglish={requestEnglishVersions}
+          onFormatEnglishText={requestStructuredEnglishText}
           onCreateEnglishBlock={handleCreateEnglishBlock}
           onReplaceWithEnglish={handleReplaceWithEnglish}
           onUpdateMessageTags={(message, tags) => void handleUpdateMessageTags(message, tags)}

@@ -578,6 +578,53 @@ button {
   overflow-wrap: anywhere;
 }
 
+.message-markdown {
+  margin: 6px 0 10px;
+  overflow-wrap: anywhere;
+}
+
+.message-markdown h1,
+.message-markdown h2,
+.message-markdown h3 {
+  margin: 8px 0 8px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.message-markdown h1 {
+  font-size: 1.18rem;
+}
+
+.message-markdown h2 {
+  font-size: 1.08rem;
+}
+
+.message-markdown h3 {
+  font-size: 1rem;
+}
+
+.message-markdown p {
+  margin: 6px 0 10px;
+  white-space: normal;
+}
+
+.message-markdown ul,
+.message-markdown ol {
+  margin: 6px 0 10px;
+  padding-left: 22px;
+}
+
+.message-markdown li {
+  margin: 3px 0;
+}
+
+.message-markdown blockquote {
+  margin: 8px 0 10px;
+  padding-left: 12px;
+  border-left: 3px solid rgba(84, 214, 191, 0.56);
+  color: #c7d8d5;
+}
+
 .message-text-block {
   margin: 6px 0 10px;
 }
@@ -1551,6 +1598,11 @@ button {
   line-height: 1.45;
 }
 
+.english-option span {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .english-option:has(input:checked) {
   border-color: #54d6bf;
   background: #123b36;
@@ -1723,21 +1775,14 @@ button {
   overflow: hidden;
 }
 
-.transfer-modal-grid {
-  display: grid;
-  min-height: 0;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 280px);
-}
-
 .transfer-selection-panel {
   display: flex;
   min-width: 0;
   min-height: 0;
+  flex: 1;
   flex-direction: column;
   padding: 12px;
   gap: 10px;
-  border-right: 1px solid #263337;
 }
 
 .transfer-source-text {
@@ -1770,22 +1815,14 @@ button {
   font-size: 0.88rem;
 }
 
-.transfer-preview {
-  max-height: 110px;
-  margin: 0;
-  overflow-y: auto;
-  border: 1px solid #315047;
-  border-radius: 8px;
-  padding: 10px;
-  color: #dff4ef;
-  background: #102a27;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .transfer-target-list {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+.transfer-next-button {
+  align-self: flex-end;
 }
 
 .conversation-row.active:hover {
@@ -1910,20 +1947,6 @@ button {
     width: min(100%, 430px);
     height: calc(100dvh - 24px);
     max-height: calc(100dvh - 24px);
-  }
-
-  .transfer-modal-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .transfer-selection-panel {
-    border-right: 0;
-    border-bottom: 1px solid #263337;
-  }
-
-  .transfer-target-list {
-    max-height: 180px;
   }
 
   .message-bubble {

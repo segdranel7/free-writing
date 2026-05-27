@@ -175,7 +175,8 @@ vi.mock('./services/storage', () => ({
 }));
 
 vi.mock('./services/translation', () => ({
-  requestEnglishVersions: vi.fn()
+  requestEnglishVersions: vi.fn(),
+  requestStructuredEnglishText: vi.fn()
 }));
 
 vi.mock('./services/synthesis', () => ({

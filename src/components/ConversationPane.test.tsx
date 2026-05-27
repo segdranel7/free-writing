@@ -99,6 +99,7 @@ function getPaneProps(overrides: Partial<ComponentProps<typeof ConversationPane>
         }
       ]
     })),
+    onFormatEnglishText: vi.fn(async (text: string) => text),
     onCreateEnglishBlock: vi.fn(async () => undefined),
     onReplaceWithEnglish: vi.fn(async () => undefined),
     onUpdateMessageTags: vi.fn(async () => undefined),
@@ -1401,6 +1402,29 @@ describe('ConversationPane', () => {
     expect(screen.getByText('2 selected')).toBeInTheDocument();
   });
 
+  it('ignores the delayed click after a mobile double tap when layout changes retarget it', () => {
+    renderPane();
+
+    const firstBlock = screen.getByText('First').closest('article');
+    const secondBlock = screen.getByText('Second').closest('article');
+    expect(firstBlock).not.toBeNull();
+    expect(secondBlock).not.toBeNull();
+
+    fireEvent.pointerDown(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
+    fireEvent.pointerUp(firstBlock!, { pointerId: 1, pointerType: 'touch', button: 0, clientX: 12, clientY: 12 });
+    fireEvent.pointerDown(firstBlock!, { pointerId: 2, pointerType: 'touch', button: 0, clientX: 13, clientY: 12 });
+    fireEvent.pointerUp(firstBlock!, { pointerId: 2, pointerType: 'touch', button: 0, clientX: 13, clientY: 12 });
+
+    fireEvent.click(secondBlock!);
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
+
+    fireEvent.click(secondBlock!);
+
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+  });
+
   it('exits block selection when the last selected block is deselected', () => {
     renderPane();
 
@@ -2024,7 +2048,8 @@ describe('ConversationPane', () => {
         segments: [
           {
             original: 'Olá mundo',
-            options: ['Hello world', 'Hi world', 'Hello, everyone'] as [string, string, string]
+            options: ['Hello world', 'Hi world', 'Hello, everyone'] as [string, string, string],
+            separatorAfter: 'line' as const
           },
           {
             original: 'Tudo bem',
@@ -2050,13 +2075,16 @@ describe('ConversationPane', () => {
 
   it('creates a new English block from the selected options', async () => {
     const onCreateEnglishBlock = vi.fn(async () => undefined);
+    const onFormatEnglishText = vi.fn(async () => '# Structured English\n\n- First selected\n- Second selected');
     renderPane({
       onCreateEnglishBlock,
+      onFormatEnglishText,
       onConvertToEnglish: vi.fn(async () => ({
         segments: [
           {
             original: 'Primeiro',
-            options: ['First default', 'First selected', 'First formal'] as [string, string, string]
+            options: ['First default', 'First selected', 'First formal'] as [string, string, string],
+            separatorAfter: 'line' as const
           },
           {
             original: 'Segundo',
@@ -2071,16 +2099,21 @@ describe('ConversationPane', () => {
     fireEvent.click(screen.getByLabelText('Second selected'));
     fireEvent.click(screen.getByRole('button', { name: 'Create block' }));
 
+    await waitFor(() => {
+      expect(onFormatEnglishText).toHaveBeenCalledWith('First selected\nSecond selected');
+    });
     expect(onCreateEnglishBlock).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'first' }),
-      'First selected Second selected'
+      '# Structured English\n\n- First selected\n- Second selected'
     );
   });
 
   it('can replace the source block with the selected English text', async () => {
     const onReplaceWithEnglish = vi.fn(async () => undefined);
+    const onFormatEnglishText = vi.fn(async () => '## Replacement\n\nFirst replacement');
     renderPane({
       onReplaceWithEnglish,
+      onFormatEnglishText,
       onConvertToEnglish: vi.fn(async () => ({
         segments: [
           {
@@ -2095,15 +2128,18 @@ describe('ConversationPane', () => {
     fireEvent.click(await screen.findByLabelText('First replacement'));
     fireEvent.click(screen.getByRole('button', { name: 'Replace block' }));
 
-    expect(onReplaceWithEnglish).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'first' }),
-      'First replacement'
-    );
+    await waitFor(() => {
+      expect(onReplaceWithEnglish).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'first' }),
+        '## Replacement\n\nFirst replacement'
+      );
+    });
   });
 
   it('converts draft text to English and sends the selected text directly', async () => {
     const onDraftChange = vi.fn();
     const onSubmitMessage = vi.fn(async () => undefined);
+    const onFormatEnglishText = vi.fn(async () => '- Ready to submit');
     const onConvertToEnglish = vi.fn(async () => ({
       segments: [
         {
@@ -2112,14 +2148,17 @@ describe('ConversationPane', () => {
         }
       ]
     }));
-    renderPane({ draft: 'Pronto para enviar', onDraftChange, onSubmitMessage, onConvertToEnglish });
+    renderPane({ draft: 'Pronto para enviar', onDraftChange, onSubmitMessage, onConvertToEnglish, onFormatEnglishText });
 
     fireEvent.click(screen.getByTitle('Convert draft to English'));
     fireEvent.click(await screen.findByLabelText('Ready to submit'));
     fireEvent.click(screen.getByRole('button', { name: 'Send English' }));
 
     expect(onConvertToEnglish).toHaveBeenCalledWith('Pronto para enviar');
-    expect(onSubmitMessage).toHaveBeenCalledWith('Ready to submit', [], [], null);
+    expect(onFormatEnglishText).toHaveBeenCalledWith('Ready to submit');
+    await waitFor(() => {
+      expect(onSubmitMessage).toHaveBeenCalledWith('- Ready to submit', [], [], null);
+    });
     expect(onDraftChange).not.toHaveBeenCalled();
   });
 

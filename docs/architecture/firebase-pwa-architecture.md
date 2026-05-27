@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -29,7 +29,7 @@ Recommended implementation:
 ```text
 Firebase Authentication + Google Sign-In
 Firebase Firestore for cloud data
-Cloudflare Worker for server-side AI translation and conversation-index synthesis requests
+Cloudflare Worker for server-side AI translation, English organization, and conversation-index synthesis requests
 Firestore offline persistence for offline reads/writes
 PWA service worker for offline app shell
 Firebase Hosting for the deployed static app
@@ -234,9 +234,9 @@ Forwarded and moved source metadata is kept for transfer labeling and compatibil
 
 Inline conversation links are deliberately schema-free: they use the existing `text` and `searchText` fields, not the structured `references` array. Missing or duplicate title matches remain plain text. Conversation rename writes update matching inline title markers in saved message text and `searchText`, while structured reference title snapshots remain unchanged.
 
-Whole-block copy and move operations preserve tags and `scheduledAt`. Partial text transfers intentionally create untagged, unscheduled target blocks because the metadata may describe the full source block rather than the selected fragment.
+Whole-block copy and move operations preserve tags and `scheduledAt`. Selected-text forwards create target blocks from the selected text; because that text may be only a fragment of the source block, future metadata changes should avoid assuming selected-text forwards describe the full source block.
 
-English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. The created English block preserves the source block's tags but is unscheduled. Replacing a source block with English text updates the same message through the normal edit path and preserves its existing `scheduledAt`. Converting draft text sends the selected assembled English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments, structured references, and draft date/time on that new message.
+English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. The created English block preserves the source block's tags but is unscheduled. Replacing a source block with English text updates the same message through the normal edit path and preserves its existing `scheduledAt`. Converting draft text sends the selected English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments, structured references, and draft date/time on that new message. Before any English result is created, replaced, or sent, the selected segment text goes through a second server-side AI organization pass that returns normal message text, often with Markdown headings, lists, quotes, or paragraph spacing.
 
 Synthesized conversation indexes are stored as ordinary message documents with `blockKind: "conversation-index"` and `indexEntries`. The `text` field stores a plain fallback/search representation of the generated index, while `indexEntries` drives the clickable rows. Creating an index appends a new bottom message and moves the receiving conversation to the top like other new blocks. Previous index blocks remain normal source blocks and are included in later synthesis requests.
 
@@ -307,7 +307,7 @@ Important limitation:
 
 If a conversation was never opened on a device before going offline, it may not be available offline on that device.
 
-AI-backed English conversion and conversation-index synthesis are online-only features. Previously created English blocks and synthesized index blocks are cached like other messages, but requesting new conversion options or a new index requires network access to the server-side API.
+AI-backed English conversion, English organization, and conversation-index synthesis are online-only features. Previously created English blocks and synthesized index blocks are cached like other messages, but requesting new conversion options, organizing selected English text, or creating a new index requires network access to the server-side API.
 
 ---
 
@@ -321,7 +321,7 @@ When online:
 - Deleted messages should sync to the cloud.
 - Forwarded messages should sync to the cloud.
 - Moved messages should sync to the cloud.
-- Conversations that receive newly created messages, forwarded blocks, moved blocks, selected moved text, or English result blocks should sync their new top-list `sortOrder`.
+- Conversations that receive newly created messages, forwarded blocks, moved whole blocks, or English result blocks should sync their new top-list `sortOrder`.
 - Merged replacement messages and deletion of their originals should sync to the cloud.
 - English conversion result messages and replacement edits should sync to the cloud.
 - Synthesized conversation index messages should sync to the cloud.
@@ -346,7 +346,7 @@ Minimum security requirements:
 - A user can only write their own conversations.
 - A user can only read their own messages.
 - A user can only write their own messages.
-- AI conversion and synthesis requests must require a signed-in Firebase user.
+- AI conversion, English-organization, and synthesis requests must require a signed-in Firebase user.
 - Third-party AI API keys must be stored server-side as Cloudflare Worker secrets for the free hosted deployment.
 
 Recommended Firebase security rule concept:
@@ -359,7 +359,7 @@ Important privacy note:
 
 - Cloud sync means messages are stored in a cloud database.
 - Inline image attachments are stored in Firestore message documents, not Firebase Storage.
-- English conversion sends the selected source text to a third-party AI provider through the server-side proxy.
+- English conversion sends the selected source text to a third-party AI provider through the server-side proxy, then sends the selected English result through a second server-side AI organization request before saving or sending.
 - Conversation-index synthesis sends the active conversation's current block text/fallback descriptions to the same third-party AI provider through the server-side proxy.
 - This is different from a local-only app.
 - Repeatable security audits should use `docs/ai-maintenance/security-check.md`, with the default privacy boundary that Firebase cloud storage and explicit AI egress are accepted but other users and unauthenticated visitors must not access another user's content.
@@ -367,7 +367,7 @@ Important privacy note:
 
 ## 13.1 Server-side AI requests
 
-The deployed app should route English conversion and conversation-index synthesis requests to the Cloudflare Worker configured by `VITE_TRANSLATION_API_URL`. The browser can derive `/api/synthesize-index` from the same Worker URL, or use `VITE_SYNTHESIS_API_URL` if a separate endpoint is needed later.
+The deployed app should route English conversion, English organization, and conversation-index synthesis requests to the Cloudflare Worker configured by `VITE_TRANSLATION_API_URL`. The browser uses `/api/to-english` for selectable English segments and derives `/api/format-english` for the selected-English organization pass from the same Worker URL. It can derive `/api/synthesize-index` from the same Worker URL, or use `VITE_SYNTHESIS_API_URL` if a separate synthesis endpoint is needed later.
 
 Expected request flow:
 
@@ -376,12 +376,12 @@ Browser
   -> Firebase ID token in Authorization header
   -> Cloudflare Worker verifies the token through Google Identity Toolkit
   -> Worker calls Groq with GROQ_API_KEY secret
-  -> Worker returns validated segment/options JSON or validated conversation-index JSON
+  -> Worker returns validated segment/options JSON, organized Markdown text JSON, or validated conversation-index JSON
 ```
 
 The browser receives only structured AI output. It must never receive the Groq key.
 
-Local Vite development uses the same browser request shape and same-origin `/api/to-english` and `/api/synthesize-index` paths, but the middleware in `vite.config.ts` verifies Firebase ID-token JWT signatures directly against Google's Firebase public certificates and checks the token audience/issuer against `VITE_FIREBASE_PROJECT_ID`.
+Local Vite development uses the same browser request shape and same-origin `/api/to-english`, `/api/format-english`, and `/api/synthesize-index` paths, but the middleware in `vite.config.ts` verifies Firebase ID-token JWT signatures directly against Google's Firebase public certificates and checks the token audience/issuer against `VITE_FIREBASE_PROJECT_ID`.
 
 ---
 

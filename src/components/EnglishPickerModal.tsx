@@ -72,7 +72,11 @@ export function EnglishPickerModal({
                 disabled={!state.conversion || isSaving}
                 onClick={() => onSave('replace')}
               >
-                {state.status === 'replacing' ? 'Replacing...' : 'Replace block'}
+                {state.status === 'formatting-replace'
+                  ? 'Organizing...'
+                  : state.status === 'replacing'
+                    ? 'Replacing...'
+                    : 'Replace block'}
               </button>
               <button
                 className="primary-button"
@@ -80,7 +84,11 @@ export function EnglishPickerModal({
                 disabled={!state.conversion || isSaving}
                 onClick={() => onSave('create')}
               >
-                {state.status === 'creating' ? 'Creating...' : 'Create block'}
+                {state.status === 'formatting-create'
+                  ? 'Organizing...'
+                  : state.status === 'creating'
+                    ? 'Creating...'
+                    : 'Create block'}
               </button>
             </>
           ) : (
@@ -90,7 +98,11 @@ export function EnglishPickerModal({
               disabled={!state.conversion || isSaving}
               onClick={() => onSave('draft')}
             >
-              {state.status === 'sending-draft' ? 'Sending...' : 'Send English'}
+              {state.status === 'formatting-draft'
+                ? 'Organizing...'
+                : state.status === 'sending-draft'
+                  ? 'Sending...'
+                  : 'Send English'}
             </button>
           )}
         </footer>

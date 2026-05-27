@@ -88,6 +88,7 @@ export type Message = {
 export type EnglishSegment = {
   original: string;
   options: [string, string, string];
+  separatorAfter?: 'space' | 'line' | 'blankLine';
 };
 
 export type EnglishConversion = {

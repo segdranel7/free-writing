@@ -10,7 +10,7 @@ const firebaseMocks = vi.hoisted(() => ({
 
 vi.mock('../firebase', () => firebaseMocks);
 
-import { requestEnglishVersions } from './translation';
+import { requestEnglishVersions, requestStructuredEnglishText } from './translation';
 
 describe('translation service', () => {
   beforeEach(() => {
@@ -26,7 +26,8 @@ describe('translation service', () => {
       segments: [
         {
           original: 'Olá',
-          options: ['Hello', 'Hi', 'Hey']
+          options: ['Hello', 'Hi', 'Hey'],
+          separatorAfter: 'line'
         }
       ]
     })));
@@ -43,10 +44,25 @@ describe('translation service', () => {
       body: JSON.stringify({ text: 'Olá' })
     });
     expect(result.segments[0].options).toEqual(['Hello', 'Hi', 'Hey']);
+    expect(result.segments[0].separatorAfter).toBe('line');
   });
 
   it('rejects invalid or empty translation responses', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ segments: [] }))));
+
+    await expect(requestEnglishVersions('Olá')).rejects.toThrow('no usable English options');
+  });
+
+  it('rejects unsupported segment separators', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      segments: [
+        {
+          original: 'Olá',
+          options: ['Hello', 'Hi', 'Hey'],
+          separatorAfter: 'paragraph'
+        }
+      ]
+    }))));
 
     await expect(requestEnglishVersions('Olá')).rejects.toThrow('no usable English options');
   });
@@ -61,5 +77,30 @@ describe('translation service', () => {
     firebaseMocks.auth.currentUser = null;
 
     await expect(requestEnglishVersions('Olá')).rejects.toThrow('Sign in again');
+  });
+
+  it('posts selected English text to the formatting endpoint', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      text: '# Notes\n\n- Ready to send'
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await requestStructuredEnglishText('  Ready to send  ');
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/format-english', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer id-token',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ text: 'Ready to send' })
+    });
+    expect(result).toBe('# Notes\n\n- Ready to send');
+  });
+
+  it('rejects invalid formatting responses', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ text: '   ' }))));
+
+    await expect(requestStructuredEnglishText('Ready')).rejects.toThrow('no usable text');
   });
 });

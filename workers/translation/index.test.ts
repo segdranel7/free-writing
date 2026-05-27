@@ -110,7 +110,8 @@ describe('translation worker', () => {
                 segments: [
                   {
                     original: 'Olá',
-                    options: ['Hello', 'Hi', 'Hey']
+                    options: ['Hello', 'Hi', 'Hey'],
+                    separatorAfter: 'line'
                   }
                 ]
               })
@@ -121,19 +122,65 @@ describe('translation worker', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const response = await worker.fetch(request(), env);
-    const body = await response.json() as { segments: Array<{ original: string; options: string[] }> };
+    const body = await response.json() as {
+      segments: Array<{ original: string; options: string[]; separatorAfter?: string }>;
+    };
 
     expect(response.status).toBe(200);
     expect(body.segments[0].original).toBe('Olá');
     expect(body.segments[0].options).toEqual(['Hello', 'Hi', 'Hey']);
+    expect(body.segments[0]).toEqual(expect.objectContaining({ separatorAfter: 'line' }));
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const groqRequest = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string) as {
       messages: Array<{ content: string }>;
     };
-    expect(groqRequest.messages[0]?.content).toContain('sentence-level segments');
-    expect(groqRequest.messages[0]?.content).toContain('Prefer one segment per complete sentence or short standalone line');
-    expect(groqRequest.messages[0]?.content).toContain('Do not merge separate sentences into one segment');
+    expect(groqRequest.messages[0]?.content).toContain('Preserve Markdown-like structure');
+    expect(groqRequest.messages[0]?.content).toContain('sentence-level or line-level segments');
+    expect(groqRequest.messages[0]?.content).toContain('list item, heading, quote, or short standalone line');
+    expect(groqRequest.messages[0]?.content).toContain('separatorAfter');
+    expect(groqRequest.messages[0]?.content).toContain('"blankLine" for a paragraph break');
+  });
+
+  it('organizes selected English text into Markdown before submission', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ users: [{ localId: 'user-id' }] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                text: '# Plan\n\n- Ready to send'
+              })
+            }
+          }
+        ]
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await worker.fetch(new Request('https://free-writing-translation.example.workers.dev/api/format-english', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'Ready to send' }),
+      headers: {
+        Origin: 'https://free-writing-e29a1.web.app',
+        Authorization: 'Bearer id-token',
+        'Content-Type': 'application/json'
+      }
+    }), env);
+    const body = await response.json() as { text: string };
+
+    expect(response.status).toBe(200);
+    expect(body.text).toBe('# Plan\n\n- Ready to send');
+
+    const groqRequest = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string) as {
+      messages: Array<{ content: string }>;
+      temperature: number;
+    };
+    expect(groqRequest.messages[0]?.content).toContain('Organize the selected English text');
+    expect(groqRequest.messages[0]?.content).toContain('before it is submitted');
+    expect(groqRequest.messages[0]?.content).toContain('You may add concise Markdown elements');
+    expect(groqRequest.messages[0]?.content).toContain('Do not add new facts');
+    expect(groqRequest.temperature).toBe(0.5);
   });
 
   it('returns parsed conversation index entries from Groq', async () => {

@@ -15,6 +15,13 @@ type MessageTextProps = {
   onNavigateToConversation: (conversationId: string) => void;
 };
 
+type MarkdownBlock =
+  | { type: 'heading'; level: 1 | 2 | 3; text: string }
+  | { type: 'paragraph'; text: string }
+  | { type: 'blockquote'; text: string }
+  | { type: 'unordered-list'; items: string[] }
+  | { type: 'ordered-list'; items: string[] };
+
 function isMessageTarget(message: Message, target: MessageReferenceNavigationTarget | null) {
   return target?.messageId === message.id && target.conversationId === message.conversationId;
 }
@@ -52,6 +59,158 @@ function renderInlineConversationLinks(
       </button>
     );
   });
+}
+
+function parseMarkdownBlocks(text: string): MarkdownBlock[] {
+  const blocks: MarkdownBlock[] = [];
+  const lines = text.trim().split('\n');
+  let index = 0;
+
+  function readParagraph() {
+    const paragraphLines: string[] = [];
+    while (index < lines.length && lines[index].trim()) {
+      if (isMarkdownBoundary(lines[index]) && paragraphLines.length > 0) break;
+      paragraphLines.push(lines[index]);
+      index += 1;
+      if (paragraphLines.length === 1 && isMarkdownBoundary(paragraphLines[0])) break;
+    }
+    return paragraphLines.join('\n').trim();
+  }
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      index += 1;
+      continue;
+    }
+
+    const heading = trimmedLine.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      blocks.push({
+        type: 'heading',
+        level: heading[1].length as 1 | 2 | 3,
+        text: heading[2].trim()
+      });
+      index += 1;
+      continue;
+    }
+
+    if (/^>\s+/.test(trimmedLine)) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && /^>\s+/.test(lines[index].trim())) {
+        quoteLines.push(lines[index].trim().replace(/^>\s+/, ''));
+        index += 1;
+      }
+      blocks.push({ type: 'blockquote', text: quoteLines.join('\n').trim() });
+      continue;
+    }
+
+    if (/^[-*+]\s+/.test(trimmedLine)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*+]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*+]\s+/, '').trim());
+        index += 1;
+      }
+      blocks.push({ type: 'unordered-list', items });
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(trimmedLine)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\d+\.\s+/, '').trim());
+        index += 1;
+      }
+      blocks.push({ type: 'ordered-list', items });
+      continue;
+    }
+
+    const paragraph = readParagraph();
+    if (paragraph) blocks.push({ type: 'paragraph', text: paragraph });
+  }
+
+  return blocks;
+}
+
+function isMarkdownBoundary(line: string) {
+  const trimmedLine = line.trim();
+  return /^(#{1,3})\s+/.test(trimmedLine) ||
+    /^>\s+/.test(trimmedLine) ||
+    /^[-*+]\s+/.test(trimmedLine) ||
+    /^\d+\.\s+/.test(trimmedLine);
+}
+
+function renderLinkedTextWithBreaks(
+  text: string,
+  conversations: Conversation[],
+  onNavigateToConversation: (conversationId: string) => void
+) {
+  return text.split('\n').map((line, index) => (
+    <Fragment key={`${line}-${index}`}>
+      {index > 0 && <br />}
+      {renderInlineConversationLinks(line, conversations, onNavigateToConversation)}
+    </Fragment>
+  ));
+}
+
+function renderMarkdownText(
+  text: string,
+  conversations: Conversation[],
+  onNavigateToConversation: (conversationId: string) => void
+) {
+  return (
+    <div className="message-markdown">
+      {parseMarkdownBlocks(text).map((block, index) => {
+        if (block.type === 'heading') {
+          const HeadingTag = `h${block.level}` as 'h1' | 'h2' | 'h3';
+          return (
+            <HeadingTag key={`heading-${index}`}>
+              {renderInlineConversationLinks(block.text, conversations, onNavigateToConversation)}
+            </HeadingTag>
+          );
+        }
+
+        if (block.type === 'blockquote') {
+          return (
+            <blockquote key={`blockquote-${index}`}>
+              {renderLinkedTextWithBreaks(block.text, conversations, onNavigateToConversation)}
+            </blockquote>
+          );
+        }
+
+        if (block.type === 'unordered-list') {
+          return (
+            <ul key={`ul-${index}`}>
+              {block.items.map((item, itemIndex) => (
+                <li key={`${item}-${itemIndex}`}>
+                  {renderLinkedTextWithBreaks(item, conversations, onNavigateToConversation)}
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        if (block.type === 'ordered-list') {
+          return (
+            <ol key={`ol-${index}`}>
+              {block.items.map((item, itemIndex) => (
+                <li key={`${item}-${itemIndex}`}>
+                  {renderLinkedTextWithBreaks(item, conversations, onNavigateToConversation)}
+                </li>
+              ))}
+            </ol>
+          );
+        }
+
+        return (
+          <p key={`paragraph-${index}`}>
+            {renderLinkedTextWithBreaks(block.text, conversations, onNavigateToConversation)}
+          </p>
+        );
+      })}
+    </div>
+  );
 }
 
 export function MessageText({ message, activeReferenceTarget, conversations, onNavigateToConversation }: MessageTextProps) {
@@ -96,12 +255,20 @@ export function MessageText({ message, activeReferenceTarget, conversations, onN
   }
 
   if (!shouldTruncate) {
+    if (!range || range.endOffset <= range.startOffset) {
+      return renderMarkdownText(displayedText, conversations, onNavigateToConversation);
+    }
+
     return <p>{renderTextContent()}</p>;
   }
 
   return (
     <div className="message-text-block">
-      <p>{renderTextContent()}</p>
+      {isExpanded && (!range || range.endOffset <= range.startOffset) ? (
+        renderMarkdownText(displayedText, conversations, onNavigateToConversation)
+      ) : (
+        <p>{renderTextContent()}</p>
+      )}
       <button
         className="message-expand-button"
         type="button"

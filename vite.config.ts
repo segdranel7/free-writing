@@ -10,6 +10,7 @@ const groqEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
 type DevEnglishSegment = {
   original: string;
   options: [string, string, string];
+  separatorAfter?: 'space' | 'line' | 'blankLine';
 };
 
 type DevConversationIndexBlock = {
@@ -43,28 +44,60 @@ let firebaseCertCache: {
   certs: Record<string, string>;
 } | null = null;
 
+const englishSegmentSeparators = new Set(['space', 'line', 'blankLine']);
+
 function buildEnglishPrompt(text: string) {
   return `
 You are a translation editor. Convert the provided text to English.
 
 Task:
-1. Divide the text into sentence-level segments. Prefer one segment per complete sentence or short standalone line.
-2. Do not merge separate sentences into one segment.
-3. Split a very long or compound sentence when it contains multiple ideas.
-4. Preserve the original order and meaning across all segments.
-5. For each segment, provide exactly three distinct, natural English versions.
+1. Preserve Markdown-like structure from the original text, including bullet points, numbered lists, dashes, headings, line breaks, and paragraph breaks.
+2. Divide the text into sentence-level or line-level segments. Prefer one segment per complete sentence, list item, heading, quote, or short standalone line.
+3. Do not merge separate sentences, list items, headings, quotes, or lines into one segment.
+4. Split a very long or compound sentence when it contains multiple ideas.
+5. Preserve the original order and meaning across all segments.
+6. For each segment, provide exactly three distinct, natural English versions.
+7. If the original segment is a Markdown structure, keep that structure in every option, such as "- item", "1. item", "> quote", or "# Heading".
+8. Set separatorAfter to the spacing that should follow this segment before the next segment:
+   - "space" for normal sentence flow in the same paragraph.
+   - "line" for a single line break, including between list items or standalone lines.
+   - "blankLine" for a paragraph break.
 
 Return ONLY valid JSON with this exact structure:
 {
   "segments": [
     {
       "original": "Original segment",
-      "options": ["First English version", "Second English version", "Third English version"]
+      "options": ["First English version", "Second English version", "Third English version"],
+      "separatorAfter": "space"
     }
   ]
 }
 
 Text to process:
+${text}
+`.trim();
+}
+
+function buildEnglishFormattingPrompt(text: string) {
+  return `
+You are an English writing editor. Organize the selected English text into a clear Markdown block before it is submitted.
+
+Task:
+1. Keep the user's meaning and wording as intact as possible.
+2. Arrange the selected English into a readable structure using Markdown when helpful.
+3. You may add concise Markdown elements such as "# Title", "## Subtitle", "- bullet", "1. numbered item", and "> quote" to organize the existing ideas.
+4. Preserve all facts, nuance, and ordering from the selected English text.
+5. Do not add new facts, conclusions, examples, calls to action, or decorative filler.
+6. Prefer readable paragraphs and lists over one flat paragraph.
+7. Do not wrap the result in a Markdown code fence.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "text": "Final Markdown text"
+}
+
+Selected English text:
 ${text}
 `.trim();
 }
@@ -169,13 +202,15 @@ async function verifyFirebaseTokenForDev(projectId: string, token: string) {
 
 function isDevEnglishSegment(value: unknown): value is DevEnglishSegment {
   if (!value || typeof value !== 'object') return false;
-  const candidate = value as { original?: unknown; options?: unknown };
+  const candidate = value as { original?: unknown; options?: unknown; separatorAfter?: unknown };
   return (
     typeof candidate.original === 'string' &&
     candidate.original.trim().length > 0 &&
     Array.isArray(candidate.options) &&
     candidate.options.length === 3 &&
-    candidate.options.every((option) => typeof option === 'string' && option.trim().length > 0)
+    candidate.options.every((option) => typeof option === 'string' && option.trim().length > 0) &&
+    (candidate.separatorAfter === undefined ||
+      (typeof candidate.separatorAfter === 'string' && englishSegmentSeparators.has(candidate.separatorAfter)))
   );
 }
 
@@ -201,9 +236,20 @@ function parseGroqJson(content: string) {
   return {
     segments: segments.map((segment) => ({
       original: segment.original.trim(),
-      options: segment.options.map((option) => option.trim()) as [string, string, string]
+      options: segment.options.map((option) => option.trim()) as [string, string, string],
+      ...(segment.separatorAfter ? { separatorAfter: segment.separatorAfter } : {})
     }))
   };
+}
+
+function parseFormattedEnglishJson(content: string) {
+  const parsed = JSON.parse(content) as unknown;
+  const text = parsed && typeof parsed === 'object' ? (parsed as { text?: unknown }).text : null;
+  if (typeof text !== 'string' || text.trim().length === 0) {
+    throw new Error('Groq returned no usable formatted English text.');
+  }
+
+  return { text: text.trim() };
 }
 
 function parseConversationIndexJson(content: string, blocks: DevConversationIndexBlock[]) {
@@ -360,6 +406,80 @@ function localEnglishApi(env: Record<string, string>): Plugin {
         } catch (error) {
           console.error('Local English conversion failed.', error);
           sendJson(response, 502, { error: 'Unable to convert this text to English.' });
+        }
+      });
+
+      server.middlewares.use('/api/format-english', async (request, response) => {
+        if (request.method !== 'POST') {
+          sendJson(response, 405, { error: 'Use POST for English formatting.' });
+          return;
+        }
+
+        const token = getBearerToken(request.headers.authorization);
+        if (!token) {
+          sendJson(response, 401, { error: 'Sign in before organizing English text.' });
+          return;
+        }
+
+        if (!env.VITE_FIREBASE_PROJECT_ID || !await verifyFirebaseTokenForDev(env.VITE_FIREBASE_PROJECT_ID, token)) {
+          sendJson(response, 401, { error: 'Sign in again before organizing English text.' });
+          return;
+        }
+
+        if (!env.GROQ_API_KEY) {
+          sendJson(response, 500, { error: 'Add GROQ_API_KEY to .env and restart the dev server.' });
+          return;
+        }
+
+        try {
+          const body = await readJsonBody(request);
+          const text = body && typeof body === 'object' && typeof (body as { text?: unknown }).text === 'string'
+            ? (body as { text: string }).text.trim()
+            : '';
+
+          if (!text) {
+            sendJson(response, 400, { error: 'Text is required.' });
+            return;
+          }
+
+          const groqResponse = await fetch(groqEndpoint, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${env.GROQ_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'openai/gpt-oss-120b',
+              messages: [{ role: 'user', content: buildEnglishFormattingPrompt(text) }],
+              temperature: 0.5,
+              max_completion_tokens: 4096,
+              top_p: 1,
+              reasoning_effort: 'medium',
+              stream: false,
+              response_format: { type: 'json_object' }
+            })
+          });
+
+          const groqBody = await groqResponse.json() as {
+            error?: { message?: string };
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+
+          if (!groqResponse.ok) {
+            sendJson(response, 502, { error: groqBody.error?.message ?? 'Unable to organize this English text.' });
+            return;
+          }
+
+          const content = groqBody.choices?.[0]?.message?.content;
+          if (!content) {
+            sendJson(response, 502, { error: 'The English formatting service returned no content.' });
+            return;
+          }
+
+          sendJson(response, 200, parseFormattedEnglishJson(content));
+        } catch (error) {
+          console.error('Local English formatting failed.', error);
+          sendJson(response, 502, { error: 'Unable to organize this English text.' });
         }
       });
 

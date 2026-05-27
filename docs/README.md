@@ -1,12 +1,12 @@
 # Free Writing Documentation
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 This is the entry point for the Free Writing PWA documentation. The detailed base document has been split into smaller files so product intent, architecture, implementation status, and reusable prompts can be updated independently.
 
 ## App summary
 
-Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, conversation list drag reordering, saved text/image blocks with compact expand/collapse rendering for long text, optional block date/time scheduling with a global calendar, image paste and selection, search, tags/flags on blocks with quick reuse suggestions plus global and conversation filtering, copying text/image blocks to the browser clipboard, editing, deletion, keyboard shortcuts for direct send and draft English conversion, copying or moving whole blocks or selected parts between conversations with source metadata for copied blocks, saved block-to-block connections with backlinks, manual up/down and drag-handle block reordering on desktop and touch/pointer devices, multi-block merging, per-block English conversion, conversation index synthesis, multi-device access, and offline support for the app shell plus cached Firestore data.
+Free Writing is a private, Google-login messaging-style PWA for one user. It supports conversations, conversation list drag reordering, saved text/image blocks with compact expand/collapse rendering for long text, optional block date/time scheduling with a global calendar, image paste and selection, search, tags/flags on blocks with quick reuse suggestions plus global and conversation filtering, copying text/image blocks to the browser clipboard, downloading text blocks as Markdown files, editing, deletion, keyboard shortcuts for direct send and draft English conversion, forwarding whole blocks or selected parts between conversations, moving whole blocks between conversations, saved block-to-block connections with backlinks, manual up/down and drag-handle block reordering on desktop and touch/pointer devices, multi-block merging, per-block English conversion with a second Markdown organization pass, conversation index synthesis, multi-device access, and offline support for the app shell plus cached Firestore data.
 
 Target devices:
 
@@ -19,7 +19,7 @@ Recommended Version 1 stack:
 - React PWA
 - Firebase Authentication with Google provider
 - Firestore cloud data with offline persistence
-- Cloudflare Worker for server-side AI translation and conversation-index synthesis proxying
+- Cloudflare Worker for server-side AI translation, English organization, and conversation-index synthesis proxying
 - PWA manifest and service worker
 - Firebase Hosting
 
@@ -63,7 +63,7 @@ Use the product docs when changing what the app should do or checking whether a 
 
 - Google/Gmail login behavior
 - Conversation behavior, including manual conversation ordering
-- Message creation, compact long-text block display with expand/collapse, date/time scheduling and calendar browsing, image attachments, editing, deletion, block connections/backlinks, copying or moving whole/partial blocks between conversations, reordering, merging, English conversion, and conversation index synthesis
+- Message creation, compact long-text block display with expand/collapse, date/time scheduling and calendar browsing, image attachments, clipboard copy, Markdown download, editing, deletion, block connections/backlinks, copying or moving whole/partial blocks between conversations, reordering, merging, English conversion with organized Markdown output, and conversation index synthesis
 - Message search
 - Sign-in, conversation list, conversation, calendar, and search screens
 - Functional requirements
@@ -116,7 +116,7 @@ Use [Repeatable security check](ai-maintenance/security-check.md) when auditing 
 
 The first useful version should be:
 
-> A private Google-login PWA where I can create and organize conversations, save text/image blocks, connect related blocks with backlinks, add date/time to blocks and view them on a calendar, tag or flag blocks with quick reuse suggestions for filtering, copy text and attached images where the browser clipboard allows, convert text to English, synthesize a clickable conversation index, quickly send or convert draft text with keyboard shortcuts, edit/delete/search/reorder/merge blocks, forward or move whole blocks or selected parts between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
+> A private Google-login PWA where I can create and organize conversations, save text/image blocks, connect related blocks with backlinks, add date/time to blocks and view them on a calendar, tag or flag blocks with quick reuse suggestions for filtering, copy text and attached images where the browser clipboard allows, download text blocks as Markdown files, convert text into organized English Markdown, synthesize a clickable conversation index, quickly send or convert draft text with keyboard shortcuts, edit/delete/search/reorder/merge blocks, forward whole blocks or selected parts between conversations, move whole blocks between conversations, and access everything across iPhone, desktop, and tablet, with offline support for cached data.
 
 ## Maintenance guidance
 

@@ -1,6 +1,6 @@
 # Version 1 Features and Screens
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 Related docs: [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
@@ -48,7 +48,7 @@ Conversation features:
 - Reorder conversations in the conversation list with a drag handle
 - While reordering, show block-like drag feedback: a floating row preview and an insertion marker at the exact landing position.
 - Releasing a reordered conversation should keep the user on the conversation list; it should not automatically open the reordered row or the new top row.
-- When a conversation receives a newly created block, whether from direct input, forwarding, moving, partial moving, or English block creation, that conversation moves to the top of the list.
+- When a conversation receives a newly created block, whether from direct input, forwarding, moving, or English block creation, that conversation moves to the top of the list.
 
 For Version 1, conversations are private to the signed-in user.
 
@@ -73,6 +73,7 @@ Required message actions:
 - Add small image attachments from the file picker or copied image paste
 - Edit message
 - Copy block content to the system clipboard
+- Download text block content as a Markdown `.md` file
 - Delete message
 - Add, remove, and reuse tags/flags on a message
 - Copy/forward message to another conversation
@@ -149,6 +150,22 @@ Requirements:
 - Attached images should be included in display order in the rich HTML clipboard payload.
 - Actual paste results depend on the target app; plain text fields may only receive the text.
 
+### 7.3.3.1 Download text blocks as Markdown
+
+The user can download a saved text block as a local Markdown file.
+
+Version 1 behavior:
+
+- Text-bearing blocks expose a `Download text as Markdown` action.
+- The downloaded file contains the block's raw text content.
+- The filename uses a sanitized conversation title, the block creation date, the block ID, and the `.md` extension.
+- Blocks with no text do not expose an enabled Markdown download action.
+
+Requirements:
+
+- Downloading is a browser-only action and does not change Firestore data.
+- Image attachments are not embedded in the Markdown file in Version 1.
+
 ### 7.3.4 Convert text to English
 
 The user can convert saved text blocks or draft composer text into English.
@@ -158,20 +175,23 @@ Version 1 behavior:
 - Each message has a `Convert to English` action.
 - The composer has a `Convert draft to English` action when a non-empty draft is present.
 - The app breaks the text into sentence-level segments, preferring one segment per complete sentence or short standalone line.
+- After the user chooses segment options, the selected English text is sent through a second AI organization pass before saving or sending.
+- The organization pass may add Markdown structure such as headings, subheadings, bullet lists, numbered lists, quotes, line breaks, and paragraph breaks while preserving the selected English meaning.
 - Each segment shows three selectable English versions.
 - The first option is selected by default.
 - The user can choose one version for every segment.
 - The picker focuses on the segment option list and does not show a separate assembled preview.
-- For a saved message, `Create block` inserts the assembled English text as a new message directly below the original.
-- For a saved message, `Replace block` updates the original block with the assembled English text.
-- For draft text, `Send English` sends the assembled English text directly as a new message while preserving any current composer image attachments and structured references.
+- For a saved message, `Create block` inserts the organized English Markdown text as a new message directly below the original.
+- For a saved message, `Replace block` updates the original block with the organized English Markdown text.
+- For draft text, `Send English` sends the organized English Markdown text directly as a new message while preserving any current composer image attachments and structured references.
 
 Requirements:
 
 - Empty text should not be sent for conversion.
-- Conversion requires the signed-in user and a working server-side translation endpoint.
-- Translation failures should show a clear error without creating, replacing, or changing draft text.
+- Conversion requires the signed-in user and working server-side translation and English-organization endpoints.
+- Translation or organization failures should show a clear error without creating, replacing, or changing draft text.
 - The Groq/API key must stay server-side and must not be exposed through `VITE_` browser environment variables.
+- Saved English results are normal message text, so Markdown remains editable, searchable, copyable, downloadable as raw `.md` text, and renderable in the message body.
 
 ---
 
@@ -275,7 +295,7 @@ Requirements:
 - This week starts on Sunday.
 - Blocks without a scheduled date/time do not appear on the calendar.
 - Whole-block copy and move preserve scheduled date/time.
-- Partial text moves create unscheduled target blocks.
+- Selected-text forwards create target blocks from the selected text.
 - New English blocks and synthesized conversation index blocks are unscheduled; replacing a source block with English keeps the source block's existing date/time.
 - Merged blocks use the earliest scheduled date/time from the selected blocks.
 
@@ -325,8 +345,9 @@ Version 1 behavior:
 
 - User opens a message action.
 - User chooses `Copy to conversation`.
-- App shows a transfer dialog with the source text and a list of conversations.
-- If the user does not select text, the whole block is forwarded.
+- App shows a transfer dialog that first shows only the source text selection area, then advances to a separate target conversation step.
+- The source text step does not show a separate preview; the selected text is visible in the source selection area itself.
+- If the user does not select text before choosing a target conversation, the whole block is forwarded.
 - The user can tap words to select or deselect them.
 - The user can press/hold a word and drag across words with mouse, touch, or pen input to select them.
 - Selected words may be adjacent or non-adjacent.
@@ -352,17 +373,13 @@ Simple display:
 
 ### 7.6.1 Move messages between conversations
 
-The app supports moving a whole message block, or selected parts of a text block, from one conversation to another.
+The app supports moving a whole message block from one conversation to another.
 
 Intended behavior:
 
 - User chooses `Move to conversation` from a message action.
-- App shows the same transfer dialog used for forwarding.
-- If the user does not select text, the whole block is moved.
-- If the user selects one or more text parts, the app creates a replacement message in the target conversation from those selected parts and removes those selected parts from the original source block.
-- If partial moving leaves no text, attachments, or references in the source block, the source block is deleted.
+- App goes straight to target conversation selection; there is no source text selection step for moving.
 - Whole-block moves create the target message and delete the original message from the source conversation in the same Firestore batch.
-- Partial moves update or delete the source message and create the target message in the same Firestore batch.
 - Target selection should be single-flight: repeated taps/clicks while the move write is pending must not create duplicate target blocks.
 - After moving, the user stays in the current conversation and sees a non-blocking option to open the target conversation.
 - The moved message stores source metadata for transfer history. User-visible cross-conversation navigation is provided by structured conversation links and quote citations.
@@ -533,12 +550,13 @@ Content:
 - Image preview strip in the composer when images are selected or pasted
 - Message actions: edit, delete, copy/forward
 - Message action: copy block content to the clipboard
+- Message action: download text block content as a Markdown file
 - Message action: move to another conversation
 - Long message text preview with an icon-only expand/collapse control
 - Message tag chips plus an inline add/remove editor with suggestions
 - Message action: convert to English
 - Header action: synthesize a clickable conversation index
-- Transfer dialog for copying/moving whole blocks or selected text parts with tap and drag word selection
+- Transfer dialog for copying/forwarding whole blocks or selected text parts with tap and drag word selection, plus direct target selection for whole-block moves
 - Reorder controls for moving text blocks, plus drag-handle reordering between blocks on desktop and touch/pointer devices
 - Selection controls and a merge action for combining multiple selected blocks
 - English conversion picker modal with scrollable segment options
@@ -612,6 +630,7 @@ Layout:
 - User can edit a message.
 - User can paste images while editing a message and save them onto that block.
 - User can copy text-only, text/image, and image-only blocks to the system clipboard where browser support allows.
+- User can download a text-bearing block as a Markdown `.md` file.
 - User can add, remove, and reuse tags/flags on message blocks.
 - User can filter loaded blocks by tags globally and within the active conversation.
 - User can add, edit, clear, and view a scheduled date/time on a block.
@@ -619,7 +638,7 @@ Layout:
 - User can click a calendar item to open and highlight the source block.
 - User can delete a message.
 - User can copy/forward a whole message or selected text parts to another conversation.
-- User can move a whole message or selected text parts to another conversation.
+- User can move a whole message to another conversation.
 - User can add a conversation or quote reference to a message.
 - User can connect a saved block to another loaded saved block and expand backlinks from connected source blocks.
 - User can create an inline conversation link by typing `[[`, filtering conversation suggestions, selecting one, and sending the completed link.
@@ -696,6 +715,7 @@ Version 1 is complete when:
 - I can copy a text-only block and paste its text elsewhere.
 - I can copy a block with images and paste text plus attached images into a rich paste target where supported by the browser and target app.
 - I can copy an image-only block and paste the image into a compatible target where supported.
+- I can download a text-bearing block as a Markdown `.md` file whose contents match the block text.
 - I can delete a message.
 - I can tag or flag a block, reuse an existing tag from suggestions while typing, remove the tag, and filter loaded blocks by tag.
 - I can add, edit, clear, and view a date/time on a block.
@@ -707,7 +727,7 @@ Version 1 is complete when:
 - I can send the current draft directly with `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`.
 - I can search messages.
 - I can copy/forward a whole message or selected text parts from one conversation to another, see the copied block's source conversation in its metadata, and click the source conversation name to navigate there.
-- I can move a whole message or selected text parts from one conversation to another, remain in the current conversation afterward, and optionally open the target conversation from the move notice.
+- I can move a whole message from one conversation to another, remain in the current conversation afterward, and optionally open the target conversation from the move notice.
 - I can reorder conversations, see the same preview/insertion-marker feedback as block dragging, stay on the conversation list after release, and see the same order after refresh.
 - I can add or transfer a new block into a conversation and see that receiving conversation move to the top of the list.
 - I can reorder text blocks with move controls or a drag handle on desktop and touch/pointer devices and see the same order after refresh.
