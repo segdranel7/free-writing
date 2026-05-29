@@ -8,6 +8,7 @@ const serviceMocks = vi.hoisted(() => ({
   createMessageWithId: vi.fn(async () => undefined),
   forwardMessage: vi.fn(async () => undefined),
   moveMessage: vi.fn(async () => undefined),
+  reorderKanbanMessages: vi.fn(async () => undefined),
   reserveMessageId: vi.fn(() => 'reserved-message')
 }));
 
@@ -92,8 +93,10 @@ vi.mock('./components/ConversationPane', () => ({
   ConversationPane: (props: {
     activeConversation: Conversation | null;
     activeMessages: Message[];
+    isInformationMode: boolean;
     draft: string;
     moveNotice: { targetConversationTitle: string } | null;
+    onToggleInformationMode: () => void;
     onOpenMoveNotice: () => void;
     onDraftChange: (value: string) => void;
     onSubmitMessage: (textOverride?: string) => Promise<void>;
@@ -102,6 +105,13 @@ vi.mock('./components/ConversationPane', () => ({
   }) => (
     <section>
       <h1>{props.activeConversation?.title ?? 'No conversation'}</h1>
+      <button
+        type="button"
+        aria-pressed={props.isInformationMode}
+        onClick={props.onToggleInformationMode}
+      >
+        Information-only mode
+      </button>
       <p data-testid="draft">{props.draft}</p>
       <input aria-label="Draft" value={props.draft} onChange={(event) => props.onDraftChange(event.target.value)} />
       <ul aria-label="Blocks">
@@ -144,9 +154,14 @@ vi.mock('./components/SignInScreen', () => ({
 
 vi.mock('./services/conversations', () => ({
   createConversation: vi.fn(),
+  addKanbanColumn: vi.fn(async () => null),
+  deleteKanbanColumn: vi.fn(),
   deleteConversation: vi.fn(),
+  reorderKanbanColumns: vi.fn(),
   reorderConversations: vi.fn(),
-  renameConversation: vi.fn()
+  renameConversation: vi.fn(),
+  renameKanbanColumn: vi.fn(),
+  updateConversationVisualizationView: vi.fn()
 }));
 
 vi.mock('./services/messages', () => ({
@@ -160,8 +175,10 @@ vi.mock('./services/messages', () => ({
   mergeMessages: vi.fn(),
   moveMessage: serviceMocks.moveMessage,
   moveMessageTextSelection: vi.fn(),
+  reorderKanbanMessages: serviceMocks.reorderKanbanMessages,
   reserveMessageId: serviceMocks.reserveMessageId,
   reorderMessages: vi.fn(),
+  updateMessageKanbanPlacement: vi.fn(),
   updateMessageReferences: vi.fn(),
   updateMessageTags: vi.fn()
 }));
@@ -193,6 +210,7 @@ describe('App transfer navigation', () => {
     messagingMocks.setMessagesByConversation = null;
     serviceMocks.reserveMessageId.mockReturnValue('reserved-message');
     serviceMocks.createMessageWithId.mockResolvedValue(undefined);
+    window.localStorage.clear();
   });
 
   it('copies a block to the target conversation and navigates there', async () => {
@@ -302,5 +320,25 @@ describe('App transfer navigation', () => {
       expect(within(screen.getByRole('list', { name: 'Blocks' })).queryByText('Ready to send')).not.toBeInTheDocument();
       expect(screen.getByTestId('draft')).toHaveTextContent('Ready to send');
     });
+  });
+
+  it('persists information-only mode in localStorage', () => {
+    render(<App />);
+
+    const modeButton = screen.getByRole('button', { name: 'Information-only mode' });
+    expect(modeButton).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(modeButton);
+
+    expect(modeButton).toHaveAttribute('aria-pressed', 'true');
+    expect(window.localStorage.getItem('free-writing:information-mode')).toBe('true');
+  });
+
+  it('initializes information-only mode from localStorage', () => {
+    window.localStorage.setItem('free-writing:information-mode', 'true');
+
+    render(<App />);
+
+    expect(screen.getByRole('button', { name: 'Information-only mode' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

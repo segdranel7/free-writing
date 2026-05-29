@@ -1,11 +1,17 @@
 import { CalendarClock, Link2, Quote, X } from 'lucide-react';
-import type { ClipboardEvent, RefObject } from 'react';
-import type { Message, MessageReference } from '../types';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type RefObject } from 'react';
+import type { Conversation, Message, MessageReference } from '../types';
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '../utils/calendar';
+import {
+  completeInlineConversationLinkDraft,
+  getActiveInlineConversationLinkDraft,
+  getInlineConversationLinkSuggestions
+} from '../utils/inlineConversationLinks';
 import { truncateReferenceText } from '../utils/messageReferences';
 
 type MessageEditFormProps = {
   message: Message;
+  conversations: Conversation[];
   editText: string;
   editReferences: MessageReference[];
   editScheduledAt: Date | null;
@@ -23,6 +29,7 @@ type MessageEditFormProps = {
 
 export function MessageEditForm({
   message,
+  conversations,
   editText,
   editReferences,
   editScheduledAt,
@@ -37,14 +44,67 @@ export function MessageEditForm({
   onRemoveEditImage,
   onSaveEdit
 }: MessageEditFormProps) {
+  const [editCursorOffset, setEditCursorOffset] = useState<number | null>(null);
+  const [highlightedInlineLinkSuggestionIndex, setHighlightedInlineLinkSuggestionIndex] = useState(0);
+  const pendingCursorOffset = useRef<number | null>(null);
+  const skipNextEditCursorUpdate = useRef(false);
   const hasExistingAttachments = (message.attachments?.length ?? 0) > 0;
   const hasEditableContent =
     editText.trim() || hasExistingAttachments || editImagePreviews.length > 0 || editReferences.length > 0;
+  const activeInlineLinkDraft = useMemo(() => {
+    return editCursorOffset === null ? null : getActiveInlineConversationLinkDraft(editText, editCursorOffset);
+  }, [editCursorOffset, editText]);
+  const inlineLinkSuggestions = useMemo(() => {
+    if (!activeInlineLinkDraft) return [];
+    return getInlineConversationLinkSuggestions(conversations, activeInlineLinkDraft.query);
+  }, [activeInlineLinkDraft, conversations]);
+
+  useLayoutEffect(() => {
+    if (pendingCursorOffset.current === null || !editTextareaRef.current) return;
+    const nextCursorOffset = pendingCursorOffset.current;
+    pendingCursorOffset.current = null;
+    editTextareaRef.current.focus();
+    editTextareaRef.current.setSelectionRange(nextCursorOffset, nextCursorOffset);
+  }, [editText, editTextareaRef]);
+
+  useEffect(() => {
+    setHighlightedInlineLinkSuggestionIndex(0);
+  }, [activeInlineLinkDraft?.query, inlineLinkSuggestions.length]);
 
   function getReferenceLabel(reference: MessageReference) {
     if (reference.type === 'quote') return `"${truncateReferenceText(reference.quoteText, 88)}"`;
     if (reference.type === 'block') return truncateReferenceText(reference.sourceMessagePreview, 88);
     return reference.sourceConversationTitle;
+  }
+
+  function updateEditCursorOffset(textarea: HTMLTextAreaElement) {
+    setEditCursorOffset(textarea.selectionStart);
+  }
+
+  function completeInlineLinkSuggestion(conversationTitle: string) {
+    if (!activeInlineLinkDraft) return;
+    const completion = completeInlineConversationLinkDraft(editText, activeInlineLinkDraft, conversationTitle);
+    pendingCursorOffset.current = completion.cursorOffset;
+    setEditCursorOffset(completion.cursorOffset);
+    onEditTextChange(completion.text);
+  }
+
+  function completeHighlightedInlineLinkSuggestion() {
+    const suggestion = inlineLinkSuggestions[highlightedInlineLinkSuggestionIndex];
+    if (!suggestion) return;
+    skipNextEditCursorUpdate.current = true;
+    completeInlineLinkSuggestion(suggestion.title);
+  }
+
+  function insertInlineLinkMarker() {
+    const textarea = editTextareaRef.current;
+    const startOffset = textarea?.selectionStart ?? editText.length;
+    const endOffset = textarea?.selectionEnd ?? startOffset;
+    const nextText = `${editText.slice(0, startOffset)}[[${editText.slice(endOffset)}`;
+    const nextCursorOffset = startOffset + 2;
+    pendingCursorOffset.current = nextCursorOffset;
+    setEditCursorOffset(nextCursorOffset);
+    onEditTextChange(nextText);
   }
 
   return (
@@ -60,15 +120,87 @@ export function MessageEditForm({
         ref={editTextareaRef}
         value={editText}
         rows={1}
-        onChange={(event) => onEditTextChange(event.target.value)}
+        onChange={(event) => {
+          onEditTextChange(event.target.value);
+          updateEditCursorOffset(event.target);
+        }}
+        onClick={(event) => updateEditCursorOffset(event.currentTarget)}
+        onFocus={(event) => updateEditCursorOffset(event.currentTarget)}
+        onBlur={() => setEditCursorOffset(null)}
+        onSelect={(event) => updateEditCursorOffset(event.currentTarget)}
         onPaste={onEditImagePaste}
         onKeyDown={(event) => {
+          if (inlineLinkSuggestions.length > 0 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              setHighlightedInlineLinkSuggestionIndex((currentIndex) => (currentIndex + 1) % inlineLinkSuggestions.length);
+              return;
+            }
+
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              setHighlightedInlineLinkSuggestionIndex(
+                (currentIndex) => (currentIndex - 1 + inlineLinkSuggestions.length) % inlineLinkSuggestions.length
+              );
+              return;
+            }
+
+            if (event.key === 'Enter' || event.key === 'Tab') {
+              event.preventDefault();
+              completeHighlightedInlineLinkSuggestion();
+              return;
+            }
+
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setEditCursorOffset(null);
+              return;
+            }
+          }
+
           if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
             event.preventDefault();
             onSaveEdit(message);
           }
         }}
+        onKeyUp={(event) => {
+          if (event.key === 'Escape' || skipNextEditCursorUpdate.current) {
+            skipNextEditCursorUpdate.current = false;
+            return;
+          }
+          updateEditCursorOffset(event.currentTarget);
+        }}
       />
+      {inlineLinkSuggestions.length > 0 && (
+        <div className="inline-link-suggestions" role="listbox" aria-label="Conversation link suggestions">
+          {inlineLinkSuggestions.map((suggestion, index) => (
+            <button
+              key={suggestion.conversationId}
+              className={index === highlightedInlineLinkSuggestionIndex ? 'inline-link-suggestion active' : 'inline-link-suggestion'}
+              type="button"
+              role="option"
+              aria-selected={index === highlightedInlineLinkSuggestionIndex}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setHighlightedInlineLinkSuggestionIndex(index)}
+              onClick={() => completeInlineLinkSuggestion(suggestion.title)}
+            >
+              {suggestion.title}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="message-edit-tools">
+        <button
+          className="icon-button"
+          type="button"
+          title="Insert [["
+          aria-label="Insert [["
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={insertInlineLinkMarker}
+        >
+          <span className="inline-link-marker-icon">[[</span>
+        </button>
+      </div>
       <div className="message-edit-schedule">
         <CalendarClock size={16} />
         <input

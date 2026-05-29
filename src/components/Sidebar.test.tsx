@@ -61,11 +61,14 @@ function renderSidebar(overrides: Partial<ComponentProps<typeof Sidebar>> = {}) 
     tagResults: [],
     renamingId: null,
     renameDraft: '',
+    isExportingAllConversations: false,
+    allConversationsExportError: null,
     onSearchTermChange: vi.fn(),
     onToggleTag: vi.fn(),
     onClearTags: vi.fn(),
     onOpenTagResult: vi.fn(),
     onOpenCalendar: vi.fn(),
+    onExportAllConversations: vi.fn(),
     onCreateConversation: vi.fn(),
     onSelectConversation: vi.fn(),
     onStartRename: vi.fn(),
@@ -81,6 +84,27 @@ function renderSidebar(overrides: Partial<ComponentProps<typeof Sidebar>> = {}) 
 }
 
 describe('Sidebar', () => {
+  it('exports all conversations from the app header', () => {
+    const props = renderSidebar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByTitle('Export all conversations'));
+
+    expect(props.onExportAllConversations).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables all-conversation export while pending and shows errors', () => {
+    const props = renderSidebar({
+      isExportingAllConversations: true,
+      allConversationsExportError: 'Unable to export conversations.'
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.getByTitle('Export all conversations')).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to export conversations.');
+    expect(props.onExportAllConversations).not.toHaveBeenCalled();
+  });
+
   it('shows global tag results and opens the selected block', () => {
     const conversations = [conversation('first', 'First'), conversation('second', 'Second')];
     const props = renderSidebar({

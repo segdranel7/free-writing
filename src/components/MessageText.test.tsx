@@ -85,4 +85,14 @@ describe('MessageText', () => {
     expect(screen.queryByRole('heading', { name: 'Plan' })).not.toBeInTheDocument();
     expect(screen.getByText('# Plan')).toBeInTheDocument();
   });
+
+  it('renders long text fully without expand controls in information-only mode', () => {
+    renderMessageText('Line one\nLine two\nLine three\nHidden fourth line', {
+      isInformationMode: true
+    });
+
+    expect(screen.getByText(/Hidden fourth line/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Collapse text block' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Expand text block' })).not.toBeInTheDocument();
+  });
 });

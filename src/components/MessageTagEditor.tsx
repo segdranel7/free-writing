@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Plus, Tag, X } from 'lucide-react';
 import type { Message } from '../types';
 import {
@@ -14,9 +14,16 @@ type MessageTagEditorProps = {
   isSelectionMode: boolean;
   tagSuggestions: TagSummary[];
   onUpdateTags: (message: Message, tags: string[]) => void | Promise<void>;
+  trailingControl?: ReactNode;
 };
 
-export function MessageTagEditor({ message, isSelectionMode, tagSuggestions, onUpdateTags }: MessageTagEditorProps) {
+export function MessageTagEditor({
+  message,
+  isSelectionMode,
+  tagSuggestions,
+  onUpdateTags,
+  trailingControl
+}: MessageTagEditorProps) {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
   const [highlightedSuggestionIndex, setHighlightedSuggestionIndex] = useState(0);
@@ -171,6 +178,7 @@ export function MessageTagEditor({ message, isSelectionMode, tagSuggestions, onU
             )}
           </>
         )}
+        {trailingControl}
       </div>
       {tagError && (
         <p className="tag-error" role="alert">

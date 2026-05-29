@@ -1,8 +1,8 @@
 # Current Implementation
 
-Last updated: 2026-05-26
+Last updated: 2026-05-29
 
-Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [QA checklist](../qa-v1-verification.md).
+Related docs: [documentation overview](../README.md), [design principles](../product/design-principles.md), [product brief](../product/v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [QA checklist](../qa-v1-verification.md).
 
 ## Current implementation snapshot
 
@@ -11,7 +11,7 @@ The current app state is a working Firebase-backed React PWA named `Free Writing
 Implemented:
 
 - Vite + React frontend.
-- Focused Vitest coverage for app transfer navigation, forward/move transfer decision helpers, transfer word-selection helpers, conversation service writes including inline wiki-link rename rewrites, sidebar drag reordering, message service writes, block connection/backlink helpers and UI, inline conversation-link parsing/typeahead/rendering, Markdown message rendering, long text block expand/collapse rendering, inline image attachments and paste handling, loaded-message search, tag normalization/filtering and inline tag suggestions, composer keyboard conversion and direct-send behavior, composer date action expansion and submission, inline editing, text/rich block copy feedback and fallbacks, Markdown text-block download helpers, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch including retargeted delayed-click suppression after touch double-tap entry, English conversion UI/service/helper behavior, conversation index synthesis service/UI/Worker behavior, and the shared forward/move modal.
+- Focused Vitest coverage for app transfer navigation, information-only mode persistence and block-level normal-controls override, forward/move transfer decision helpers, transfer word-selection helpers, conversation service writes including inline wiki-link rename rewrites, sidebar drag reordering, message service writes, block connection/backlink helpers and UI, inline conversation-link parsing/typeahead/rendering, Markdown message rendering, long text block expand/collapse rendering, inline image attachments and paste handling, loaded-message search, tag normalization/filtering and inline tag suggestions, composer keyboard conversion and direct-send behavior, composer date action expansion and submission, inline editing, text/rich block copy feedback and fallbacks, Markdown text-block download helpers, app-based conversation export service/helpers/buttons, reorder controls, desktop and touch drag-handle reorder behavior including body-scroll protection, gap drop zones, insertion markers, and edge autoscroll, multi-block merge selection on desktop and touch including retargeted delayed-click suppression after touch double-tap entry, English conversion UI/service/helper behavior, conversation index synthesis service/UI/Worker behavior, and the shared forward/move modal.
 - React code organized into small components, subscription/shared UI hooks, Firebase services, and utility helpers.
 - Firebase Authentication with Google provider.
 - Firebase configuration guard that shows a setup notice when `.env` is missing or still contains placeholder values.
@@ -19,7 +19,7 @@ Implemented:
 - Firestore security rules scoped to the signed-in user's UID.
 - Conversation create, rename, open, delete, and drag-handle reorder with floating preview, insertion marker, gap-tolerant drops, and edge autoscroll.
 - Conversation list rows show conversation title and updated time only; they intentionally do not render stored message previews.
-- Message create, compact display of long text blocks with icon-only expand/collapse, edit, copy-to-clipboard for text-only, text/image, and image-only blocks, Markdown `.md` download for text-bearing blocks, delete, copy/forward to another conversation with clickable source-conversation metadata, move whole blocks to another conversation with a post-move open-target notice, partial text copying from the forward transfer dialog, structured conversation links, quote citations, saved block-to-block connections with derived backlinks, inline `[[Conversation title]]` links with composer suggestions, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, selected-block merge, and synthesized clickable conversation index blocks.
+- Message create, compact display of long text blocks with icon-only expand/collapse, information-only conversation view with a single block-level normal-controls override, edit, copy-to-clipboard for text-only, text/image, and image-only blocks, Markdown `.md` download for text-bearing blocks, delete, copy/forward to another conversation with clickable source-conversation metadata, move whole blocks to another conversation with a post-move open-target notice, partial text copying from the forward transfer dialog, structured conversation links, quote citations, saved block-to-block connections with derived backlinks, inline `[[Conversation title]]` links with composer and inline-edit suggestions plus visible `[[` insert buttons, search, manual up/down reorder, drag-handle reorder on desktop and touch/pointer devices with message-list edge autoscroll, selected-block merge, and synthesized clickable conversation index blocks.
 - Optimistic composer sends for text/reference/date-only blocks. `App.tsx` reserves a Firestore message ID, appends a local pending block immediately, clears the composer, writes with that same ID, and removes the pending copy when the listener returns the confirmed document. If the write fails, the pending block is removed and the draft is restored.
 - Optional block date/time scheduling with a top-level global Calendar screen. Dated blocks from all loaded conversations appear in Today, This week, and This month views; calendar items open and highlight the source block.
 - Small image attachments on new and edited blocks. Images can be selected, pasted into the composer, pasted through a touch-friendly clipboard action where the browser permits it, or pasted while editing an existing block.
@@ -27,19 +27,26 @@ Implemented:
 - English conversion for saved messages and composer draft text. It segments source text, presents three English options per segment, assembles the selected options, sends that selected English through a second AI organization pass that can add Markdown structure, and then creates a new message below a saved source, replaces a saved source, or sends selected draft English text directly as a new message.
 - Conversation index synthesis for the active conversation. The header action sends all visible blocks in one contextual AI request, appends a new bottom index block, and renders each generated entry as a clickable row that jumps to its source block.
 - Message transfer support distinguishes copied/forwarded messages from moved messages with `transferType` and stores `forwardedFromConversationTitle` for copied-block origin display.
+- Conversation visualization supports saved `list` and `kanban` views. Kanban uses custom per-conversation columns, one optional column assignment per block, column-local card ordering, a one-column-at-a-time mobile layout, and touch-friendly card/column shortcut controls. The block column selector lives beside the tag chips, hides the native dropdown arrow, shows `∅` while unassigned, and shows the selected column name when assigned.
 - Composer `Ctrl+Enter` / `Cmd+Enter` opens draft English conversion, `Ctrl+Shift+Enter` / `Cmd+Shift+Enter` sends the current draft directly, and plain `Enter` inserts a newline. Inline message edits use `Ctrl+Enter` / `Cmd+Enter` to save.
 - Responsive phone/desktop layout.
 - Conversation pane layout is constrained to the viewport; only the message list scrolls, keeping the conversation header, merge toolbar, and composer visible in long conversations. Entering a conversation bottom-aligns the latest visible block, and newly appended visible blocks scroll into the bottom position.
 - Dark visual theme across sign-in, sidebar, conversation pane, composer, message bubbles, modal, and hover states.
+- Header hierarchy now follows the design principles: the conversation header keeps title, view switching on wider screens, information-only mode, and More visible; export and synthesis live in More. The app header keeps Calendar visible and moves export-all and sign-out to More.
+- Composer actions now follow a capture-first hierarchy: phone layouts keep Date, image attach, inline-link insertion, composer More, and Send in one action row while secondary tools move into More; wider layouts keep all composer tools visible with Send remaining the primary action.
+- Saved block actions now keep common actions visible in a compact toolbar while normal list reorder controls and Delete live in block More. Delete is styled as a destructive menu item.
 - PWA manifest and generated service worker.
 - Browser/PWA theme colors are aligned to the dark app shell color.
 - Firestore persistent local cache is enabled for cached data and offline writes.
+- Information-only view mode is stored as a browser-local `localStorage` preference under `free-writing:information-mode`; it is intentionally not synchronized through Firestore.
+- Conversation visualization view is stored in Firestore per conversation so List/Kanban selection syncs across devices.
 - Conversation order and message order are persisted with numeric `sortOrder` values and sync across devices. New blocks move the receiving conversation to the top by assigning a top `sortOrder`; manual reorder remains stable until a later new block arrives in a conversation.
 - Search runs across messages loaded by Firestore subscriptions; the current hook subscribes to every conversation's messages after the conversation list loads.
 - Calendar browsing runs across the same loaded message set as global search and tag browsing; it does not require a separate Firestore query or external index for v1.
 - Cloudflare Worker backend proxy for hosted English conversion, selected-English Markdown organization, and conversation index synthesis.
 - Local Vite development middleware for `/api/to-english`, `/api/format-english`, and `/api/synthesize-index` so Codespaces/Vite testing works without Firebase Hosting rewrites.
 - Repeatable non-deploying security-check workflow in `docs/ai-maintenance/security-check.md`, exposed through `npm run security:check`.
+- App-based export buttons for the active conversation and all conversations. They read through the signed-in user's normal Firebase client permissions and download JSON plus Markdown files for prompt, agent, and flow experiments.
 
 Known development follow-ups:
 
@@ -74,6 +81,7 @@ Current visual system:
 - The UI uses a dark base (`#101719`) with dark panel surfaces and bright teal action accents.
 - `:root` declares `color-scheme: dark` so native form controls and browser defaults align with the app theme.
 - Shared button styling lives in `src/styles.css`: use `.icon-button` for icon-only controls, including the mobile back button, `.composer-date-button` for the composer's labeled date action, and `.primary-button` or `.new-conversation` for primary text+icon actions. The composer date width is centralized with `--composer-date-button-width` so desktop and mobile sizing stay aligned. These shared styles center direct SVG children and prevent icon sizing/alignment drift when new lucide icons are added.
+- Header overflow styling lives in `src/styles.css` and is rendered by `src/components/HeaderOverflowMenu.tsx`. Prefer this menu for rare header actions instead of adding more peer icon buttons.
 - Keep theme changes coordinated with `index.html` `theme-color` and `vite.config.ts` manifest `theme_color` / `background_color`.
 
 Firebase is configured through a local `.env` file using Vite environment variables:
@@ -107,6 +115,13 @@ Current setup behavior:
 - `src/components/SignInScreen.tsx` disables Google sign-in and shows a setup notice instead of letting Firebase initialization fail.
 - Service functions call `requireAuth()` or `requireDb()` so accidental use without real Firebase config produces a clear error.
 
+App export behavior:
+
+- `src/services/exports.ts` performs read-only Firestore client reads under `users/{userId}/conversations` and nested `messages`.
+- Active-conversation export fetches the selected conversation fresh from Firestore; all-conversations export fetches every conversation and its messages.
+- `src/utils/conversationExport.ts` builds portable JSON bundles and Markdown companions, serializes Firestore timestamp-like values, preserves inline image data URLs in JSON, and redacts inline base64 payloads from Markdown.
+- Export actions download files in the browser and do not write to Firestore. Pending optimistic blocks are excluded until confirmed by Firestore.
+
 ## Current frontend code organization
 
 The current React implementation is organized by responsibility so future changes can be made in smaller, safer areas:
@@ -119,10 +134,10 @@ src/components/SignInScreen.tsx
   Logged-out Firebase sign-in screen.
 
 src/components/Sidebar.tsx
-  Search, conversation list, create, rename, delete, drag reorder, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context.
+  Search, conversation list, create, rename, delete, drag reorder, and navigation UI. Normal conversation rows show title and updated time; search results still show matching message text for context. The app header keeps Calendar as the visible navigation action and places export-all plus sign-out in a shared header overflow menu.
 
 src/components/ConversationPane.tsx
-  Active conversation view and orchestration for selected-message state, copy/download/edit/transfer/reorder/drag-and-drop/merge flows, English conversion hook wiring, index synthesis, insertion marker state, reference picker open mode, bottom-aligned latest-block scrolling on conversation entry/new block append, and inline edit/image-paste state. Backlink grouping is delegated to `src/utils/messageReferences.ts`.
+  Active conversation view and orchestration for information-only mode display, saved List/Kanban visualization switching, custom Kanban column controls, the currently exposed single-block normal-controls override, selected-message state, copy/download/edit/transfer/reorder/drag-and-drop/merge flows, English conversion hook wiring, index synthesis, insertion marker state, reference picker open mode, bottom-aligned latest-block scrolling on conversation entry/new block append, and inline edit/image-paste state. Its header keeps view switching visible on wider screens, keeps information-only mode visible everywhere, and moves export/synthesis plus mobile view switching into the shared header overflow menu. Backlink grouping is delegated to `src/utils/messageReferences.ts`.
 
 src/components/CalendarPane.tsx
   Global dated-block calendar. Owns Today/This week/This month view selection, groups loaded blocks by local date, and opens source messages through the same navigation/highlight path as references.
@@ -137,25 +152,25 @@ src/components/MessageDragPreview.tsx
   Floating dragged-message preview rendering used by message drag reordering.
 
 src/components/MessageBubble.tsx
-  Per-message rendering and local action wiring. Owns message metadata display including scheduled date/time, client-only `Sending...` pending state, clickable copied-origin conversation names, inert image attachment previews, synthesized index rows, copy feedback label, reorder buttons and drag handle, connect/download/transfer/delete/English action buttons, and drag/pointer event binding passed down from `ConversationPane`. Pending blocks hide normal block actions until confirmed. Text rendering, connection cards/backlinks, inline edit form markup, and block tag rendering/editing are delegated to smaller message components.
+  Per-message rendering and local action wiring. Owns message metadata display including scheduled date/time, client-only `Sending...` pending state, clickable copied-origin conversation names, inert image attachment previews, synthesized index rows, copy feedback label, information-only `Show normal controls` / `Return block to view mode` toggles, compact visible block actions, block More actions for normal list reorder/delete, Kanban column assignment/move shortcuts, connect/download/transfer/English action buttons, and drag/pointer event binding passed down from `ConversationPane`. Pending blocks hide normal block actions until confirmed. Text rendering, connection cards/backlinks, inline edit form markup, and block tag rendering/editing are delegated to smaller message components.
 
 src/components/MessageConnections.tsx
   Per-message structured reference and backlink rendering. Owns outbound reference cards, collapsed/expanded backlink rows, reference icons, and navigation target construction for cards while receiving loaded backlink data from `ConversationPane`.
 
 src/components/MessageText.tsx
-  Message body text rendering. Owns lightweight safe Markdown rendering for headings, paragraphs, ordered/unordered lists, blockquotes, and line breaks; inline conversation-link rendering; reference-range highlighting; and compact long-text previews. Blocks over three source lines or the wrapped-paragraph character threshold render a preview with an icon-only expand/collapse button; reference-target navigation auto-expands the source block so highlighted quote ranges are visible and uses the plain text path while highlighting. Marker parsing stays delegated to `src/utils/inlineConversationLinks.ts`.
+  Message body text rendering. Owns lightweight safe Markdown rendering for headings, paragraphs, ordered/unordered lists, blockquotes, and line breaks; inline conversation-link rendering; reference-range highlighting; compact long-text previews; and full long-text rendering in information-only mode. Blocks over three source lines or the wrapped-paragraph character threshold render a preview with an icon-only expand/collapse button unless the block is in information-only mode; reference-target navigation auto-expands the source block so highlighted quote ranges are visible and uses the plain text path while highlighting. Marker parsing stays delegated to `src/utils/inlineConversationLinks.ts`.
 
 src/components/MessageEditForm.tsx
-  Inline message edit form rendering. Owns the edit textarea, scheduled date/time input, existing/new image previews, editable reference cards, save/cancel controls, and edit-form keyboard behavior while receiving all edit state and callbacks from `MessageBubble`.
+  Inline message edit form rendering. Owns the edit textarea, inline conversation-link typeahead, visible `[[` insert action, scheduled date/time input, existing/new image previews, editable reference cards, save/cancel controls, and edit-form keyboard behavior while receiving all edit state and callbacks from `MessageBubble`.
 
 src/components/MessageTagEditor.tsx
-  Per-message tag chip and inline tag editor rendering. Owns tag editor open/draft/highlight/saving/error state, suggestion keyboard handling, add/remove actions, and calls back to `ConversationPane` through `MessageBubble` for persistence. Pure tag normalization, dedupe, add/remove, and suggestion filtering stay in `src/utils/tags.ts`.
+  Per-message tag chip and inline tag editor rendering. Owns tag editor open/draft/highlight/saving/error state, suggestion keyboard handling, add/remove actions, and calls back to `ConversationPane` through `MessageBubble` for persistence. It can receive a compact trailing control, currently used for the Kanban column selector beside the tag chips. Pure tag normalization, dedupe, add/remove, and suggestion filtering stay in `src/utils/tags.ts`.
 
 src/components/MessageComposer.tsx
-  Draft composer rendering, pending reference chips, inline conversation-link typeahead, labeled `Date` action, scheduled date/time input, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, visible send action, a synchronous submit guard for rapid clicks/shortcuts, `[[` suggestion list with click and keyboard completion, date action `aria-expanded` / `aria-controls` wiring, `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`, and `Ctrl+Shift+Enter` / `Cmd+Shift+Enter` direct-send shortcut through the same submit path as the Send button.
+  Draft composer rendering, pending reference chips, inline conversation-link typeahead, visible `[[` insert action, labeled `Date` action, scheduled date/time input, image selection/paste previews, and keyboard behavior. Owns the composer form markup, draft textarea, primary and secondary draft action groups, visible send action, a synchronous submit guard for rapid clicks/shortcuts, `[[` suggestion list with click and keyboard completion, date action `aria-expanded` / `aria-controls` wiring, `Ctrl+Enter` / `Cmd+Enter` draft English conversion shortcut passed down from `ConversationPane`, and `Ctrl+Shift+Enter` / `Cmd+Shift+Enter` direct-send shortcut through the same submit path as the Send button.
 
 src/components/EnglishPickerModal.tsx
-  English conversion dialog rendering. Receives picker state and callbacks from `useEnglishConversionPicker` through `ConversationPane`, renders loading/error/ready/formatting/saving states, a scrollable English-only segment option list, and saved-message or draft-specific actions. It intentionally does not render source-language segment text or a separate assembled preview so large conversions keep the English options readable.
+  English conversion dialog rendering. Receives picker state and callbacks from `useEnglishConversionPicker` through `ConversationPane`, renders saved-message source word selection, loading/error/ready/formatting/saving states, a scrollable English-only segment option list, and saved-message or draft-specific actions. Saved-message selection reuses `useWordRangeSelection` so tap/click toggles and pointer-drag select/unselect work like forwarding and quote selection. The ready state intentionally does not render source-language segment text or a separate assembled preview so large conversions keep the English options readable.
 
 src/components/ForwardModal.tsx
   Transfer dialog used when forwarding or moving a message. Forwarding starts with a source text selection step that renders selectable word tokens, supports tap toggling plus pointer drag select/unselect on mouse/touch/pen, and advances to a separate target conversation step without rendering a separate selected-text preview. Moving skips text selection and opens directly on target conversation selection for whole-block moves. The modal excludes the source conversation, returns selected text ranges or per-message selections for forwarding, owns a synchronous single-flight target-selection guard, disables target buttons while the transfer is pending, and shows inline transfer errors while delegating shared click/drag word-selection gestures to `src/hooks/useWordRangeSelection.ts` and pure selected-count/payload construction to `src/utils/transferSelection.ts`.
@@ -176,11 +191,12 @@ src/hooks/useImagePreviews.ts
   Shared object-URL image preview lifecycle for composer and inline edit image files.
 
 src/hooks/useEnglishConversionPicker.ts
-  English conversion picker state machine for saved-message and draft conversion. Owns loading/ready/error/formatting/saving states, segment option selection, selected English assembly, second-pass English organization before persistence, draft image/reference preservation, and the callback that clears sent draft image previews.
+  English conversion picker state machine for saved-message and draft conversion. Owns saved-message selecting/loading/ready/error/formatting/saving states, selected source ranges and before/after context request construction, segment option selection, selected English assembly, second-pass English organization before persistence, partial source-range replacement, draft image/reference preservation, and the callback that clears sent draft image previews.
 
 src/services/
   Firebase auth, conversation, message, image preparation, search, translation, and synthesis request operations.
   `messages.ts` keeps Firestore message write payload construction in small local helpers so create, client-reserved-ID create, transfer, merge, image attachment, English-result, and synthesized-index writes share the same field defaults. `reserveMessageId` and `createMessageWithId` support optimistic composer sends without storing pending-only fields in Firestore.
+  Kanban placement writes live here too: conversations normalize duplicate Kanban column IDs out of subscription data, new blocks can receive an optional column/order, saved blocks can update or clear `kanbanColumnId`, and column-local reorders rewrite `kanbanSortOrder` in a batch.
   `storage.ts` is named for historical upload intent but currently performs free-plan client-side image compression and inline attachment construction; it does not call Firebase Storage.
   `synthesis.ts` posts the active conversation title and all visible blocks to the AI proxy, validates one returned index entry per source block, normalizes empty/image-only blocks to fallback descriptions, and formats the plain-text fallback/search body for persisted index messages.
 
@@ -194,13 +210,16 @@ functions/src/index.ts
   Legacy Firebase Function version of the translation proxy. Firebase Functions require the Blaze plan and are not used by the default free hosted deployment.
 
 src/utils/
-  Shared formatting, calendar grouping, clipboard, reference, error, ordering, image-file, tag, and small pure text helpers. `calendar.ts` owns local date/time parsing, date ranges, scheduled-block filtering, and day grouping. `inlineConversationLinks.ts` owns `[[Conversation title]]` parsing, active composer draft detection, suggestion filtering, completion, and title-marker rewrites during conversation rename. `messageReferences.ts` owns structured reference creation, duplicate detection, navigation targets, block previews, and derived backlink grouping. `messageClipboard.ts` owns block copy formatting and rich/plain clipboard fallbacks. `tags.ts` owns tag normalization, tag selection toggles, tag editor add/remove/suggestion filtering, tag summaries, and loaded-message tag result derivation. `englishConversion.ts` assembles selected English conversion segment options into the text passed to the second AI organization step, preserving optional segment separators so lists, headings, lines, and paragraphs are not flattened before formatting. `textSelection.ts` tokenizes transfer/source text into word and whitespace tokens, normalizes selected ranges, assembles selected parts, and removes selected ranges from source text for the service-level partial-move helper. `transferActions.ts` centralizes the forward/move transfer decision logic for single-message, selected-text, and multi-message transfers so `App.tsx` can stay focused on UI orchestration. `transferSelection.ts` keeps the transfer dialog's pure word-range updates, selected range counts, and per-message transfer payload construction testable outside React. `messageOrder.ts` computes behavior-preserving reorder arrays for message up/down controls, conversation drag targets, and message before/after insertion positions. `dropTargets.ts` resolves pointer positions to before/after drop slots from measured item rectangles. `imageFiles.ts` centralizes clipboard image extraction, preview IDs, and clipboard image filename extensions.
+  Shared formatting, calendar grouping, clipboard, reference, error, ordering, image-file, tag, and small pure text helpers. `calendar.ts` owns local date/time parsing, date ranges, scheduled-block filtering, and day grouping. `inlineConversationLinks.ts` owns `[[Conversation title]]` parsing, active textarea draft detection, suggestion filtering, completion, and title-marker rewrites during conversation rename. `messageReferences.ts` owns structured reference creation, duplicate detection, navigation targets, block previews, and derived backlink grouping. `messageClipboard.ts` owns block copy formatting and rich/plain clipboard fallbacks. `tags.ts` owns tag normalization, tag selection toggles, tag editor add/remove/suggestion filtering, tag summaries, and loaded-message tag result derivation. `englishConversion.ts` assembles selected English conversion segment options into the text passed to the second AI organization step, preserving optional segment separators so lists, headings, lines, and paragraphs are not flattened before formatting. `textSelection.ts` tokenizes transfer/source text into word and whitespace tokens, normalizes selected ranges, assembles selected parts, removes selected ranges from source text for the service-level partial-move helper, and replaces selected ranges for partial saved-message English replacement. `transferActions.ts` centralizes the forward/move transfer decision logic for single-message, selected-text, and multi-message transfers so `App.tsx` can stay focused on UI orchestration. `transferSelection.ts` keeps the transfer dialog's pure word-range updates, selected range counts, and per-message transfer payload construction testable outside React. `messageOrder.ts` computes behavior-preserving reorder arrays for message up/down controls, conversation drag targets, and message before/after insertion positions. `dropTargets.ts` resolves pointer positions to before/after drop slots from measured item rectangles. `imageFiles.ts` centralizes clipboard image extraction, preview IDs, and clipboard image filename extensions.
 
 src/styles.css
   Global dark theme, responsive layout, viewport-constrained conversation pane, component surfaces, input states, shared button/icon alignment, message bubbles, drag reorder states, modal styling, English picker styling, and hover states.
 
 index.html + vite.config.ts
   Browser theme color, generated PWA manifest colors, and local `/api/to-english`, `/api/format-english`, plus `/api/synthesize-index` development middleware. Theme colors currently match the dark app shell so installed/mobile surfaces do not flash the old light theme.
+
+src/services/exports.ts + src/utils/conversationExport.ts
+  App-based export tooling. The service reads conversations and nested messages through Firebase client permissions; the utility serializes Firestore values into portable JSON, preserves attachment payloads in JSON, sorts messages by app display order, redacts inline data URLs from Markdown, and triggers browser downloads.
 ```
 
 Development impact:
@@ -306,7 +325,7 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 ### Message editing
 
 - `src/App.tsx` tracks only which `Message` is currently being edited; it no longer copies edit text into the composer draft.
-- `src/components/MessageEditForm.tsx` renders the active edit as an inline textarea inside the message bubble with `Save` and `Cancel` actions. `src/components/MessageBubble.tsx` supplies the current edit state and callbacks.
+- `src/components/MessageEditForm.tsx` renders the active edit as an inline textarea inside the message bubble with `Save` and `Cancel` actions. It also supports inline conversation-link suggestions and a visible `[[` insert button while editing. `src/components/MessageBubble.tsx` supplies the current edit state, loaded conversations, and callbacks.
 - The inline edit textarea auto-expands to its content height with `useLayoutEffect`, so the full message remains visible while editing without an internal scrollbar.
 - The bottom composer remains available for creating new messages while a message is being edited.
 - Pasting copied images into the inline edit textarea adds removable previews inside the edit form. Saving appends the prepared image attachments to the existing block; existing attachments remain visible while editing.
@@ -337,6 +356,17 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 - Native desktop drag state is kept independent from touch/pen pointer state so browser pointer-cancel events during desktop drag do not clear the active desktop drop target.
 - Dropping a message asks `App.tsx` to move the dragged message before or after the resolved target message.
 - `src/services/messages.ts` persists the final visible order by rewriting numeric `sortOrder` values in a Firestore batch.
+
+### Kanban visualization
+
+- `Conversation.visualizationView` stores whether a conversation opens in List or Kanban. Missing values default to List.
+- `Conversation.kanbanColumns` stores custom column metadata inline on the conversation document. There are no default columns; an empty Kanban conversation shows a setup state until the user adds a column.
+- `src/services/conversations.ts` normalizes column arrays and removes repeated column IDs from subscription data, which prevents duplicate React keys if a local optimistic column add and a Firestore listener update overlap.
+- `Message.kanbanColumnId` and `Message.kanbanSortOrder` store one optional column assignment and column-local order per block. Unassigned blocks stay visible in list view and are hidden from Kanban.
+- `MessageBubble` renders Kanban assignment through `MessageTagEditor`'s trailing control so the selector appears in the top tag row. The empty state is the symbol `∅`; assigned cards display the selected column name. `src/styles.css` removes the native select arrow so the whole compact control reads as the tappable button area.
+- Kanban uses the same saved block actions as list view where practical. Card movement is button-based for small/touch devices: up/down within a column and previous/next column shortcuts.
+- On mobile, Kanban shows one active column at a time with previous/next controls and a column picker. Desktop renders horizontally scrollable columns.
+- Creating a new block from the composer while Kanban view is open assigns it to the active column. Creating columns does not migrate existing blocks automatically.
 
 ### Reorder conversations
 
@@ -378,8 +408,9 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 ### Inline conversation links
 
 - Message text can include `[[Conversation title]]` markers. The markers stay in stored `text` and `searchText`, but `src/components/MessageText.tsx` renders unique matches as inline clickable title chips without showing the `[[` / `]]` markers.
-- `src/components/MessageComposer.tsx` detects an active unfinished `[[` fragment at the textarea cursor, shows unique conversation-title suggestions, filters them case-insensitively as the user types, and completes the highlighted suggestion with click, `Enter`, or `Tab`. `ArrowUp` / `ArrowDown` move the highlight and `Escape` dismisses suggestions.
-- `src/utils/inlineConversationLinks.ts` keeps parsing, active-draft detection, suggestion filtering, completion, and title-rewrite behavior pure and covered by focused tests.
+- `src/components/MessageComposer.tsx` and `src/components/MessageEditForm.tsx` detect an active unfinished `[[` fragment at the textarea cursor, show unique conversation-title suggestions, filter them case-insensitively as the user types, and complete the highlighted suggestion with click, `Enter`, or `Tab`. `ArrowUp` / `ArrowDown` move the highlight and `Escape` dismisses suggestions.
+- Both the composer and inline edit form expose an `Insert [[` icon button. The button inserts the marker at the current cursor or replaces the selected text, restores focus to the textarea, and opens the same suggestion list. This keeps inline links usable on devices where typing `[[` is awkward.
+- `src/utils/inlineConversationLinks.ts` keeps parsing, active textarea draft detection, suggestion filtering, completion, and title-rewrite behavior pure and covered by focused tests.
 - Inline links are title-based and schema-free. Missing or duplicate conversation titles render as plain text and are omitted from suggestions.
 - `src/services/conversations.ts` accepts the previous title during rename and rewrites matching `[[Old title]]` markers across the user's saved message text to `[[New title]]`, updating `searchText` and `updatedAt`. Structured reference title snapshots are not rewritten.
 
@@ -396,17 +427,17 @@ Local hosting on an idle machine is not the primary Version 1 deployment target.
 
 ### English conversion
 
-- `src/services/translation.ts` posts `{ text }` to `VITE_TRANSLATION_API_URL` or `/api/to-english` for selectable English segment options, and posts the selected English text to `/api/format-english` derived from the same Worker URL or same-origin path for the organization pass.
+- `src/services/translation.ts` posts `{ text }` or `{ text, contextBefore, contextAfter }` to `VITE_TRANSLATION_API_URL` or `/api/to-english` for selectable English segment options, and posts the selected English text plus the selected segment strings to `/api/format-english` derived from the same Worker URL or same-origin path for the organization pass.
 - The request includes the current Firebase ID token in the `Authorization` header.
-- `src/hooks/useEnglishConversionPicker.ts` owns the English picker state and save orchestration. It opens conversion for saved messages or draft text, snapshots composer image files for draft conversion, tracks loading/error/ready/formatting/creating/replacing/draft-send states, assembles the selected English options, calls the second organization endpoint, and routes the organized result back to message creation/editing callbacks.
+- `src/hooks/useEnglishConversionPicker.ts` owns the English picker state and save orchestration. It opens saved messages in a source-selection state, converts the whole block when no source words are selected, or converts selected source chunks with before/after context when words are selected. It also opens draft text directly into conversion, snapshots composer image files for draft conversion, tracks loading/error/ready/formatting/creating/replacing/draft-send states, assembles the selected English options, calls the second organization endpoint, and routes the organized result back to message creation/editing callbacks.
 - `src/components/ConversationPane.tsx` wires the English conversion hook into saved-message actions, composer draft conversion, pending references, and the modal.
-- `src/components/EnglishPickerModal.tsx` renders the English conversion dialog from hook state. It does not call translation or Firestore directly, and it keeps the ready state focused on the scrollable segment option list rather than rendering a separate selected-text preview.
-- `src/utils/englishConversion.ts` assembles the selected English options before the second organization pass. Each AI segment returns exactly three options, the first option is selected by default, and optional `separatorAfter` metadata preserves spaces, line breaks, or paragraph breaks between selected segments.
-- Saved-message conversion can create a new organized English Markdown block below the source or replace the source message by calling the normal edit flow. Draft conversion sends the organized English Markdown text directly as a new message with current composer image attachments and pending references, then clears the composer draft, references, and image previews through the normal create-message path plus composer preview cleanup.
+- `src/components/EnglishPickerModal.tsx` renders the English conversion dialog from hook state. It does not call translation or Firestore directly. Saved-message conversion starts with a full-message selectable word-token panel using the same tap/click/drag selection behavior as transfers and quote references; the ready state then focuses on the scrollable segment option list rather than rendering a separate selected-text preview.
+- `src/utils/englishConversion.ts` assembles the selected English options before the second organization pass and exposes the exact selected segment strings for preservation checks. Each AI segment returns exactly three options, the first option is selected by default, and optional `separatorAfter` metadata preserves spaces, line breaks, or paragraph breaks between selected segments.
+- Saved-message conversion can create a new organized English Markdown block below the source or replace the source message by calling the normal edit flow. Whole-block replacement replaces the whole message text; partial replacement uses `replaceTextRanges` to swap only the selected source chunks with the organized English result while leaving surrounding text intact. Draft conversion sends the organized English Markdown text directly as a new message with current composer image attachments and pending references, then clears the composer draft, references, and image previews through the normal create-message path plus composer preview cleanup.
 - `src/services/messages.ts` has `createMessageAfter`, which inserts the English result directly below the source message by choosing a midpoint `sortOrder` when possible or rebalancing order when no numeric gap exists.
 - English conversion is online-only. Created and replaced English blocks persist like normal messages and then participate in Firestore cache/sync behavior.
 - Hosted production uses `workers/translation/index.ts`, Firebase ID-token verification through Google Identity Toolkit, and Cloudflare Worker secrets for `GROQ_API_KEY` and `FIREBASE_API_KEY`. Local Vite dev uses equivalent middleware in `vite.config.ts` with `GROQ_API_KEY` from ignored `.env`, verifies ID-token JWT signatures against Google's Firebase public certificates, and requires the token audience/issuer to match `VITE_FIREBASE_PROJECT_ID`.
-- Translation prompts in the Worker and Vite middleware ask the model to prefer sentence-level or line-level segments, with one segment per complete sentence, list item, heading, quote, or short standalone line. English formatting prompts ask the model to keep meaning intact while arranging the selected English text into readable Markdown without adding new facts or filler.
+- Translation prompts in the Worker and Vite middleware ask the model to process only the selected text, use optional surrounding context only for meaning/tone/references/pronouns/continuity, and prefer sentence-level or line-level segments, with one segment per complete sentence, list item, heading, quote, or short standalone line. English formatting prompts treat selected English segments as immutable source text: the organization pass may add headings, lists, line breaks, and concise organizational text around the segments, but every selected segment must appear verbatim in the returned Markdown. The Worker and local Vite middleware reject formatting responses that remove any selected segment.
 
 ### Offline behavior
 

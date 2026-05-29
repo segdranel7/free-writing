@@ -7,8 +7,25 @@ import {
   useState,
   type ClipboardEvent
 } from 'react';
-import { ArrowLeft, Map as MapIcon, MoreVertical, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Eye,
+  EyeOff,
+  LayoutGrid,
+  List,
+  Map as MapIcon,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Trash2,
+  X
+} from 'lucide-react';
 import { EnglishPickerModal } from './EnglishPickerModal';
+import { HeaderOverflowMenu } from './HeaderOverflowMenu';
 import { MessageDragPreview } from './MessageDragPreview';
 import { MessageComposer } from './MessageComposer';
 import { MessageBubble, type CopyFeedbackStatus } from './MessageBubble';
@@ -17,8 +34,17 @@ import { SelectionToolbar } from './SelectionToolbar';
 import { useEnglishConversionPicker } from '../hooks/useEnglishConversionPicker';
 import { useImagePreviews } from '../hooks/useImagePreviews';
 import { useListReorderDrag } from '../hooks/useListReorderDrag';
-import type { Conversation, EnglishConversion, Message, MessageReference } from '../types';
+import type {
+  Conversation,
+  ConversationVisualizationView,
+  EnglishConversion,
+  EnglishConversionRequest,
+  KanbanColumn,
+  Message,
+  MessageReference
+} from '../types';
 import type { DropPosition } from '../utils/dropTargets';
+import { getKanbanColumnMessages } from '../utils/kanban';
 import { getImageFilesFromClipboardData } from '../utils/imageFiles';
 import { downloadMessageAsMarkdown } from '../utils/messageDownload';
 import { copyMessageToClipboard } from '../utils/messageClipboard';
@@ -39,9 +65,14 @@ type ConversationPaneProps = {
   selectedTags: string[];
   messagesByConversation: Record<string, Message[]>;
   navigationTarget: MessageReferenceNavigationTarget | null;
+  isInformationMode: boolean;
   moveNotice: { targetConversationId: string; targetConversationTitle: string } | null;
   draft: string;
   editingMessage: Message | null;
+  isExportingConversation: boolean;
+  conversationExportError: string | null;
+  onToggleInformationMode: () => void;
+  onExportConversation: () => void;
   onOpenMoveNotice: () => void;
   onDismissMoveNotice: () => void;
   onBack: () => void;
@@ -52,7 +83,8 @@ type ConversationPaneProps = {
     textOverride?: string,
     imageFiles?: File[],
     references?: MessageReference[],
-    scheduledAt?: Date | null
+    scheduledAt?: Date | null,
+    kanbanColumnId?: string | null
   ) => void | Promise<void>;
   onCancelEdit: () => void;
   onEditMessage: (message: Message) => void;
@@ -75,12 +107,19 @@ type ConversationPaneProps = {
   onReorderMessage: (draggedMessageId: string, targetMessageId: string, position: DropPosition) => void;
   onMergeMessages: (messages: Message[]) => Promise<void>;
   onSynthesizeIndex: (messages: Message[], conversationTitle: string) => Promise<void>;
-  onConvertToEnglish: (text: string) => Promise<EnglishConversion>;
-  onFormatEnglishText: (text: string) => Promise<string>;
+  onConvertToEnglish: (request: string | EnglishConversionRequest) => Promise<EnglishConversion>;
+  onFormatEnglishText: (text: string, selectedSegments?: string[]) => Promise<string>;
   onCreateEnglishBlock: (message: Message, text: string) => Promise<void>;
   onReplaceWithEnglish: (message: Message, text: string) => Promise<void>;
   onUpdateMessageTags: (message: Message, tags: string[]) => void | Promise<void>;
   onUpdateMessageReferences: (message: Message, references: MessageReference[]) => void | Promise<void>;
+  onSetVisualizationView: (view: ConversationVisualizationView) => void | Promise<void>;
+  onAddKanbanColumn: (title: string) => Promise<KanbanColumn | null>;
+  onRenameKanbanColumn: (columnId: string, title: string) => void | Promise<void>;
+  onReorderKanbanColumn: (columnId: string, direction: -1 | 1) => void | Promise<void>;
+  onDeleteKanbanColumn: (columnId: string) => void | Promise<void>;
+  onAssignKanbanColumn: (message: Message, columnId: string | null) => void | Promise<void>;
+  onMoveKanbanMessage: (message: Message, columnId: string, direction: -1 | 1) => void | Promise<void>;
 };
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1600;
@@ -108,9 +147,14 @@ export function ConversationPane({
   selectedTags,
   messagesByConversation,
   navigationTarget,
+  isInformationMode,
   moveNotice,
   draft,
   editingMessage,
+  isExportingConversation,
+  conversationExportError,
+  onToggleInformationMode,
+  onExportConversation,
   onOpenMoveNotice,
   onDismissMoveNotice,
   onBack,
@@ -138,7 +182,14 @@ export function ConversationPane({
   onCreateEnglishBlock,
   onReplaceWithEnglish,
   onUpdateMessageTags,
-  onUpdateMessageReferences
+  onUpdateMessageReferences,
+  onSetVisualizationView,
+  onAddKanbanColumn,
+  onRenameKanbanColumn,
+  onReorderKanbanColumn,
+  onDeleteKanbanColumn,
+  onAssignKanbanColumn,
+  onMoveKanbanMessage
 }: ConversationPaneProps) {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const [clearComposerImagePreviewsSignal, setClearComposerImagePreviewsSignal] = useState(0);
@@ -148,6 +199,7 @@ export function ConversationPane({
   const [referencePickerMode, setReferencePickerMode] = useState<ReferencePickerMode | null>(null);
   const [connectionSourceMessage, setConnectionSourceMessage] = useState<Message | null>(null);
   const [activeReferenceTarget, setActiveReferenceTarget] = useState<MessageReferenceNavigationTarget | null>(null);
+  const [normalModeMessageId, setNormalModeMessageId] = useState<string | null>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [isSynthesizingIndex, setIsSynthesizingIndex] = useState(false);
   const [isApplyingSelectedAction, setIsApplyingSelectedAction] = useState(false);
@@ -157,6 +209,7 @@ export function ConversationPane({
   const [editReferences, setEditReferences] = useState<MessageReference[]>([]);
   const [editScheduledAt, setEditScheduledAt] = useState<Date | null>(null);
   const [draftScheduledAt, setDraftScheduledAt] = useState<Date | null>(null);
+  const [activeKanbanColumnId, setActiveKanbanColumnId] = useState<string | null>(null);
   const {
     imagePreviews: editImagePreviews,
     getImageFiles: getEditImageFiles,
@@ -176,10 +229,15 @@ export function ConversationPane({
     lastVisibleMessageId: string | null;
   } | null>(null);
   const isTagFilterActive = selectedTags.length > 0;
+  const visualizationView = activeConversation?.visualizationView ?? 'list';
+  const kanbanColumns = activeConversation?.kanbanColumns ?? [];
+  const isKanbanView = visualizationView === 'kanban';
   const visibleMessages = useMemo(
     () => (isTagFilterActive ? activeMessages.filter((message) => messageMatchesAnyTag(message, selectedTags)) : activeMessages),
     [activeMessages, isTagFilterActive, selectedTags]
   );
+  const activeKanbanColumn =
+    kanbanColumns.find((column) => column.id === activeKanbanColumnId) ?? kanbanColumns[0] ?? null;
   const {
     draggedItemId: draggedMessageId,
     dropTarget: messageDropTarget,
@@ -208,6 +266,7 @@ export function ConversationPane({
     closePicker: closeEnglishPicker,
     openMessagePicker: openMessageEnglishPicker,
     openDraftPicker: openDraftEnglishPicker,
+    convertMessageSelection: convertEnglishMessageSelection,
     updateSelection: updateEnglishSelection,
     saveResult: saveEnglishResult
   } = useEnglishConversionPicker({
@@ -275,7 +334,35 @@ export function ConversationPane({
     setSynthesisError(null);
     setConnectionSourceMessage(null);
     setReferencePickerMode(null);
+    setActiveKanbanColumnId(null);
   }, [activeConversation?.id]);
+
+  useEffect(() => {
+    if (kanbanColumns.length === 0) {
+      setActiveKanbanColumnId(null);
+      return;
+    }
+    if (activeKanbanColumnId && kanbanColumns.some((column) => column.id === activeKanbanColumnId)) return;
+    setActiveKanbanColumnId(kanbanColumns[0].id);
+  }, [activeKanbanColumnId, kanbanColumns]);
+
+  useEffect(() => {
+    if (!isInformationMode) return;
+    setIsMergeSelectionMode(false);
+    setSelectedMessageIds([]);
+    setMergeError(null);
+  }, [isInformationMode]);
+
+  useEffect(() => {
+    if (isInformationMode) return;
+    setNormalModeMessageId(null);
+  }, [isInformationMode]);
+
+  useEffect(() => {
+    if (!normalModeMessageId) return;
+    if (visibleMessages.some((message) => message.id === normalModeMessageId)) return;
+    setNormalModeMessageId(null);
+  }, [normalModeMessageId, visibleMessages]);
 
   useEffect(() => {
     setEditText(editingMessage?.text ?? '');
@@ -416,6 +503,10 @@ export function ConversationPane({
     setMergeError(null);
   }
 
+  function toggleNormalModeMessage(messageId: string) {
+    setNormalModeMessageId((currentMessageId) => (currentMessageId === messageId ? null : messageId));
+  }
+
   async function mergeSelectedMessages() {
     if (selectedMessages.length < 2) return;
     setIsMerging(true);
@@ -519,6 +610,7 @@ export function ConversationPane({
   async function submitComposerMessage(imageFiles: File[], scheduledAt: Date | null) {
     const referencesToSubmit = pendingReferences;
     const scheduledAtToSubmit = scheduledAt;
+    const kanbanColumnIdToSubmit = isKanbanView ? activeKanbanColumn?.id ?? null : null;
 
     if (imageFiles.length === 0) {
       setPendingReferences([]);
@@ -526,7 +618,11 @@ export function ConversationPane({
     }
 
     try {
-      await onSubmitMessage(undefined, imageFiles, referencesToSubmit, scheduledAtToSubmit);
+      if (kanbanColumnIdToSubmit) {
+        await onSubmitMessage(undefined, imageFiles, referencesToSubmit, scheduledAtToSubmit, kanbanColumnIdToSubmit);
+      } else {
+        await onSubmitMessage(undefined, imageFiles, referencesToSubmit, scheduledAtToSubmit);
+      }
       if (imageFiles.length > 0) {
         setPendingReferences([]);
         setDraftScheduledAt(null);
@@ -595,6 +691,278 @@ export function ConversationPane({
     }
   }
 
+  async function createKanbanColumnFromPrompt() {
+    const title = window.prompt('Column name');
+    if (!title?.trim()) return;
+    const column = await onAddKanbanColumn(title);
+    if (column) setActiveKanbanColumnId(column.id);
+  }
+
+  function renameKanbanColumnFromPrompt(column: KanbanColumn) {
+    const title = window.prompt('Column name', column.title);
+    if (!title?.trim() || title.trim() === column.title) return;
+    void onRenameKanbanColumn(column.id, title);
+  }
+
+  function deleteKanbanColumnWithConfirmation(column: KanbanColumn) {
+    if (!window.confirm(`Delete "${column.title}"? Blocks in this column will return to list view only.`)) return;
+    void onDeleteKanbanColumn(column.id);
+  }
+
+  function renderMessageBubble(
+    message: Message,
+    messageIndex: number,
+    messageCount: number,
+    options: { currentKanbanColumnId?: string | null; disableDrag?: boolean } = {}
+  ) {
+    const isDragDisabled = options.disableDrag ?? false;
+    return (
+      <MessageBubble
+        message={message}
+        conversations={conversations}
+        messageIndex={messageIndex}
+        messageCount={messageCount}
+        isReorderDisabled={isTagFilterActive || isDragDisabled}
+        kanbanColumns={kanbanColumns}
+        currentKanbanColumnId={options.currentKanbanColumnId ?? null}
+        isSelectionMode={isMergeSelectionMode}
+        isInformationMode={isInformationMode}
+        isNormalModeOverride={normalModeMessageId === message.id}
+        isSelected={selectedMessageIds.includes(message.id)}
+        isDragging={!isDragDisabled && draggedMessageId === message.id}
+        isDragOver={false}
+        isEditing={editingMessage?.id === message.id}
+        editText={editText}
+        editReferences={editReferences}
+        editScheduledAt={editScheduledAt}
+        editImagePreviews={editImagePreviews}
+        activeReferenceTarget={activeReferenceTarget}
+        isSavingEdit={isSavingEdit}
+        editTextareaRef={editTextareaRef}
+        copyFeedbackStatus={copyFeedback?.messageId === message.id ? copyFeedback.status : null}
+        sourceConversationTitle={
+          message.forwardedFromConversationTitle ?? getConversationTitle(message.forwardedFromConversationId)
+        }
+        backlinks={backlinksByMessageKey[getMessageReferenceKey(message.conversationId, message.id)] ?? []}
+        onSelect={toggleMessageSelection}
+        onStartSelection={startMergeSelection}
+        onToggleNormalModeOverride={toggleNormalModeMessage}
+        onNavigateToReference={onNavigateToReference}
+        onNavigateToConversation={(conversationId) => onNavigateToReference({ conversationId })}
+        canNavigateToReference={canNavigateToReference}
+        onNavigateToMessage={(messageId) =>
+          onNavigateToReference({ conversationId: message.conversationId, messageId })
+        }
+        canNavigateToMessage={canNavigateToMessage}
+        onCancelEdit={onCancelEdit}
+        onEditTextChange={setEditText}
+        onEditScheduledAtChange={setEditScheduledAt}
+        onRemoveEditReference={(referenceId) =>
+          setEditReferences((current) => current.filter((reference) => reference.id !== referenceId))
+        }
+        onEditImagePaste={handleEditImagePaste}
+        onRemoveEditImage={removeEditImage}
+        onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
+        onEditMessage={onEditMessage}
+        onCopyMessage={(messageToCopy) => void copyMessageText(messageToCopy)}
+        onDownloadMessage={downloadMessageText}
+        onConnectMessage={openConnectionPicker}
+        onConvertToEnglish={(messageToConvert) => void openMessageEnglishPicker(messageToConvert)}
+        onForwardMessage={onForwardMessage}
+        onMoveToConversation={onMoveToConversation}
+        onDeleteMessage={onDeleteMessage}
+        onMoveMessage={onMoveMessage}
+        onAssignKanbanColumn={(messageToAssign, columnId) => void onAssignKanbanColumn(messageToAssign, columnId)}
+        onMoveKanbanMessage={(messageToMove, columnId, direction) =>
+          void onMoveKanbanMessage(messageToMove, columnId, direction)
+        }
+        onDragStart={isDragDisabled ? () => undefined : handleMessageDragStart}
+        onDragOver={isDragDisabled ? () => undefined : handleMessageDragOver}
+        onDragLeave={isDragDisabled ? () => undefined : handleMessageDragLeave}
+        onDrop={isDragDisabled ? () => undefined : handleMessageDrop}
+        onDragEnd={isDragDisabled ? () => undefined : handleMessageDragEnd}
+        onPointerDown={isDragDisabled ? () => undefined : handleMessagePointerDown}
+        onPointerMove={isDragDisabled ? () => undefined : handleMessagePointerMove}
+        onPointerUp={isDragDisabled ? () => undefined : handleMessagePointerUp}
+        onPointerCancel={isDragDisabled ? () => undefined : handleMessagePointerCancel}
+        onUpdateTags={onUpdateMessageTags}
+        tagSuggestions={tagSuggestions}
+      />
+    );
+  }
+
+  function renderKanbanBoard() {
+    if (kanbanColumns.length === 0) {
+      return (
+        <div className="kanban-empty">
+          <LayoutGrid size={26} />
+          <p>No Kanban columns yet.</p>
+          <button className="primary-button" type="button" onClick={() => void createKanbanColumnFromPrompt()}>
+            <Plus size={17} />
+            Add column
+          </button>
+        </div>
+      );
+    }
+
+    const activeColumn = activeKanbanColumn ?? kanbanColumns[0];
+    const activeColumnIndex = kanbanColumns.findIndex((column) => column.id === activeColumn.id);
+    const desktopColumns = kanbanColumns.map((column) => ({
+      column,
+      messages: getKanbanColumnMessages(visibleMessages, column.id)
+    }));
+    const mobileMessages = getKanbanColumnMessages(visibleMessages, activeColumn.id);
+
+    return (
+      <div className="kanban-view" ref={messagesRef}>
+        <div className="kanban-toolbar">
+          <div className="kanban-column-tabs" aria-label="Kanban columns">
+            {kanbanColumns.map((column) => (
+              <button
+                key={column.id}
+                className={column.id === activeColumn.id ? 'kanban-tab active' : 'kanban-tab'}
+                type="button"
+                aria-pressed={column.id === activeColumn.id}
+                onClick={() => setActiveKanbanColumnId(column.id)}
+              >
+                {column.title}
+              </button>
+            ))}
+          </div>
+          <button className="icon-button" type="button" title="Add Kanban column" onClick={() => void createKanbanColumnFromPrompt()}>
+            <Plus size={18} />
+          </button>
+        </div>
+
+        <div className="kanban-mobile-column">
+          <div className="kanban-mobile-header">
+            <button
+              className="icon-button"
+              type="button"
+              title="Previous column"
+              disabled={activeColumnIndex <= 0}
+              onClick={() => setActiveKanbanColumnId(kanbanColumns[activeColumnIndex - 1]?.id ?? activeColumn.id)}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <select
+              aria-label="Active Kanban column"
+              value={activeColumn.id}
+              onChange={(event) => setActiveKanbanColumnId(event.target.value)}
+            >
+              {kanbanColumns.map((column) => (
+                <option key={column.id} value={column.id}>
+                  {column.title}
+                </option>
+              ))}
+            </select>
+            <button
+              className="icon-button"
+              type="button"
+              title="Next column"
+              disabled={activeColumnIndex >= kanbanColumns.length - 1}
+              onClick={() => setActiveKanbanColumnId(kanbanColumns[activeColumnIndex + 1]?.id ?? activeColumn.id)}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+          <div className="kanban-column-actions">
+            <button className="icon-button bare" type="button" title="Rename column" onClick={() => renameKanbanColumnFromPrompt(activeColumn)}>
+              <Pencil size={16} />
+            </button>
+            <button
+              className="icon-button bare"
+              type="button"
+              title="Move column left"
+              disabled={activeColumnIndex <= 0}
+              onClick={() => void onReorderKanbanColumn(activeColumn.id, -1)}
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <button
+              className="icon-button bare"
+              type="button"
+              title="Move column right"
+              disabled={activeColumnIndex >= kanbanColumns.length - 1}
+              onClick={() => void onReorderKanbanColumn(activeColumn.id, 1)}
+            >
+              <ArrowRight size={16} />
+            </button>
+            <button className="icon-button bare" type="button" title="Delete column" onClick={() => deleteKanbanColumnWithConfirmation(activeColumn)}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+          <div className="kanban-column-scroll">
+            {mobileMessages.map((message, index) => (
+              <Fragment key={message.id}>
+                {renderMessageBubble(message, index, mobileMessages.length, {
+                  currentKanbanColumnId: activeColumn.id,
+                  disableDrag: true
+                })}
+              </Fragment>
+            ))}
+            {mobileMessages.length === 0 && <p className="empty-state">No blocks in this column.</p>}
+          </div>
+        </div>
+
+        <div className="kanban-board-scroll">
+          <div className="kanban-board">
+            {desktopColumns.map(({ column, messages }) => {
+              const columnIndex = kanbanColumns.findIndex((item) => item.id === column.id);
+              return (
+                <section className="kanban-column" key={column.id}>
+                  <header className="kanban-column-header">
+                    <div>
+                      <h3>{column.title}</h3>
+                      <span>{messages.length}</span>
+                    </div>
+                    <div className="kanban-column-actions">
+                      <button className="icon-button bare" type="button" title="Rename column" onClick={() => renameKanbanColumnFromPrompt(column)}>
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        className="icon-button bare"
+                        type="button"
+                        title="Move column left"
+                        disabled={columnIndex <= 0}
+                        onClick={() => void onReorderKanbanColumn(column.id, -1)}
+                      >
+                        <ArrowLeft size={16} />
+                      </button>
+                      <button
+                        className="icon-button bare"
+                        type="button"
+                        title="Move column right"
+                        disabled={columnIndex >= kanbanColumns.length - 1}
+                        onClick={() => void onReorderKanbanColumn(column.id, 1)}
+                      >
+                        <ArrowRight size={16} />
+                      </button>
+                      <button className="icon-button bare" type="button" title="Delete column" onClick={() => deleteKanbanColumnWithConfirmation(column)}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </header>
+                  <div className="kanban-column-cards">
+                    {messages.map((message, index) => (
+                      <Fragment key={message.id}>
+                        {renderMessageBubble(message, index, messages.length, {
+                          currentKanbanColumnId: column.id,
+                          disableDrag: true
+                        })}
+                      </Fragment>
+                    ))}
+                    {messages.length === 0 && <p className="empty-state">No blocks in this column.</p>}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function handleEditImagePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
     const imageFiles = getImageFilesFromClipboardData(event.clipboardData);
     if (imageFiles.length === 0) return;
@@ -617,6 +985,36 @@ export function ConversationPane({
       onDelete={() => void deleteSelectedMessages()}
     />
   ) : null;
+  const headerStatus = synthesisError ?? conversationExportError ?? (isSynthesizingIndex ? 'Synthesizing conversation index...' : null) ?? (isExportingConversation ? 'Exporting conversation...' : null);
+  const headerStatusIsError = Boolean(synthesisError || conversationExportError);
+  const headerOverflowItems = [
+    {
+      label: 'List view',
+      icon: <List size={17} />,
+      active: !isKanbanView,
+      pressed: !isKanbanView,
+      onClick: () => void onSetVisualizationView('list')
+    },
+    {
+      label: 'Kanban view',
+      icon: <LayoutGrid size={17} />,
+      active: isKanbanView,
+      pressed: isKanbanView,
+      onClick: () => void onSetVisualizationView('kanban')
+    },
+    {
+      label: 'Export conversation',
+      icon: <Download size={17} />,
+      disabled: isExportingConversation,
+      onClick: onExportConversation
+    },
+    {
+      label: 'Synthesize conversation index',
+      icon: <MapIcon size={17} />,
+      disabled: activeMessages.length === 0 || isSynthesizingIndex,
+      onClick: () => void synthesizeConversationIndex()
+    }
+  ];
 
   return (
     <section className={`conversation-pane ${activeConversation ? 'open' : ''}`}>
@@ -626,24 +1024,48 @@ export function ConversationPane({
             <button className="icon-button back-button" title="Back" onClick={onBack}>
               <ArrowLeft size={20} />
             </button>
-            <div>
+            <div className="header-title-block">
               <h2>{activeConversation.title}</h2>
-              {(isSynthesizingIndex || synthesisError) && (
-                <p className={synthesisError ? 'conversation-status error' : 'conversation-status'} role={synthesisError ? 'alert' : 'status'}>
-                  {synthesisError ?? 'Synthesizing conversation index...'}
+              {headerStatus && (
+                <p className={headerStatusIsError ? 'conversation-status error' : 'conversation-status'} role={headerStatusIsError ? 'alert' : 'status'}>
+                  {headerStatus}
                 </p>
               )}
             </div>
             <div className="conversation-header-actions">
+              <div className="conversation-view-switcher" aria-label="Conversation view">
+                <button
+                  className={!isKanbanView ? 'icon-button active' : 'icon-button'}
+                  type="button"
+                  title="List view"
+                  aria-label="List view"
+                  aria-pressed={!isKanbanView}
+                  onClick={() => void onSetVisualizationView('list')}
+                >
+                  <List size={18} />
+                </button>
+                <button
+                  className={isKanbanView ? 'icon-button active' : 'icon-button'}
+                  type="button"
+                  title="Kanban view"
+                  aria-label="Kanban view"
+                  aria-pressed={isKanbanView}
+                  onClick={() => void onSetVisualizationView('kanban')}
+                >
+                  <LayoutGrid size={18} />
+                </button>
+              </div>
               <button
-                className="icon-button"
+                className={isInformationMode ? 'icon-button active' : 'icon-button'}
                 type="button"
-                title="Synthesize conversation index"
-                disabled={activeMessages.length === 0 || isSynthesizingIndex}
-                onClick={() => void synthesizeConversationIndex()}
+                title="Information-only mode"
+                aria-label="Information-only mode"
+                aria-pressed={isInformationMode}
+                onClick={onToggleInformationMode}
               >
-                <MapIcon size={18} />
+                {isInformationMode ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
+              <HeaderOverflowMenu items={headerOverflowItems} />
             </div>
           </header>
 
@@ -669,89 +1091,32 @@ export function ConversationPane({
             </div>
           )}
 
-          <div
-            className="messages"
-            ref={messagesRef}
-            onDragOver={handleMessagesDragOver}
-            onDrop={handleMessagesDrop}
-          >
-            {visibleMessages.map((message, messageIndex) => (
-              <Fragment key={message.id}>
-                {messageDropTarget?.itemId === message.id && messageDropTarget.position === 'before' && (
-                  <div className="message-drop-indicator" aria-hidden="true" />
-                )}
-                <MessageBubble
-                  message={message}
-                  conversations={conversations}
-                  messageIndex={messageIndex}
-                  messageCount={activeMessages.length}
-                  isReorderDisabled={isTagFilterActive}
-                  isSelectionMode={isMergeSelectionMode}
-                  isSelected={selectedMessageIds.includes(message.id)}
-                  isDragging={draggedMessageId === message.id}
-                  isDragOver={false}
-                  isEditing={editingMessage?.id === message.id}
-                  editText={editText}
-                  editReferences={editReferences}
-                  editScheduledAt={editScheduledAt}
-                  editImagePreviews={editImagePreviews}
-                  activeReferenceTarget={activeReferenceTarget}
-                  isSavingEdit={isSavingEdit}
-                  editTextareaRef={editTextareaRef}
-                  copyFeedbackStatus={copyFeedback?.messageId === message.id ? copyFeedback.status : null}
-                  sourceConversationTitle={
-                    message.forwardedFromConversationTitle ?? getConversationTitle(message.forwardedFromConversationId)
-                  }
-                  backlinks={backlinksByMessageKey[getMessageReferenceKey(message.conversationId, message.id)] ?? []}
-                  onSelect={toggleMessageSelection}
-                  onStartSelection={startMergeSelection}
-                  onNavigateToReference={onNavigateToReference}
-                  onNavigateToConversation={(conversationId) => onNavigateToReference({ conversationId })}
-                  canNavigateToReference={canNavigateToReference}
-                  onNavigateToMessage={(messageId) =>
-                    onNavigateToReference({ conversationId: message.conversationId, messageId })
-                  }
-                  canNavigateToMessage={canNavigateToMessage}
-                  onCancelEdit={onCancelEdit}
-                  onEditTextChange={setEditText}
-                  onEditScheduledAtChange={setEditScheduledAt}
-                  onRemoveEditReference={(referenceId) =>
-                    setEditReferences((current) => current.filter((reference) => reference.id !== referenceId))
-                  }
-                  onEditImagePaste={handleEditImagePaste}
-                  onRemoveEditImage={removeEditImage}
-                  onSaveEdit={(messageToSave) => void saveInlineEdit(messageToSave)}
-                  onEditMessage={onEditMessage}
-                  onCopyMessage={(messageToCopy) => void copyMessageText(messageToCopy)}
-                  onDownloadMessage={downloadMessageText}
-                  onConnectMessage={openConnectionPicker}
-                  onConvertToEnglish={(messageToConvert) => void openMessageEnglishPicker(messageToConvert)}
-                  onForwardMessage={onForwardMessage}
-                  onMoveToConversation={onMoveToConversation}
-                  onDeleteMessage={onDeleteMessage}
-                  onMoveMessage={onMoveMessage}
-                  onDragStart={handleMessageDragStart}
-                  onDragOver={handleMessageDragOver}
-                  onDragLeave={handleMessageDragLeave}
-                  onDrop={handleMessageDrop}
-                  onDragEnd={handleMessageDragEnd}
-                  onPointerDown={handleMessagePointerDown}
-                  onPointerMove={handleMessagePointerMove}
-                  onPointerUp={handleMessagePointerUp}
-                  onPointerCancel={handleMessagePointerCancel}
-                  onUpdateTags={onUpdateMessageTags}
-                  tagSuggestions={tagSuggestions}
-                />
-                {messageDropTarget?.itemId === message.id && messageDropTarget.position === 'after' && (
-                  <div className="message-drop-indicator" aria-hidden="true" />
-                )}
-              </Fragment>
-            ))}
-            {activeMessages.length === 0 && <p className="empty-state">Write the first message here.</p>}
-            {activeMessages.length > 0 && visibleMessages.length === 0 && (
-              <p className="empty-state">No blocks match those tags.</p>
-            )}
-          </div>
+          {isKanbanView ? (
+            renderKanbanBoard()
+          ) : (
+            <div
+              className="messages"
+              ref={messagesRef}
+              onDragOver={handleMessagesDragOver}
+              onDrop={handleMessagesDrop}
+            >
+              {visibleMessages.map((message, messageIndex) => (
+                <Fragment key={message.id}>
+                  {messageDropTarget?.itemId === message.id && messageDropTarget.position === 'before' && (
+                    <div className="message-drop-indicator" aria-hidden="true" />
+                  )}
+                  {renderMessageBubble(message, messageIndex, activeMessages.length)}
+                  {messageDropTarget?.itemId === message.id && messageDropTarget.position === 'after' && (
+                    <div className="message-drop-indicator" aria-hidden="true" />
+                  )}
+                </Fragment>
+              ))}
+              {activeMessages.length === 0 && <p className="empty-state">Write the first message here.</p>}
+              {activeMessages.length > 0 && visibleMessages.length === 0 && (
+                <p className="empty-state">No blocks match those tags.</p>
+              )}
+            </div>
+          )}
 
           {dragPreview && draggedMessage && (
             <MessageDragPreview
@@ -762,7 +1127,7 @@ export function ConversationPane({
             />
           )}
 
-          {selectionToolbar}
+          {!isInformationMode && selectionToolbar}
 
           {moveNotice && (
             <div className="move-notice" role="status">
@@ -776,7 +1141,7 @@ export function ConversationPane({
             </div>
           )}
 
-          {!isMergeSelectionMode && (
+          {!isMergeSelectionMode && !isInformationMode && (
             <MessageComposer
               draft={draft}
               conversations={conversations}
@@ -800,6 +1165,7 @@ export function ConversationPane({
               state={englishPicker}
               isSaving={englishPickerIsSaving}
               onClose={closeEnglishPicker}
+              onConvertSelection={convertEnglishMessageSelection}
               onSelectionChange={updateEnglishSelection}
               onSave={(action) => void saveEnglishResult(action)}
             />

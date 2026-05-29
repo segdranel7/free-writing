@@ -13,6 +13,12 @@ type DevEnglishSegment = {
   separatorAfter?: 'space' | 'line' | 'blankLine';
 };
 
+type DevEnglishConversionRequest = {
+  text: string;
+  contextBefore: string;
+  contextAfter: string;
+};
+
 type DevConversationIndexBlock = {
   id: string;
   position: number;
@@ -46,19 +52,35 @@ let firebaseCertCache: {
 
 const englishSegmentSeparators = new Set(['space', 'line', 'blankLine']);
 
-function buildEnglishPrompt(text: string) {
+function buildEnglishPrompt({ text, contextBefore, contextAfter }: DevEnglishConversionRequest) {
+  const contextInstructions = contextBefore || contextAfter
+    ? `
+Context:
+- Use the surrounding context only for meaning, tone, references, pronouns, continuity, and ambiguity.
+- Process only the selected text. Never translate, rewrite, segment, summarize, or include the surrounding context in the returned segments.
+
+Context before selected text:
+${contextBefore || '[None]'}
+
+Context after selected text:
+${contextAfter || '[None]'}
+`
+    : '';
+
   return `
 You are a translation editor. Convert the provided text to English.
 
 Task:
-1. Preserve Markdown-like structure from the original text, including bullet points, numbered lists, dashes, headings, line breaks, and paragraph breaks.
-2. Divide the text into sentence-level or line-level segments. Prefer one segment per complete sentence, list item, heading, quote, or short standalone line.
-3. Do not merge separate sentences, list items, headings, quotes, or lines into one segment.
-4. Split a very long or compound sentence when it contains multiple ideas.
-5. Preserve the original order and meaning across all segments.
-6. For each segment, provide exactly three distinct, natural English versions.
-7. If the original segment is a Markdown structure, keep that structure in every option, such as "- item", "1. item", "> quote", or "# Heading".
-8. Set separatorAfter to the spacing that should follow this segment before the next segment:
+1. Process only the selected text. If surrounding context is provided, use it only to understand meaning, tone, references, pronouns, and continuity.
+2. Never translate, rewrite, segment, summarize, or include surrounding context in the returned segments.
+3. Preserve Markdown-like structure from the selected text, including bullet points, numbered lists, dashes, headings, line breaks, and paragraph breaks.
+4. Divide the selected text into sentence-level or line-level segments. Prefer one segment per complete sentence, list item, heading, quote, or short standalone line.
+5. Do not merge separate sentences, list items, headings, quotes, or lines into one segment.
+6. Split a very long or compound sentence when it contains multiple ideas.
+7. Preserve the original order and meaning across all segments.
+8. For each segment, provide exactly three distinct, natural English versions.
+9. If the original segment is a Markdown structure, keep that structure in every option, such as "- item", "1. item", "> quote", or "# Heading".
+10. Set separatorAfter to the spacing that should follow this segment before the next segment:
    - "space" for normal sentence flow in the same paragraph.
    - "line" for a single line break, including between list items or standalone lines.
    - "blankLine" for a paragraph break.
@@ -74,29 +96,40 @@ Return ONLY valid JSON with this exact structure:
   ]
 }
 
-Text to process:
+${contextInstructions}
+Selected text to process:
 ${text}
 `.trim();
 }
 
-function buildEnglishFormattingPrompt(text: string) {
+function buildEnglishFormattingPrompt(text: string, selectedSegments: string[] = []) {
+  const selectedSegmentInstructions = selectedSegments.length > 0
+    ? `
+Selected English segments that must be preserved verbatim:
+${selectedSegments.map((segment, index) => `${index + 1}. ${segment}`).join('\n')}
+`
+    : '';
+
   return `
 You are an English writing editor. Organize the selected English text into a clear Markdown block before it is submitted.
 
 Task:
-1. Keep the user's meaning and wording as intact as possible.
-2. Arrange the selected English into a readable structure using Markdown when helpful.
-3. You may add concise Markdown elements such as "# Title", "## Subtitle", "- bullet", "1. numbered item", and "> quote" to organize the existing ideas.
-4. Preserve all facts, nuance, and ordering from the selected English text.
-5. Do not add new facts, conclusions, examples, calls to action, or decorative filler.
-6. Prefer readable paragraphs and lists over one flat paragraph.
-7. Do not wrap the result in a Markdown code fence.
+1. Treat every selected English segment as immutable source text.
+2. Never remove, rewrite, paraphrase, summarize, merge away, shorten, or correct any selected segment.
+3. Every selected segment must appear verbatim in the final Markdown text, exactly as written.
+4. Arrange the selected English segments into the best readable order and structure using Markdown when helpful.
+5. You may add concise organizational text and Markdown elements such as "# Title", "## Subtitle", "- bullet", "1. numbered item", and "> quote" around the selected segments.
+6. Preserve all facts, nuance, and ordering relationships from the selected English text.
+7. Do not add new facts, conclusions, examples, calls to action, or decorative filler.
+8. Prefer readable paragraphs and lists over one flat paragraph.
+9. Do not wrap the result in a Markdown code fence.
 
 Return ONLY valid JSON with this exact structure:
 {
   "text": "Final Markdown text"
 }
 
+${selectedSegmentInstructions}
 Selected English text:
 ${text}
 `.trim();
@@ -242,14 +275,45 @@ function parseGroqJson(content: string) {
   };
 }
 
-function parseFormattedEnglishJson(content: string) {
+function getSelectedSegments(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((segment) => (typeof segment === 'string' ? segment.trim() : '')).filter(Boolean)
+    : [];
+}
+
+function countOccurrences(text: string, segment: string) {
+  let count = 0;
+  let index = text.indexOf(segment);
+  while (index !== -1) {
+    count += 1;
+    index = text.indexOf(segment, index + segment.length);
+  }
+  return count;
+}
+
+function assertPreservesSelectedSegments(text: string, selectedSegments: string[]) {
+  const requiredCounts = new Map<string, number>();
+  selectedSegments.forEach((segment) => {
+    requiredCounts.set(segment, (requiredCounts.get(segment) ?? 0) + 1);
+  });
+
+  for (const [segment, requiredCount] of requiredCounts) {
+    if (countOccurrences(text, segment) < requiredCount) {
+      throw new Error('Groq removed selected English text during formatting.');
+    }
+  }
+}
+
+function parseFormattedEnglishJson(content: string, selectedSegments: string[] = []) {
   const parsed = JSON.parse(content) as unknown;
   const text = parsed && typeof parsed === 'object' ? (parsed as { text?: unknown }).text : null;
   if (typeof text !== 'string' || text.trim().length === 0) {
     throw new Error('Groq returned no usable formatted English text.');
   }
 
-  return { text: text.trim() };
+  const formattedText = text.trim();
+  assertPreservesSelectedSegments(formattedText, selectedSegments);
+  return { text: formattedText };
 }
 
 function parseConversationIndexJson(content: string, blocks: DevConversationIndexBlock[]) {
@@ -331,6 +395,20 @@ function parseSynthesisBody(body: unknown) {
   return { conversationTitle, blocks };
 }
 
+function parseEnglishConversionBody(body: unknown): DevEnglishConversionRequest {
+  const candidate = body && typeof body === 'object' ? body as {
+    text?: unknown;
+    contextBefore?: unknown;
+    contextAfter?: unknown;
+  } : null;
+
+  return {
+    text: typeof candidate?.text === 'string' ? candidate.text.trim() : '',
+    contextBefore: typeof candidate?.contextBefore === 'string' ? candidate.contextBefore.trim() : '',
+    contextAfter: typeof candidate?.contextAfter === 'string' ? candidate.contextAfter.trim() : ''
+  };
+}
+
 function localEnglishApi(env: Record<string, string>): Plugin {
   return {
     name: 'local-english-api',
@@ -359,11 +437,9 @@ function localEnglishApi(env: Record<string, string>): Plugin {
 
         try {
           const body = await readJsonBody(request);
-          const text = body && typeof body === 'object' && typeof (body as { text?: unknown }).text === 'string'
-            ? (body as { text: string }).text.trim()
-            : '';
+          const englishRequest = parseEnglishConversionBody(body);
 
-          if (!text) {
+          if (!englishRequest.text) {
             sendJson(response, 400, { error: 'Text is required.' });
             return;
           }
@@ -376,7 +452,7 @@ function localEnglishApi(env: Record<string, string>): Plugin {
             },
             body: JSON.stringify({
               model: 'openai/gpt-oss-120b',
-              messages: [{ role: 'user', content: buildEnglishPrompt(text) }],
+              messages: [{ role: 'user', content: buildEnglishPrompt(englishRequest) }],
               temperature: 1,
               max_completion_tokens: 4096,
               top_p: 1,
@@ -436,6 +512,9 @@ function localEnglishApi(env: Record<string, string>): Plugin {
           const text = body && typeof body === 'object' && typeof (body as { text?: unknown }).text === 'string'
             ? (body as { text: string }).text.trim()
             : '';
+          const selectedSegments = body && typeof body === 'object'
+            ? getSelectedSegments((body as { selectedSegments?: unknown }).selectedSegments)
+            : [];
 
           if (!text) {
             sendJson(response, 400, { error: 'Text is required.' });
@@ -450,7 +529,7 @@ function localEnglishApi(env: Record<string, string>): Plugin {
             },
             body: JSON.stringify({
               model: 'openai/gpt-oss-120b',
-              messages: [{ role: 'user', content: buildEnglishFormattingPrompt(text) }],
+              messages: [{ role: 'user', content: buildEnglishFormattingPrompt(text, selectedSegments) }],
               temperature: 0.5,
               max_completion_tokens: 4096,
               top_p: 1,
@@ -476,7 +555,7 @@ function localEnglishApi(env: Record<string, string>): Plugin {
             return;
           }
 
-          sendJson(response, 200, parseFormattedEnglishJson(content));
+          sendJson(response, 200, parseFormattedEnglishJson(content, selectedSegments));
         } catch (error) {
           console.error('Local English formatting failed.', error);
           sendJson(response, 502, { error: 'Unable to organize this English text.' });

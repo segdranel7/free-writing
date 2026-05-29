@@ -1,8 +1,8 @@
 # First Build Prompt
 
-Last updated: 2026-05-26
+Last updated: 2026-05-29
 
-Related docs: [documentation overview](../README.md), [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md).
+Related docs: [documentation overview](../README.md), [design principles](../product/design-principles.md), [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md).
 
 ## 18. First build prompt for an AI coding tool
 
@@ -11,7 +11,7 @@ Use this prompt when asking an AI builder to create the first version:
 ```text
 Build a simple multi-device offline-capable PWA called "Free Writing".
 
-The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing, scheduling dated blocks on a calendar, tagging/filtering, searching, editing, deleting, merging, converting to English, synthesizing clickable conversation indexes, attaching small images, and copying or moving my own message blocks between private conversations.
+The app is for one private user. It should feel like a minimal WhatsApp-style app, but it is for writing, organizing blocks in List or Kanban views, scheduling dated blocks on a calendar, tagging/filtering, searching, editing, deleting, merging, converting to English, synthesizing clickable conversation indexes, attaching small images, and copying or moving my own message blocks between private conversations.
 
 Target devices:
 - iPhone 8
@@ -21,6 +21,7 @@ Target devices:
 Core requirements:
 - Mobile-first responsive design.
 - Simple layout that works well on small iPhone 8 screens.
+- Content-first action hierarchy: keep primary navigation and mode controls visible, and move rare header actions into a More menu instead of crowding the title.
 - Google/Gmail login using Firebase Authentication.
 - Cloud sync using Firestore.
 - Firestore offline persistence enabled.
@@ -49,6 +50,17 @@ Messages:
 - Repeated Send clicks or direct-send shortcuts while a send is pending should not create duplicate blocks.
 - Opening a conversation should position the latest visible block at the bottom of the message list, and sending/appending a new visible block should scroll that block to the bottom.
 - Long text blocks should show only a compact preview of roughly three lines until the user expands them with an icon-only control. The same control should collapse the block again.
+- The conversation header should provide an information-only mode for focusing on block content. In this mode, block text/images/tags/metadata/references/backlinks/inline links/index rows remain visible and navigable, long text renders fully, and normal creation/editing/management controls are hidden.
+- Information-only mode should persist as a browser-local preference, not account-synced Firestore data.
+- In information-only mode, each text-bearing saved block should expose a `Show normal controls` option that restores normal block controls only for that block without opening edit mode automatically. Only one block can show normal controls at a time; opening another closes the previous one, and the active block can return to view mode.
+- The conversation header should provide List and Kanban view controls on wider screens and in the header More menu on narrow screens. The selected List/Kanban view should persist per conversation in Firestore.
+- Kanban should use custom user-created columns only; do not create default columns automatically.
+- Existing blocks should remain unassigned until the user assigns them to a Kanban column. Unassigned blocks remain visible in List view and are hidden from Kanban.
+- Each block should have at most one Kanban column. When Kanban columns exist, the block's top tag row should expose a compact button-like column selector that shows `∅` for no selected column and the selected column name when assigned. Do not show a separate dropdown arrow; tapping the control area should open column selection.
+- New blocks sent from the composer while Kanban is open should be assigned to the active Kanban column.
+- Users should be able to add, rename, move left/right, and delete Kanban columns. Deleting a column should make its blocks unassigned, not delete them.
+- Desktop Kanban should show columns horizontally. Mobile Kanban should show one active column at a time with previous/next controls and a picker.
+- Kanban cards should keep touch-friendly shortcut controls for moving within the active column and to previous/next columns.
 - User can attach small images to messages by selecting image files or pasting copied images.
 - User can create image-only blocks.
 - Enter should insert a newline in the composer.
@@ -56,14 +68,17 @@ Messages:
 - Cmd+Enter should open draft English conversion on macOS and iPad hardware keyboards.
 - Ctrl+Shift+Enter should send the current draft directly on Windows/Linux.
 - Cmd+Shift+Enter should send the current draft directly on macOS and iPad hardware keyboards.
+- Typing `[[` in the composer or inline edit form should open unique conversation-title suggestions for inline conversation links. Both places should also expose a visible `[[` insert button for touch users.
 - User can edit messages inline inside the message block, without moving the text into the composer.
 - User can paste images while editing a message, preview them, and save them onto that block.
 - User can add, edit, clear, and view one scheduled date/time on a block.
+- On phone screens, keep the composer capture flow primary: Date, image attach, `[[` insertion, composer More, and Send stay in one action row, while paste image, structured reference, quote citation, and draft English conversion remain available in More. On wider screens, all composer tools may stay visible.
 - User can open a global Calendar screen from the sidebar and browse dated blocks from all loaded conversations in Today, This week, and This month views.
 - Today should use a time-sorted agenda list. This week should group blocks by day. This month should use a month grid on desktop and a date-grouped list on mobile.
 - Clicking a calendar item should open the source conversation and highlight the source block.
 - User can copy saved blocks to the system clipboard. Text-only blocks copy plain text; blocks with images use best-effort rich clipboard data containing text and attached images, with plain-text fallback when possible.
 - User can download a saved text-bearing block as a Markdown `.md` file containing the raw block text. The filename should include a sanitized conversation title, the block creation date, and the block ID.
+- User can export the active conversation from the conversation header More menu and export all conversations from the app header More menu. Each export should download a faithful JSON bundle plus a readable Markdown companion. JSON should preserve full conversation/message records including inline image data URLs; Markdown should omit inline base64 image payloads.
 - User can delete messages with confirmation.
 - User can add and remove tags/flags on message blocks. The tag editor should suggest previously created tags from loaded blocks as the user types, exclude tags already on the current block, and support click or Enter selection.
 - User can filter loaded blocks by tag globally and within the active conversation.
@@ -80,9 +95,9 @@ Messages:
 - Drag reordering should auto-scroll the visible message list when the user drags near the top or bottom edge so off-screen drop targets remain reachable.
 - User can select multiple text blocks inside a conversation and merge them into one unified block.
 - Block selection starts with a double-click on desktop or a double-tap on touch devices; after the first block is selected, single clicks/taps toggle other blocks.
-- User can convert a text block to English.
+- User can convert a whole text block or selected part of a text block to English.
 - User can convert draft composer text to English and send the selected English result directly.
-- User can synthesize a clickable conversation index from the active conversation header.
+- User can synthesize a clickable conversation index from the active conversation header More menu.
 - Index synthesis should send all visible blocks in display order in one contextual AI request, include previous index blocks, append the new index block to the bottom, and render each generated row as a link to its source block.
 - User can connect a saved block to any loaded saved block, including same-conversation blocks and self-links, as either a whole-block connection or selected quote-fragment connections.
 - Quote-fragment connection selection should use the same click and drag word-selection behavior as the forward transfer dialog, including separate non-adjacent fragments.
@@ -93,9 +108,11 @@ Messages:
 - Merging creates one normal replacement message from the selected blocks in display order and removes the selected originals.
 - Merging preserves selected image attachments in display order.
 - Whole-block copy/move preserves scheduled date/time. Partial text forwards create target blocks from the selected text. Merging keeps the earliest scheduled date/time from the selected blocks.
-- English conversion breaks the source text into sentence-level segments and offers three selectable English versions for each segment.
-- After the user chooses segment options, send the selected English through a second AI pass that organizes it into a readable Markdown block before saving or sending.
-- For saved messages, English conversion can create the organized English Markdown result as a new message below the original or replace the source block with the organized result.
+- Saved-message English conversion starts with a source text selection step. If no words are selected it converts the whole block; if words are selected it sends only the selected text plus surrounding before/after context.
+- English conversion breaks the selected source text into sentence-level segments and offers three selectable English versions for each segment.
+- For partial saved-message conversion, the AI request should use surrounding context only for meaning, tone, references, pronouns, and continuity, and must not translate or return the context itself.
+- After the user chooses segment options, send the selected English through a second AI pass that organizes it into a readable Markdown block before saving or sending. This organization pass may add Markdown structure and concise organizational text, but it must never remove, rewrite, summarize, or paraphrase selected segments; every selected segment must remain present verbatim.
+- For saved messages, English conversion can create the organized English Markdown result as a new message below the original or replace the source block/selected source part with the organized result.
 - For draft text, English conversion sends the organized English Markdown result directly as a new message.
 - Show an optional "Copied" / "Copied from [conversation name]" label on copied/forwarded messages.
 - Show an optional "Moved" label on moved messages.
@@ -119,6 +136,8 @@ Conversation fields:
 - updatedAt
 - lastMessagePreview
 - sortOrder
+- visualizationView
+- kanbanColumns
 
 Message fields:
 - id
@@ -140,11 +159,13 @@ Message fields:
 - references
 - blockKind
 - indexEntries
+- kanbanColumnId
+- kanbanSortOrder
 
 AI conversion and synthesis:
 - Use a server-side endpoint such as a Cloudflare Worker so the AI provider key is not exposed in browser code.
 - Require the signed-in Firebase user for AI requests.
-- Store created English results as normal messages with `sortOrder` immediately after the source message. The saved text should be the organized Markdown result from the second English pass.
+- Store created English results as normal messages with `sortOrder` immediately after the source message. The saved text should be the organized Markdown result from the second English pass, with selected segment text preserved verbatim. Partial saved-message replacement should preserve the surrounding original text and replace only the selected source part.
 - Store synthesized conversation indexes as normal bottom messages with `blockKind: "conversation-index"` and structured `indexEntries`.
 
 Image attachment constraints:
@@ -180,18 +201,20 @@ Build in this order:
 15. Move message to another conversation
 16. Reorder text blocks
 17. Add tags/flags and tag filtering
-18. Add date/time scheduling and the global calendar
-19. Merge selected text blocks
-20. Add English conversion and selected-English Markdown organization through a server-side proxy
-21. Add conversation index synthesis through the server-side proxy
-22. Search messages
-23. Add PWA manifest
-24. Add service worker
-25. Enable Firestore offline persistence
-26. Test on iPhone 8
-27. Test on desktop
-28. Test on tablet
-29. Test offline behavior
-30. Test authenticated English conversion, English organization, and index synthesis
+18. Add List/Kanban visualization switching, custom columns, and block column assignment
+19. Add date/time scheduling and the global calendar
+20. Merge selected text blocks
+21. Add English conversion and selected-English Markdown organization through a server-side proxy
+22. Add conversation index synthesis through the server-side proxy
+23. Add app-based conversation export as JSON plus Markdown
+24. Search messages
+25. Add PWA manifest
+26. Add service worker
+27. Enable Firestore offline persistence
+28. Test on iPhone 8
+29. Test on desktop
+30. Test on tablet
+31. Test offline behavior
+32. Test authenticated English conversion, English organization, and index synthesis
 
 ---

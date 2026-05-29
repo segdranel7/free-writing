@@ -1,10 +1,13 @@
 import { X } from 'lucide-react';
 import type { EnglishPickerAction, EnglishPickerState } from '../hooks/useEnglishConversionPicker';
+import { useWordRangeSelection } from '../hooks/useWordRangeSelection';
+import { getTextTokens, type TextSelectionRange } from '../utils/textSelection';
 
 type EnglishPickerModalProps = {
   state: EnglishPickerState;
   isSaving: boolean;
   onClose: () => void;
+  onConvertSelection: (ranges: TextSelectionRange[]) => void;
   onSelectionChange: (segmentIndex: number, optionIndex: number) => void;
   onSave: (action: EnglishPickerAction) => void;
 };
@@ -13,9 +16,28 @@ export function EnglishPickerModal({
   state,
   isSaving,
   onClose,
+  onConvertSelection,
   onSelectionChange,
   onSave
 }: EnglishPickerModalProps) {
+  const {
+    selectionRanges,
+    clearSelection,
+    isSelected,
+    handleWordPointerDown,
+    handlePointerMove,
+    endDragSelection,
+    handleWordClick
+  } = useWordRangeSelection({
+    wordSelector: '[data-english-word="true"]',
+    captureSelector: '.english-source-text'
+  });
+  const selectionMessage = state.source.type === 'message' && state.status === 'selecting'
+    ? state.source.message
+    : null;
+  const isMessageSelection = Boolean(selectionMessage);
+  const selectedWordCount = selectionRanges.length;
+
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="english-picker" role="dialog" aria-modal="true" aria-labelledby="english-picker-title">
@@ -35,6 +57,51 @@ export function EnglishPickerModal({
           <p className="notice error" role="alert">
             {state.error}
           </p>
+        )}
+
+        {isMessageSelection && (
+          <div className="english-selection-panel">
+            <div
+              className="english-source-text"
+              aria-label="Choose text to convert"
+              onPointerMove={handlePointerMove}
+              onPointerUp={endDragSelection}
+              onPointerCancel={endDragSelection}
+              onLostPointerCapture={endDragSelection}
+            >
+              {getTextTokens(selectionMessage?.text ?? '').map((token) =>
+                token.isWord ? (
+                  <button
+                    key={`${token.startOffset}-${token.endOffset}`}
+                    className={`word-token ${isSelected(token.startOffset, token.endOffset) ? 'selected' : ''}`}
+                    type="button"
+                    aria-pressed={isSelected(token.startOffset, token.endOffset)}
+                    data-english-word="true"
+                    data-start-offset={token.startOffset}
+                    data-end-offset={token.endOffset}
+                    onPointerDown={(event) =>
+                      handleWordPointerDown(event, token.startOffset, token.endOffset)
+                    }
+                    onClick={(event) =>
+                      handleWordClick(token.startOffset, token.endOffset, event.detail)
+                    }
+                  >
+                    {token.text}
+                  </button>
+                ) : (
+                  <span key={`${token.startOffset}-${token.endOffset}`}>{token.text}</span>
+                )
+              )}
+            </div>
+            <div className="english-selection-summary">
+              <span>{selectedWordCount > 0 ? `${selectedWordCount} selected` : 'Whole block'}</span>
+              {selectedWordCount > 0 && (
+                <button className="text-button" type="button" onClick={clearSelection}>
+                  Use whole block
+                </button>
+              )}
+            </div>
+          </div>
         )}
 
         {state.conversion && (
@@ -64,7 +131,16 @@ export function EnglishPickerModal({
           <button className="text-button" type="button" onClick={onClose}>
             Cancel
           </button>
-          {state.source.type === 'message' ? (
+          {isMessageSelection ? (
+            <button
+              className="primary-button"
+              type="button"
+              disabled={!selectionMessage?.text.trim()}
+              onClick={() => onConvertSelection(selectionRanges)}
+            >
+              Convert {selectedWordCount > 0 ? 'selection' : 'block'}
+            </button>
+          ) : state.source.type === 'message' ? (
             <>
               <button
                 className="text-button"

@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteField,
   deleteDoc,
   doc,
   getDocs,
@@ -12,7 +13,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { requireDb } from '../firebase';
-import type { Conversation } from '../types';
+import type { Conversation, ConversationVisualizationView, KanbanColumn } from '../types';
 import { rewriteInlineConversationLinkTitles } from '../utils/inlineConversationLinks';
 
 const conversationsPath = (userId: string) => collection(requireDb(), 'users', userId, 'conversations');
@@ -33,11 +34,40 @@ function getConversationTime(conversation: Conversation) {
   return conversation.updatedAt?.toMillis?.() ?? conversation.createdAt?.toMillis?.() ?? 0;
 }
 
+function normalizeKanbanColumns(columns: unknown, fallbackIndex = 0): KanbanColumn[] {
+  if (!Array.isArray(columns)) return [];
+
+  const seenColumnIds = new Set<string>();
+
+  return columns
+    .map((column, index) => {
+      if (!column || typeof column !== 'object') return null;
+      const data = column as Partial<KanbanColumn>;
+      if (typeof data.id !== 'string' || typeof data.title !== 'string') return null;
+      if (seenColumnIds.has(data.id)) return null;
+      seenColumnIds.add(data.id);
+
+      return {
+        id: data.id,
+        title: data.title,
+        sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : (fallbackIndex + index + 1) * sortStep
+      };
+    })
+    .filter((column): column is KanbanColumn => Boolean(column))
+    .sort((first, second) => first.sortOrder - second.sortOrder || first.title.localeCompare(second.title));
+}
+
+function normalizeConversationView(view: unknown): ConversationVisualizationView {
+  return view === 'kanban' ? 'kanban' : 'list';
+}
+
 function normalizeConversations(conversations: Conversation[]) {
   return conversations
     .map((conversation, index) => ({
       ...conversation,
-      sortOrder: typeof conversation.sortOrder === 'number' ? conversation.sortOrder : (index + 1) * sortStep
+      sortOrder: typeof conversation.sortOrder === 'number' ? conversation.sortOrder : (index + 1) * sortStep,
+      visualizationView: normalizeConversationView(conversation.visualizationView),
+      kanbanColumns: normalizeKanbanColumns(conversation.kanbanColumns, index)
     }))
     .sort(
       (first, second) =>
@@ -74,7 +104,9 @@ export async function createConversation(userId: string, title: string) {
     createdAt: now,
     updatedAt: now,
     lastMessagePreview: '',
-    sortOrder
+    sortOrder,
+    visualizationView: 'list',
+    kanbanColumns: []
   });
 }
 
@@ -167,6 +199,96 @@ export async function touchConversation(
 
 export function removeConversation(userId: string, conversationId: string) {
   return deleteDoc(conversationPath(userId, conversationId));
+}
+
+function createKanbanColumn(title: string, existingColumns: KanbanColumn[]): KanbanColumn {
+  return {
+    id: `kanban-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: title.trim(),
+    sortOrder: (existingColumns.length + 1) * sortStep
+  };
+}
+
+function normalizeColumnWrites(columns: KanbanColumn[]) {
+  return columns.map((column, index) => ({
+    ...column,
+    title: column.title.trim(),
+    sortOrder: (index + 1) * sortStep
+  }));
+}
+
+export async function updateConversationVisualizationView(
+  userId: string,
+  conversationId: string,
+  visualizationView: ConversationVisualizationView
+) {
+  await updateDoc(conversationPath(userId, conversationId), {
+    visualizationView,
+    updatedAt: serverTimestamp()
+  });
+}
+
+export async function addKanbanColumn(
+  userId: string,
+  conversationId: string,
+  existingColumns: KanbanColumn[],
+  title: string
+) {
+  const column = createKanbanColumn(title, existingColumns);
+  await updateDoc(conversationPath(userId, conversationId), {
+    kanbanColumns: normalizeColumnWrites([...existingColumns, column]),
+    visualizationView: 'kanban',
+    updatedAt: serverTimestamp()
+  });
+  return column;
+}
+
+export async function renameKanbanColumn(
+  userId: string,
+  conversationId: string,
+  columns: KanbanColumn[],
+  columnId: string,
+  title: string
+) {
+  await updateDoc(conversationPath(userId, conversationId), {
+    kanbanColumns: normalizeColumnWrites(
+      columns.map((column) => (column.id === columnId ? { ...column, title } : column))
+    ),
+    updatedAt: serverTimestamp()
+  });
+}
+
+export async function reorderKanbanColumns(userId: string, conversationId: string, columns: KanbanColumn[]) {
+  await updateDoc(conversationPath(userId, conversationId), {
+    kanbanColumns: normalizeColumnWrites(columns),
+    updatedAt: serverTimestamp()
+  });
+}
+
+export async function deleteKanbanColumn(
+  userId: string,
+  conversationId: string,
+  columns: KanbanColumn[],
+  columnId: string
+) {
+  const batch = writeBatch(requireDb());
+  const remainingColumns = normalizeColumnWrites(columns.filter((column) => column.id !== columnId));
+  batch.update(conversationPath(userId, conversationId), {
+    kanbanColumns: remainingColumns,
+    updatedAt: serverTimestamp()
+  });
+
+  const messages = await getDocs(messagesPath(userId, conversationId));
+  messages.docs.forEach((message) => {
+    if (message.data().kanbanColumnId !== columnId) return;
+    batch.update(message.ref, {
+      kanbanColumnId: deleteField(),
+      kanbanSortOrder: deleteField(),
+      updatedAt: serverTimestamp()
+    });
+  });
+
+  await batch.commit();
 }
 
 export async function reorderConversations(userId: string, conversations: Conversation[]) {

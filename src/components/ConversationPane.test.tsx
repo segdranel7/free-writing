@@ -2,7 +2,7 @@ import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within }
 import { useState, type ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConversationPane } from './ConversationPane';
-import type { Conversation, Message } from '../types';
+import type { Conversation, EnglishConversionRequest, Message } from '../types';
 
 const timestamp = {
   toDate: () => new Date('2026-05-12T12:00:00Z'),
@@ -66,9 +66,14 @@ function getPaneProps(overrides: Partial<ComponentProps<typeof ConversationPane>
       [conversation.id]: [message('first', 'First'), message('second', 'Second')]
     },
     navigationTarget: null,
+    isInformationMode: false,
     moveNotice: null,
     draft: 'Ready to send',
     editingMessage: null,
+    isExportingConversation: false,
+    conversationExportError: null,
+    onToggleInformationMode: vi.fn(),
+    onExportConversation: vi.fn(),
     onOpenMoveNotice: vi.fn(),
     onDismissMoveNotice: vi.fn(),
     onBack: vi.fn(),
@@ -91,7 +96,7 @@ function getPaneProps(overrides: Partial<ComponentProps<typeof ConversationPane>
     onReorderMessage: vi.fn(),
     onMergeMessages: vi.fn(async () => undefined),
     onSynthesizeIndex: vi.fn(async () => undefined),
-    onConvertToEnglish: vi.fn(async (_text: string) => ({
+    onConvertToEnglish: vi.fn(async (_request: string | EnglishConversionRequest) => ({
       segments: [
         {
           original: 'First',
@@ -104,6 +109,13 @@ function getPaneProps(overrides: Partial<ComponentProps<typeof ConversationPane>
     onReplaceWithEnglish: vi.fn(async () => undefined),
     onUpdateMessageTags: vi.fn(async () => undefined),
     onUpdateMessageReferences: vi.fn(async () => undefined),
+    onSetVisualizationView: vi.fn(async () => undefined),
+    onAddKanbanColumn: vi.fn(async () => null),
+    onRenameKanbanColumn: vi.fn(async () => undefined),
+    onReorderKanbanColumn: vi.fn(async () => undefined),
+    onDeleteKanbanColumn: vi.fn(async () => undefined),
+    onAssignKanbanColumn: vi.fn(async () => undefined),
+    onMoveKanbanMessage: vi.fn(async () => undefined),
     ...overrides
   };
 }
@@ -137,6 +149,12 @@ function renderStatefulPane(overrides: Partial<ComponentProps<typeof Conversatio
 
   render(<StatefulPane />);
   return props;
+}
+
+function openBlockMore(index = 0) {
+  const buttons = screen.getAllByRole('button', { name: 'More block actions' });
+  fireEvent.click(buttons[index]);
+  return buttons[index];
 }
 
 function mockObjectUrls() {
@@ -182,6 +200,27 @@ function mockScrollIntoView() {
 }
 
 describe('ConversationPane', () => {
+  it('exports the active conversation from the conversation header', () => {
+    const props = renderPane();
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByTitle('Export conversation'));
+
+    expect(props.onExportConversation).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables conversation export while pending and shows errors', () => {
+    const props = renderPane({
+      isExportingConversation: true,
+      conversationExportError: 'Unable to export this conversation.'
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.getByTitle('Export conversation')).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to export this conversation.');
+    expect(props.onExportConversation).not.toHaveBeenCalled();
+  });
+
   it('opens a conversation with the last block aligned to the bottom', () => {
     const scrollMock = mockScrollIntoView();
 
@@ -336,6 +375,19 @@ describe('ConversationPane', () => {
     });
   });
 
+  it('keeps primary and secondary composer tools accessible', () => {
+    renderPane({ draft: '' });
+
+    expect(screen.getByRole('button', { name: 'Date' })).toBeVisible();
+    expect(screen.getByTitle('Add images')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Insert [[' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    expect(screen.getByTitle('Paste image')).toBeVisible();
+    expect(screen.getByTitle('Add conversation link')).toBeVisible();
+    expect(screen.getByTitle('Cite text')).toBeVisible();
+    expect(screen.getByTitle('Convert draft to English')).toBeDisabled();
+  });
+
   it('submits the composer only once while a send is pending', () => {
     const onSubmitMessage = vi.fn(() => new Promise<void>(() => undefined));
     renderPane({ draft: 'One pending block', onSubmitMessage });
@@ -387,6 +439,123 @@ describe('ConversationPane', () => {
 
     expect(screen.getByText(/Hidden fourth line/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Collapse text block' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('toggles information-only mode from the conversation header', () => {
+    const onToggleInformationMode = vi.fn();
+    renderPane({ isInformationMode: true, onToggleInformationMode });
+
+    const toggle = screen.getByRole('button', { name: 'Information-only mode' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(toggle);
+
+    expect(onToggleInformationMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows block information but hides editing controls in information-only mode', () => {
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+    const informationMessage: Message = {
+      ...imageMessage('info', 'Read [[Source chat]] closely'),
+      tags: ['Focus'],
+      references: [
+        {
+          id: 'reference-1',
+          type: 'block',
+          sourceConversationId: sourceConversation.id,
+          sourceConversationTitle: sourceConversation.title,
+          sourceMessageId: 'source-block',
+          sourceMessagePreview: 'Reference preview'
+        }
+      ],
+      scheduledAt: timestamp
+    };
+    const onNavigateToReference = vi.fn();
+
+    renderPane({
+      isInformationMode: true,
+      activeMessages: [informationMessage],
+      conversations: [conversation, sourceConversation],
+      messagesByConversation: {
+        [conversation.id]: [informationMessage],
+        [sourceConversation.id]: [message('source-block', 'Reference preview')]
+      },
+      onNavigateToReference
+    });
+
+    expect(screen.getByText(/Read/)).toBeInTheDocument();
+    expect(screen.getByAltText('note.png')).toBeInTheDocument();
+    expect(screen.getByText('Focus')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Source chat' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Source chat: "Reference preview"/ })).toBeInTheDocument();
+    expect(screen.getByTitle('Show normal controls')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Edit')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Connect block')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Copy block')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Copy text')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Download text as Markdown')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Convert to English')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Forward')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Move to conversation')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Delete')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Move up')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Add tag')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Remove Focus')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Source chat' }));
+    expect(onNavigateToReference).toHaveBeenCalledWith({ conversationId: sourceConversation.id });
+  });
+
+  it('shows normal controls for one information-mode block at a time without editing it', () => {
+    const first = message('first', 'First');
+    const second = message('second', 'Second');
+
+    renderPane({
+      isInformationMode: true,
+      activeMessages: [first, second],
+      messagesByConversation: {
+        [conversation.id]: [first, second]
+      }
+    });
+
+    fireEvent.click(screen.getAllByTitle('Show normal controls')[0]);
+
+    expect(screen.queryByLabelText('Edit message text')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Return block to view mode')).toBeInTheDocument();
+    expect(screen.getByTitle('Edit')).toBeInTheDocument();
+    expect(screen.getByTitle('Connect block')).toBeInTheDocument();
+    expect(screen.getByTitle('Copy text')).toBeInTheDocument();
+    expect(screen.getByTitle('Forward')).toBeInTheDocument();
+    expect(screen.getByTitle('Add tag')).toBeInTheDocument();
+    expect(screen.getAllByTitle('Show normal controls')).toHaveLength(1);
+
+    fireEvent.click(screen.getByTitle('Show normal controls'));
+
+    expect(screen.queryByLabelText('Edit message text')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Return block to view mode')).toBeInTheDocument();
+    expect(screen.getAllByTitle('Show normal controls')).toHaveLength(1);
+
+    fireEvent.click(screen.getByTitle('Return block to view mode'));
+
+    expect(screen.queryByTitle('Edit')).not.toBeInTheDocument();
+    expect(screen.getAllByTitle('Show normal controls')).toHaveLength(2);
+  });
+
+  it('clears block selection when information-only mode turns on', async () => {
+    const props = getPaneProps();
+    const { rerender } = render(<ConversationPane {...props} />);
+
+    fireEvent.doubleClick(document.querySelector('[data-message-id="first"]') as HTMLElement);
+    expect(screen.getByRole('button', { name: 'Copy selected blocks to conversation' })).toBeInTheDocument();
+
+    rerender(<ConversationPane {...props} isInformationMode />);
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Copy selected blocks to conversation' })).not.toBeInTheDocument();
+    });
+
+    rerender(<ConversationPane {...props} />);
+    expect(screen.queryByRole('button', { name: 'Copy selected blocks to conversation' })).not.toBeInTheDocument();
   });
 
   it('copies text and attached images as rich clipboard content', async () => {
@@ -669,6 +838,7 @@ describe('ConversationPane', () => {
 
     expect(screen.getByText('First')).toBeInTheDocument();
     expect(screen.queryByText('Second')).not.toBeInTheDocument();
+    openBlockMore();
     expect(screen.getByTitle('Drag to reorder')).toBeDisabled();
     expect(screen.getAllByRole('button', { name: /urgent/i })[0]).toHaveClass('active');
   });
@@ -823,22 +993,38 @@ describe('ConversationPane', () => {
 
   it('uses reorder controls with disabled edge buttons', () => {
     const props = renderPane();
-    const moveUpButtons = screen.getAllByTitle('Move up');
-    const moveDownButtons = screen.getAllByTitle('Move down');
 
-    expect(moveUpButtons[0]).toBeDisabled();
-    expect(moveDownButtons[1]).toBeDisabled();
+    openBlockMore(0);
+    expect(screen.getByTitle('Move up')).toBeDisabled();
+    const firstMoveDown = screen.getByTitle('Move down');
+    fireEvent.click(firstMoveDown);
 
-    fireEvent.click(moveDownButtons[0]);
-    fireEvent.click(moveUpButtons[1]);
+    openBlockMore(1);
+    expect(screen.getByTitle('Move down')).toBeDisabled();
+    const secondMoveUp = screen.getByTitle('Move up');
+    fireEvent.click(secondMoveUp);
 
     expect(props.onMoveMessage).toHaveBeenCalledWith(0, 1);
     expect(props.onMoveMessage).toHaveBeenCalledWith(1, -1);
   });
 
+  it('keeps reorder and delete actions in block More', () => {
+    renderPane();
+
+    expect(screen.queryByTitle('Delete')).not.toBeInTheDocument();
+
+    openBlockMore();
+
+    expect(screen.getByTitle('Move up')).toBeInTheDocument();
+    expect(screen.getByTitle('Move down')).toBeInTheDocument();
+    expect(screen.getByTitle('Drag to reorder')).toBeInTheDocument();
+    expect(screen.getByTitle('Delete')).toHaveClass('danger');
+  });
+
   it('reorders blocks by dragging one block onto another', () => {
     const props = renderPane();
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
 
     fireEvent.dragStart(firstBlockHandle, {
@@ -865,7 +1051,8 @@ describe('ConversationPane', () => {
   it('keeps desktop drag active if the browser cancels the pointer during native drag', () => {
     renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
 
     fireEvent.dragStart(firstBlockHandle, {
@@ -891,7 +1078,8 @@ describe('ConversationPane', () => {
 
   it('shows the insertion space where the dragged block will land', () => {
     renderPane();
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     Object.defineProperty(secondBlock, 'getBoundingClientRect', {
       configurable: true,
@@ -931,7 +1119,8 @@ describe('ConversationPane', () => {
   it('treats message-list gaps as valid pointer drop zones', () => {
     const props = renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const messages = firstBlock.parentElement as HTMLElement;
     const originalElementFromPoint = document.elementFromPoint;
@@ -1023,7 +1212,8 @@ describe('ConversationPane', () => {
 
     renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const messages = firstBlock.parentElement as HTMLElement;
     const scrollBy = vi.fn();
@@ -1082,7 +1272,8 @@ describe('ConversationPane', () => {
   it('reorders blocks with touch pointer dragging', () => {
     const props = renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const originalElementFromPoint = document.elementFromPoint;
     const elementFromPoint = vi.fn(() => secondBlock);
@@ -1126,7 +1317,8 @@ describe('ConversationPane', () => {
   it('starts touch pointer dragging as soon as the drag handle is pressed', () => {
     const props = renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const originalElementFromPoint = document.elementFromPoint;
     const elementFromPoint = vi.fn(() => secondBlock);
@@ -1168,7 +1360,8 @@ describe('ConversationPane', () => {
   it('starts mouse pointer dragging as soon as the drag handle is pressed', () => {
     const props = renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const originalElementFromPoint = document.elementFromPoint;
     const elementFromPoint = vi.fn(() => secondBlock);
@@ -1264,7 +1457,8 @@ describe('ConversationPane', () => {
 
     renderPane();
     const firstBlock = screen.getByText('First').closest('article') as HTMLElement;
-    const firstBlockHandle = screen.getAllByTitle('Drag to reorder')[0];
+    openBlockMore();
+    const firstBlockHandle = screen.getByTitle('Drag to reorder');
     const secondBlock = screen.getByText('Second').closest('article') as HTMLElement;
     const messages = firstBlock.parentElement as HTMLElement;
     const scrollBy = vi.fn();
@@ -1626,6 +1820,73 @@ describe('ConversationPane', () => {
       expect(composer).toHaveValue('[[Beta notes]]');
     });
     expect(onDraftChange).toHaveBeenLastCalledWith('[[Beta notes]]');
+  });
+
+  it('inserts a conversation wiki link marker from the composer shortcut button', async () => {
+    const onDraftChange = vi.fn();
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+
+    renderStatefulPane({
+      draft: '',
+      conversations: [conversation, sourceConversation],
+      onDraftChange
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert [[' }));
+
+    const composer = screen.getByPlaceholderText('Write a message') as HTMLTextAreaElement;
+    await waitFor(() => {
+      expect(composer).toHaveValue('[[');
+    });
+    expect(await screen.findByRole('option', { name: 'Source chat' })).toBeInTheDocument();
+    expect(onDraftChange).toHaveBeenLastCalledWith('[[');
+  });
+
+  it('suggests conversation wiki links while editing a block and completes the selected title', async () => {
+    const onSaveEdit = vi.fn(async () => undefined);
+    const editingMessage = message('first', 'See ');
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+    renderPane({
+      editingMessage,
+      activeMessages: [editingMessage],
+      conversations: [conversation, sourceConversation],
+      messagesByConversation: { [conversation.id]: [editingMessage] },
+      onSaveEdit
+    });
+
+    const editor = screen.getByLabelText('Edit message text') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'See [[' } });
+    editor.setSelectionRange(6, 6);
+    fireEvent.keyUp(editor);
+
+    fireEvent.click(await screen.findByRole('option', { name: 'Source chat' }));
+
+    await waitFor(() => {
+      expect(editor).toHaveValue('See [[Source chat]]');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSaveEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'See [[Source chat]]', [], [], null);
+  });
+
+  it('inserts a conversation wiki link marker from the edit shortcut button', async () => {
+    const editingMessage = message('first', 'First');
+    const sourceConversation = { ...conversation, id: 'source-conversation', title: 'Source chat' };
+    renderPane({
+      editingMessage,
+      activeMessages: [editingMessage],
+      conversations: [conversation, sourceConversation],
+      messagesByConversation: { [conversation.id]: [editingMessage] }
+    });
+
+    const editor = screen.getByLabelText('Edit message text') as HTMLTextAreaElement;
+    editor.setSelectionRange(0, 0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Insert [[' })[0]);
+
+    await waitFor(() => {
+      expect(editor).toHaveValue('[[First');
+    });
+    expect(await screen.findByRole('option', { name: 'Source chat' })).toBeInTheDocument();
   });
 
   it('renders reference cards and navigates to their targets', () => {
@@ -2060,6 +2321,8 @@ describe('ConversationPane', () => {
     });
 
     fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
+    expect(await screen.findByLabelText('Choose text to convert')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Convert block' }));
 
     expect(props.onConvertToEnglish).toHaveBeenCalledWith('First');
     expect(await screen.findByRole('dialog', { name: 'Choose English versions' })).toBeInTheDocument();
@@ -2095,12 +2358,13 @@ describe('ConversationPane', () => {
     });
 
     fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Convert block' }));
     fireEvent.click(await screen.findByLabelText('First selected'));
     fireEvent.click(screen.getByLabelText('Second selected'));
     fireEvent.click(screen.getByRole('button', { name: 'Create block' }));
 
     await waitFor(() => {
-      expect(onFormatEnglishText).toHaveBeenCalledWith('First selected\nSecond selected');
+      expect(onFormatEnglishText).toHaveBeenCalledWith('First selected\nSecond selected', ['First selected', 'Second selected']);
     });
     expect(onCreateEnglishBlock).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'first' }),
@@ -2125,6 +2389,7 @@ describe('ConversationPane', () => {
     });
 
     fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Convert block' }));
     fireEvent.click(await screen.findByLabelText('First replacement'));
     fireEvent.click(screen.getByRole('button', { name: 'Replace block' }));
 
@@ -2132,6 +2397,68 @@ describe('ConversationPane', () => {
       expect(onReplaceWithEnglish).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'first' }),
         '## Replacement\n\nFirst replacement'
+      );
+    });
+  });
+
+  it('converts selected saved text with surrounding context', async () => {
+    const source = message('first', 'Olá mundo bonito');
+    const onConvertToEnglish = vi.fn(async () => ({
+      segments: [
+        {
+          original: 'mundo',
+          options: ['world', 'earth', 'the world'] as [string, string, string]
+        }
+      ]
+    }));
+    renderPane({
+      activeMessages: [source],
+      messagesByConversation: { [conversation.id]: [source] },
+      onConvertToEnglish
+    });
+
+    fireEvent.click(screen.getByTitle('Convert to English'));
+    fireEvent.click(await screen.findByRole('button', { name: 'mundo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Convert selection' }));
+
+    await waitFor(() => {
+      expect(onConvertToEnglish).toHaveBeenCalledWith({
+        text: 'mundo',
+        contextBefore: 'Olá',
+        contextAfter: 'bonito'
+      });
+    });
+    expect(await screen.findByLabelText('world')).toBeChecked();
+  });
+
+  it('replaces only the selected source text with English', async () => {
+    const source = message('first', 'Olá mundo bonito');
+    const onReplaceWithEnglish = vi.fn(async () => undefined);
+    const onFormatEnglishText = vi.fn(async () => 'world');
+    renderPane({
+      activeMessages: [source],
+      messagesByConversation: { [conversation.id]: [source] },
+      onReplaceWithEnglish,
+      onFormatEnglishText,
+      onConvertToEnglish: vi.fn(async () => ({
+        segments: [
+          {
+            original: 'mundo',
+            options: ['world', 'earth', 'the world'] as [string, string, string]
+          }
+        ]
+      }))
+    });
+
+    fireEvent.click(screen.getByTitle('Convert to English'));
+    fireEvent.click(await screen.findByRole('button', { name: 'mundo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Convert selection' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Replace block' }));
+
+    await waitFor(() => {
+      expect(onReplaceWithEnglish).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'first' }),
+        'Olá world bonito'
       );
     });
   });
@@ -2155,7 +2482,7 @@ describe('ConversationPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send English' }));
 
     expect(onConvertToEnglish).toHaveBeenCalledWith('Pronto para enviar');
-    expect(onFormatEnglishText).toHaveBeenCalledWith('Ready to submit');
+    expect(onFormatEnglishText).toHaveBeenCalledWith('Ready to submit', ['Ready to submit']);
     await waitFor(() => {
       expect(onSubmitMessage).toHaveBeenCalledWith('- Ready to submit', [], [], null);
     });
@@ -2214,6 +2541,7 @@ describe('ConversationPane', () => {
     });
 
     fireEvent.click(screen.getAllByTitle('Convert to English')[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Convert block' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Translation service unavailable');
     expect(screen.getByRole('button', { name: 'Create block' })).toBeDisabled();
@@ -2223,12 +2551,132 @@ describe('ConversationPane', () => {
     const onSynthesizeIndex = vi.fn(async () => undefined);
     const props = renderPane({ onSynthesizeIndex });
 
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(screen.getByTitle('Synthesize conversation index'));
 
     await waitFor(() => {
       expect(onSynthesizeIndex).toHaveBeenCalledTimes(1);
     });
     expect(onSynthesizeIndex).toHaveBeenCalledWith(props.activeMessages, 'Inbox');
+  });
+
+  it('switches conversation visualization views from the header', () => {
+    const onSetVisualizationView = vi.fn();
+    renderPane({ onSetVisualizationView });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kanban view' }));
+    expect(onSetVisualizationView).toHaveBeenCalledWith('kanban');
+
+    fireEvent.click(screen.getByRole('button', { name: 'List view' }));
+    expect(onSetVisualizationView).toHaveBeenCalledWith('list');
+  });
+
+  it('shows assigned blocks in Kanban while leaving unassigned blocks in list view', () => {
+    const assigned = { ...message('assigned', 'Assigned card'), kanbanColumnId: 'doing', kanbanSortOrder: 1000 };
+    const unassigned = message('unassigned', 'Unassigned block');
+
+    renderPane({
+      activeConversation: {
+        ...conversation,
+        visualizationView: 'kanban',
+        kanbanColumns: [
+          { id: 'doing', title: 'Doing', sortOrder: 1000 },
+          { id: 'done', title: 'Done', sortOrder: 2000 }
+        ]
+      },
+      activeMessages: [assigned, unassigned],
+      messagesByConversation: { [conversation.id]: [assigned, unassigned] }
+    });
+
+    expect(screen.getAllByText('Assigned card').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Unassigned block')).not.toBeInTheDocument();
+  });
+
+  it('assigns list blocks to Kanban columns from a touch-friendly selector', async () => {
+    const onAssignKanbanColumn = vi.fn(async () => undefined);
+    const block = message('first', 'First');
+
+    renderPane({
+      activeConversation: {
+        ...conversation,
+        kanbanColumns: [{ id: 'doing', title: 'Doing', sortOrder: 1000 }]
+      },
+      activeMessages: [block],
+      messagesByConversation: { [conversation.id]: [block] },
+      onAssignKanbanColumn
+    });
+
+    fireEvent.change(screen.getByLabelText('Assign to Kanban column'), { target: { value: 'doing' } });
+
+    await waitFor(() => {
+      expect(onAssignKanbanColumn).toHaveBeenCalledWith(expect.objectContaining({ id: 'first' }), 'doing');
+    });
+  });
+
+  it('creates and manages custom Kanban columns', async () => {
+    const prompt = vi.spyOn(window, 'prompt');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onAddKanbanColumn = vi.fn(async () => ({ id: 'new-column', title: 'Drafting', sortOrder: 1000 }));
+    const onRenameKanbanColumn = vi.fn(async () => undefined);
+    const onReorderKanbanColumn = vi.fn(async () => undefined);
+    const onDeleteKanbanColumn = vi.fn(async () => undefined);
+
+    prompt.mockReturnValueOnce('Drafting');
+    renderPane({
+      activeConversation: {
+        ...conversation,
+        visualizationView: 'kanban',
+        kanbanColumns: [
+          { id: 'doing', title: 'Doing', sortOrder: 1000 },
+          { id: 'done', title: 'Done', sortOrder: 2000 }
+        ]
+      },
+      onAddKanbanColumn,
+      onRenameKanbanColumn,
+      onReorderKanbanColumn,
+      onDeleteKanbanColumn
+    });
+
+    fireEvent.click(screen.getByTitle('Add Kanban column'));
+    await waitFor(() => expect(onAddKanbanColumn).toHaveBeenCalledWith('Drafting'));
+
+    prompt.mockReturnValueOnce('Renamed');
+    fireEvent.click(screen.getAllByTitle('Rename column')[0]);
+    expect(onRenameKanbanColumn).toHaveBeenCalledWith('doing', 'Renamed');
+
+    const moveRightButton = screen.getAllByTitle('Move column right').find((button) => !button.hasAttribute('disabled'));
+    expect(moveRightButton).toBeDefined();
+    fireEvent.click(moveRightButton as HTMLElement);
+    expect(onReorderKanbanColumn).toHaveBeenCalledWith('doing', 1);
+
+    fireEvent.click(screen.getAllByTitle('Delete column')[0]);
+    expect(confirm).toHaveBeenCalled();
+    expect(onDeleteKanbanColumn).toHaveBeenCalledWith('doing');
+
+    prompt.mockRestore();
+    confirm.mockRestore();
+  });
+
+  it('sends composer blocks into the active Kanban column', async () => {
+    const onSubmitMessage = vi.fn(async () => undefined);
+    renderPane({
+      activeConversation: {
+        ...conversation,
+        visualizationView: 'kanban',
+        kanbanColumns: [
+          { id: 'doing', title: 'Doing', sortOrder: 1000 },
+          { id: 'done', title: 'Done', sortOrder: 2000 }
+        ]
+      },
+      draft: 'Kanban draft',
+      onSubmitMessage
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(onSubmitMessage).toHaveBeenCalledWith(undefined, [], [], null, 'doing');
+    });
   });
 
   it('shows a compact loading state while synthesizing an index', async () => {
@@ -2242,11 +2690,13 @@ describe('ConversationPane', () => {
 
     renderPane({ onSynthesizeIndex });
 
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     const synthesizeButton = screen.getByTitle('Synthesize conversation index');
     fireEvent.click(synthesizeButton);
 
     expect(await screen.findByText('Synthesizing conversation index...')).toBeInTheDocument();
-    expect(synthesizeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.getByTitle('Synthesize conversation index')).toBeDisabled();
 
     await act(async () => {
       resolveSynthesis();
@@ -2264,6 +2714,7 @@ describe('ConversationPane', () => {
 
     renderPane({ onSynthesizeIndex });
 
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(screen.getByTitle('Synthesize conversation index'));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Synthesis unavailable');
@@ -2293,6 +2744,7 @@ describe('ConversationPane', () => {
     const onNavigateToReference = vi.fn();
 
     renderPane({
+      isInformationMode: true,
       activeMessages: [first, indexBlock],
       messagesByConversation: {
         [conversation.id]: [first, indexBlock]

@@ -21,6 +21,16 @@ function request(init: RequestInit = {}) {
   });
 }
 
+function selectedTextRequest() {
+  return request({
+    body: JSON.stringify({
+      text: 'mundo',
+      contextBefore: 'Olá',
+      contextAfter: 'bonito'
+    })
+  });
+}
+
 function synthesisRequest(init: RequestInit = {}) {
   return new Request('https://free-writing-translation.example.workers.dev/api/synthesize-index', {
     method: 'POST',
@@ -136,10 +146,44 @@ describe('translation worker', () => {
       messages: Array<{ content: string }>;
     };
     expect(groqRequest.messages[0]?.content).toContain('Preserve Markdown-like structure');
+    expect(groqRequest.messages[0]?.content).toContain('Process only the selected text');
     expect(groqRequest.messages[0]?.content).toContain('sentence-level or line-level segments');
     expect(groqRequest.messages[0]?.content).toContain('list item, heading, quote, or short standalone line');
     expect(groqRequest.messages[0]?.content).toContain('separatorAfter');
     expect(groqRequest.messages[0]?.content).toContain('"blankLine" for a paragraph break');
+  });
+
+  it('uses surrounding context without asking Groq to process it', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ users: [{ localId: 'user-id' }] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                segments: [
+                  {
+                    original: 'mundo',
+                    options: ['world', 'earth', 'the world']
+                  }
+                ]
+              })
+            }
+          }
+        ]
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await worker.fetch(selectedTextRequest(), env);
+
+    expect(response.status).toBe(200);
+    const groqRequest = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string) as {
+      messages: Array<{ content: string }>;
+    };
+    expect(groqRequest.messages[0]?.content).toContain('Context before selected text:\nOlá');
+    expect(groqRequest.messages[0]?.content).toContain('Context after selected text:\nbonito');
+    expect(groqRequest.messages[0]?.content).toContain('Never translate, rewrite, segment, summarize, or include the surrounding context');
+    expect(groqRequest.messages[0]?.content).toContain('Selected text to process:\nmundo');
   });
 
   it('organizes selected English text into Markdown before submission', async () => {
@@ -160,7 +204,7 @@ describe('translation worker', () => {
 
     const response = await worker.fetch(new Request('https://free-writing-translation.example.workers.dev/api/format-english', {
       method: 'POST',
-      body: JSON.stringify({ text: 'Ready to send' }),
+      body: JSON.stringify({ text: 'Ready to send', selectedSegments: ['Ready to send'] }),
       headers: {
         Origin: 'https://free-writing-e29a1.web.app',
         Authorization: 'Bearer id-token',
@@ -178,9 +222,46 @@ describe('translation worker', () => {
     };
     expect(groqRequest.messages[0]?.content).toContain('Organize the selected English text');
     expect(groqRequest.messages[0]?.content).toContain('before it is submitted');
-    expect(groqRequest.messages[0]?.content).toContain('You may add concise Markdown elements');
+    expect(groqRequest.messages[0]?.content).toContain('immutable source text');
+    expect(groqRequest.messages[0]?.content).toContain('Every selected segment must appear verbatim');
+    expect(groqRequest.messages[0]?.content).toContain('Selected English segments that must be preserved verbatim');
+    expect(groqRequest.messages[0]?.content).toContain('You may add concise organizational text and Markdown elements');
     expect(groqRequest.messages[0]?.content).toContain('Do not add new facts');
     expect(groqRequest.temperature).toBe(0.5);
+  });
+
+  it('rejects formatted English that removes a selected segment', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ users: [{ localId: 'user-id' }] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                text: '# Plan\n\n- Ready to send'
+              })
+            }
+          }
+        ]
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await worker.fetch(new Request('https://free-writing-translation.example.workers.dev/api/format-english', {
+      method: 'POST',
+      body: JSON.stringify({
+        text: 'Ready to send\nKeep this exact sentence',
+        selectedSegments: ['Ready to send', 'Keep this exact sentence']
+      }),
+      headers: {
+        Origin: 'https://free-writing-e29a1.web.app',
+        Authorization: 'Bearer id-token',
+        'Content-Type': 'application/json'
+      }
+    }), env);
+    const body = await response.json() as { error: string };
+
+    expect(response.status).toBe(502);
+    expect(body.error).toContain('Unable to organize');
   });
 
   it('returns parsed conversation index entries from Groq', async () => {

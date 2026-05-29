@@ -1,6 +1,6 @@
 # Firebase PWA Architecture
 
-Last updated: 2026-05-26
+Last updated: 2026-05-28
 
 Related docs: [product brief](../product/v1-product-brief.md), [features and screens](../product/v1-features-and-screens.md), [current implementation](../implementation/current-implementation.md).
 
@@ -79,7 +79,15 @@ Useful user fields:
   "createdAt": "2026-05-11T12:00:00.000Z",
   "updatedAt": "2026-05-11T12:05:00.000Z",
   "lastMessagePreview": "Short preview of latest message",
-  "sortOrder": 1000
+  "sortOrder": 1000,
+  "visualizationView": "kanban",
+  "kanbanColumns": [
+    {
+      "id": "kanban-column-id",
+      "title": "Drafting",
+      "sortOrder": 1000
+    }
+  ]
 }
 ```
 
@@ -105,6 +113,12 @@ Useful user fields:
 
 `sortOrder`
 : Numeric display order in the conversation list. Conversations should display by `sortOrder` ascending, with recent update time as a fallback for older records without explicit ordering. Manual conversation reorder rewrites all conversation `sortOrder` values in visible order. When a conversation receives a newly created block, the app assigns that conversation a new top `sortOrder` so it moves above the current first row.
+
+`visualizationView`
+: Saved per-conversation view preference. Current known values are `list` and `kanban`; missing or unknown values are treated as `list`.
+
+`kanbanColumns`
+: Optional embedded custom Kanban column definitions for the conversation. Columns are ordered by their own numeric `sortOrder`. A conversation can have no Kanban columns; in that case Kanban view opens to an empty setup state rather than creating default columns automatically.
 
 ---
 
@@ -152,6 +166,8 @@ Useful user fields:
   "updatedAt": null,
   "scheduledAt": "2026-05-21T09:30:00.000Z",
   "sortOrder": 1000,
+  "kanbanColumnId": "kanban-column-id",
+  "kanbanSortOrder": 1000,
   "isForwarded": false,
   "transferType": null,
   "forwardedFromConversationId": null,
@@ -209,6 +225,12 @@ New composer text/reference/date-only sends reserve a Firestore document ID on t
 `sortOrder`
 : Numeric display order within a conversation. Messages should be displayed by `sortOrder` ascending, with `createdAt` as a fallback.
 
+`kanbanColumnId`
+: Optional custom Kanban column assignment. Blocks without this field or with null remain normal list blocks and do not appear in Kanban until assigned.
+
+`kanbanSortOrder`
+: Optional display order inside a Kanban column. Card order is independent from the conversation list `sortOrder` so a block can keep its normal list position while also moving within a Kanban column.
+
 `isForwarded`
 : Whether this message was forwarded from another conversation.
 
@@ -230,17 +252,32 @@ New composer text/reference/date-only sends reserve a Firestore document ID on t
 `indexEntries`
 : Optional structured entries for synthesized conversation-index blocks. Each entry points to a source message ID in the same conversation and stores display text for the clickable index row. Old or normal messages without this field are treated as having no index entries.
 
+### 9.4 App-based experimentation exports
+
+Prompt, agent, and flow experiments can start from export files downloaded inside the signed-in app. The app exposes export buttons for the active conversation and for all conversations. Exports use the normal Firebase client SDK and Firestore rules, so no admin credential or separate database access path is required.
+
+Each export creates:
+
+- A JSON bundle with `schemaVersion`, `exportedAt`, `userId`, the full conversation document record, and every message document record.
+- A Markdown companion for reading and prompt review.
+
+The JSON bundle is the faithful database snapshot. It preserves inline image data URLs, references, tags, scheduled dates, transfer metadata, Kanban fields, conversation-index entries, and serialized timestamp metadata. The Markdown file intentionally omits inline base64 image payloads and points back to the JSON export for complete attachment data.
+
+This workflow is intentionally export-only. Experiment outputs should not be written back to production Firestore until a separate guarded import or app feature is designed.
+
 Forwarded and moved source metadata is kept for transfer labeling and compatibility. Copied/forwarded blocks can expose conversation-level source navigation through `forwardedFromConversationId` plus `forwardedFromConversationTitle`; whole-block and quote-level navigation is rendered from structured `references` instead of text markers.
 
 Inline conversation links are deliberately schema-free: they use the existing `text` and `searchText` fields, not the structured `references` array. Missing or duplicate title matches remain plain text. Conversation rename writes update matching inline title markers in saved message text and `searchText`, while structured reference title snapshots remain unchanged.
 
 Whole-block copy and move operations preserve tags and `scheduledAt`. Selected-text forwards create target blocks from the selected text; because that text may be only a fragment of the source block, future metadata changes should avoid assuming selected-text forwards describe the full source block.
 
-English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. The created English block preserves the source block's tags but is unscheduled. Replacing a source block with English text updates the same message through the normal edit path and preserves its existing `scheduledAt`. Converting draft text sends the selected English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments, structured references, and draft date/time on that new message. Before any English result is created, replaced, or sent, the selected segment text goes through a second server-side AI organization pass that returns normal message text, often with Markdown headings, lists, quotes, or paragraph spacing.
+English conversion results are also stored as normal messages. Creating an English block links the new block back to its source through `forwardedFromConversationId` and `forwardedFromMessageId`, while leaving `transferType` as `null` so it does not display as a forwarded or moved message. The created English block preserves the source block's tags but is unscheduled. Saved-message conversion can target the whole block or selected text ranges; partial conversion sends only the selected text plus surrounding before/after context to the AI proxy, and partial replacement updates only the selected source text while preserving the rest of the block. Whole-block replacement updates the same message through the normal edit path and preserves its existing `scheduledAt`. Converting draft text sends the selected English text directly as a new normal message instead of writing it back into the composer draft, and it preserves current composer image attachments, structured references, and draft date/time on that new message. Before any English result is created, replaced, or sent, the selected segment text goes through a second server-side AI organization pass that returns normal message text, often with Markdown headings, lists, quotes, or paragraph spacing. That pass receives the exact selected segment strings, is instructed to preserve them verbatim, and is rejected by the proxy if any selected segment is removed.
 
 Synthesized conversation indexes are stored as ordinary message documents with `blockKind: "conversation-index"` and `indexEntries`. The `text` field stores a plain fallback/search representation of the generated index, while `indexEntries` drives the clickable rows. Creating an index appends a new bottom message and moves the receiving conversation to the top like other new blocks. Previous index blocks remain normal source blocks and are included in later synthesis requests.
 
 Merged text/image blocks are stored as normal messages. The app creates a replacement message with unified text plus selected attachments in display order, assigns the union of source tags and the earliest selected `scheduledAt`, and deletes the selected original messages in the same batch.
+
+Kanban is the first saved visualization template. The active view is stored on the conversation, custom columns are embedded on the conversation, and card membership/order is stored on each message. Existing blocks are not auto-assigned when columns are created; list view remains the complete fallback for unassigned blocks. New blocks sent while Kanban view is open are assigned to the active Kanban column.
 
 ---
 
@@ -359,7 +396,7 @@ Important privacy note:
 
 - Cloud sync means messages are stored in a cloud database.
 - Inline image attachments are stored in Firestore message documents, not Firebase Storage.
-- English conversion sends the selected source text to a third-party AI provider through the server-side proxy, then sends the selected English result through a second server-side AI organization request before saving or sending.
+- English conversion sends the source text selected for conversion to a third-party AI provider through the server-side proxy. For partial saved-message conversion, the request also includes surrounding before/after context for meaning, but the context must not be translated or returned as segments. The selected English result then goes through a second server-side AI organization request before saving or sending. The organization request may add Markdown structure and concise organizational text around the selected English, but it must not remove or rewrite any selected segment.
 - Conversation-index synthesis sends the active conversation's current block text/fallback descriptions to the same third-party AI provider through the server-side proxy.
 - This is different from a local-only app.
 - Repeatable security audits should use `docs/ai-maintenance/security-check.md`, with the default privacy boundary that Firebase cloud storage and explicit AI egress are accepted but other users and unauthenticated visitors must not access another user's content.

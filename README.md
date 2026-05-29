@@ -11,6 +11,7 @@ A private, Firebase-backed messaging-style PWA for saving and organizing your ow
 - Conversation create, rename, open, and delete.
 - Conversation list rows show the conversation title and last updated time, without message previews.
 - Message create, edit, copy-to-clipboard, delete, forward, move between conversations, search, and manual reorder.
+- App-based export for the active conversation or all conversations as JSON plus Markdown.
 - Small image attachments through file selection, copied-image paste, and inline edit paste. Images are compressed client-side and stored inline in Firestore to stay on the free Firebase Spark plan.
 - Per-message English conversion through a server-side Groq proxy, using Cloudflare Workers for the free hosted deployment.
 - `Ctrl+Enter` / `Cmd+Enter` opens draft English conversion from the composer or saves an inline edit; plain `Enter` inserts a newline.
@@ -155,6 +156,10 @@ Existing messages without `sortOrder` are displayed in chronological order until
 Message listeners query Firestore by `createdAt` and then normalize/sort by `sortOrder` in client code, preserving chronological fallback behavior for older records.
 
 Conversation `lastMessagePreview` is still stored and updated for possible future use, but the current conversation list does not render message previews. It is updated on create, edit, forward, merge result creation, English conversion result creation, English replacement edits, and the target side of a move. It is not currently recalculated after message delete, deleting originals during merge, or after removing a moved message from its source conversation.
+
+## App data exports
+
+Signed-in users can export the open conversation from the conversation header or export all conversations from the app header. Each action downloads a full JSON database bundle plus a readable Markdown companion. JSON preserves complete conversation and message records, including inline image data URLs; Markdown omits inline base64 image payloads for readability.
 
 ## Scripts
 

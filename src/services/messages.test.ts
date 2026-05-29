@@ -49,7 +49,9 @@ import {
   mergeMessages,
   moveMessage,
   moveMessageTextSelection,
+  reorderKanbanMessages,
   reorderMessages,
+  updateMessageKanbanPlacement,
   updateMessageReferences,
   updateMessageTags
 } from './messages';
@@ -171,6 +173,22 @@ describe('message service writes', () => {
       expect.objectContaining({
         text: 'Scheduled note',
         scheduledAt
+      })
+    );
+  });
+
+  it('stores Kanban placement when creating a message', async () => {
+    await createMessage('user-1', 'conversation-1', 'Card text', [], [], null, {
+      columnId: 'doing',
+      sortOrder: 2000
+    });
+
+    expect(firestoreMocks.addDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages' }),
+      expect.objectContaining({
+        text: 'Card text',
+        kanbanColumnId: 'doing',
+        kanbanSortOrder: 2000
       })
     );
   });
@@ -353,6 +371,33 @@ describe('message service writes', () => {
       expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/message-1' }),
       {
         references,
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
+    );
+  });
+
+  it('updates and clears a message Kanban placement', async () => {
+    await updateMessageKanbanPlacement('user-1', 'conversation-1', 'message-1', {
+      columnId: 'doing',
+      sortOrder: 3000
+    });
+
+    expect(firestoreMocks.updateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/message-1' }),
+      {
+        kanbanColumnId: 'doing',
+        kanbanSortOrder: 3000,
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
+    );
+
+    await updateMessageKanbanPlacement('user-1', 'conversation-1', 'message-1', null);
+
+    expect(firestoreMocks.updateDoc).toHaveBeenLastCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/message-1' }),
+      {
+        kanbanColumnId: null,
+        kanbanSortOrder: null,
         updatedAt: 'SERVER_TIMESTAMP'
       }
     );
@@ -577,6 +622,25 @@ describe('message service writes', () => {
     expect(firestoreMocks.batch.update).toHaveBeenNthCalledWith(2, expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/first' }), {
       sortOrder: 2000
     });
+    expect(firestoreMocks.batch.commit).toHaveBeenCalled();
+  });
+
+  it('reorders Kanban cards within a column', async () => {
+    await reorderKanbanMessages('user-1', 'conversation-1', 'doing', [
+      sourceMessage({ id: 'second' }),
+      sourceMessage({ id: 'first' })
+    ]);
+
+    expect(firestoreMocks.batch.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/second' }),
+      { kanbanColumnId: 'doing', kanbanSortOrder: 1000 }
+    );
+    expect(firestoreMocks.batch.update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ path: 'users/user-1/conversations/conversation-1/messages/first' }),
+      { kanbanColumnId: 'doing', kanbanSortOrder: 2000 }
+    );
     expect(firestoreMocks.batch.commit).toHaveBeenCalled();
   });
 });

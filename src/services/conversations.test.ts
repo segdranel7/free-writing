@@ -12,6 +12,7 @@ const firestoreMocks = vi.hoisted(() => {
     batch,
     addDoc: vi.fn(async () => ({ id: 'new-conversation' })),
     collection: vi.fn((_db: unknown, ...segments: string[]) => ({ type: 'collection', path: segments.join('/') })),
+    deleteField: vi.fn(() => 'DELETE_FIELD'),
     deleteDoc: vi.fn(async () => undefined),
     doc: vi.fn((base: { path?: string }, ...segments: string[]) => ({
       type: 'doc',
@@ -37,10 +38,15 @@ vi.mock('../firebase', () => ({
 
 import {
   createConversation,
+  addKanbanColumn,
+  deleteKanbanColumn,
   listenForConversations,
   renameConversation,
+  renameKanbanColumn,
+  reorderKanbanColumns,
   reorderConversations,
-  touchConversation
+  touchConversation,
+  updateConversationVisualizationView
 } from './conversations';
 
 const timestamp = (millis: number) =>
@@ -99,6 +105,7 @@ function docsWithMessages(messages: Message[]) {
   return {
     docs: messages.map((message) => ({
       id: message.id,
+      ref: { path: `users/user-1/conversations/${message.conversationId}/messages/${message.id}` },
       data: () => {
         const { id: _id, ...data } = message;
         return data;
@@ -135,6 +142,32 @@ describe('conversation service writes', () => {
     ]);
   });
 
+  it('deduplicates repeated Kanban columns from listened conversation data', () => {
+    const onChange = vi.fn();
+    firestoreMocks.onSnapshot.mockImplementation((_query: unknown, callback: (snapshot: unknown) => void) => {
+      callback(
+        docsWithConversations([
+          sourceConversation({
+            id: 'source-conversation',
+            kanbanColumns: [
+              { id: 'duplicate', title: 'First', sortOrder: 1000 },
+              { id: 'duplicate', title: 'Second', sortOrder: 2000 },
+              { id: 'unique', title: 'Unique', sortOrder: 3000 }
+            ]
+          })
+        ])
+      );
+      return vi.fn();
+    });
+
+    listenForConversations('user-1', onChange);
+
+    expect(onChange.mock.calls[0][0][0].kanbanColumns).toEqual([
+      { id: 'duplicate', title: 'First', sortOrder: 1000 },
+      { id: 'unique', title: 'Unique', sortOrder: 3000 }
+    ]);
+  });
+
   it('creates new conversations above the current first conversation', async () => {
     firestoreMocks.getDocs.mockResolvedValue(
       docsWithConversations([
@@ -151,7 +184,9 @@ describe('conversation service writes', () => {
       createdAt: 'SERVER_TIMESTAMP',
       updatedAt: 'SERVER_TIMESTAMP',
       lastMessagePreview: '',
-      sortOrder: 0
+      sortOrder: 0,
+      visualizationView: 'list',
+      kanbanColumns: []
     });
   });
 
@@ -254,6 +289,98 @@ describe('conversation service writes', () => {
     expect(firestoreMocks.batch.update).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'users/user-1/conversations/first' }),
       { sortOrder: 2000 }
+    );
+    expect(firestoreMocks.batch.commit).toHaveBeenCalled();
+  });
+
+  it('persists the selected visualization view on a conversation', async () => {
+    await updateConversationVisualizationView('user-1', 'source-conversation', 'kanban');
+
+    expect(firestoreMocks.updateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/source-conversation' }),
+      {
+        visualizationView: 'kanban',
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
+    );
+  });
+
+  it('adds, renames, and reorders Kanban columns in conversation metadata', async () => {
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(123);
+    const mathRandom = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    const column = await addKanbanColumn('user-1', 'source-conversation', [], '  Ideas  ');
+
+    expect(column).toEqual({ id: 'kanban-123-i', title: 'Ideas', sortOrder: 1000 });
+    expect(firestoreMocks.updateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/source-conversation' }),
+      {
+        kanbanColumns: [{ id: 'kanban-123-i', title: 'Ideas', sortOrder: 1000 }],
+        visualizationView: 'kanban',
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
+    );
+
+    await renameKanbanColumn('user-1', 'source-conversation', [column], column.id, '  Drafting  ');
+    expect(firestoreMocks.updateDoc).toHaveBeenLastCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/source-conversation' }),
+      {
+        kanbanColumns: [{ id: column.id, title: 'Drafting', sortOrder: 1000 }],
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
+    );
+
+    await reorderKanbanColumns('user-1', 'source-conversation', [
+      { id: 'done', title: 'Done', sortOrder: 2000 },
+      { id: 'todo', title: 'Todo', sortOrder: 1000 }
+    ]);
+    expect(firestoreMocks.updateDoc).toHaveBeenLastCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/source-conversation' }),
+      {
+        kanbanColumns: [
+          { id: 'done', title: 'Done', sortOrder: 1000 },
+          { id: 'todo', title: 'Todo', sortOrder: 2000 }
+        ],
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
+    );
+
+    dateNow.mockRestore();
+    mathRandom.mockRestore();
+  });
+
+  it('deletes a Kanban column and unassigns its messages', async () => {
+    firestoreMocks.getDocs.mockResolvedValue(
+      docsWithMessages([
+        sourceMessage({ id: 'first', kanbanColumnId: 'doing', kanbanSortOrder: 1000 }),
+        sourceMessage({ id: 'second', kanbanColumnId: 'done', kanbanSortOrder: 1000 })
+      ])
+    );
+
+    await deleteKanbanColumn(
+      'user-1',
+      'source-conversation',
+      [
+        { id: 'doing', title: 'Doing', sortOrder: 1000 },
+        { id: 'done', title: 'Done', sortOrder: 2000 }
+      ],
+      'doing'
+    );
+
+    expect(firestoreMocks.batch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/source-conversation' }),
+      {
+        kanbanColumns: [{ id: 'done', title: 'Done', sortOrder: 1000 }],
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
+    );
+    expect(firestoreMocks.batch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/conversations/source-conversation/messages/first' }),
+      {
+        kanbanColumnId: 'DELETE_FIELD',
+        kanbanSortOrder: 'DELETE_FIELD',
+        updatedAt: 'SERVER_TIMESTAMP'
+      }
     );
     expect(firestoreMocks.batch.commit).toHaveBeenCalled();
   });

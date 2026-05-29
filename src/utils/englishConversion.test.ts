@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assembleEnglishText } from './englishConversion';
+import { assembleEnglishText, getSelectedEnglishSegments } from './englishConversion';
 
 describe('assembleEnglishText', () => {
   it('joins the selected option from each segment and defaults missing selections to the first option', () => {
@@ -47,5 +47,25 @@ describe('assembleEnglishText', () => {
     );
 
     expect(text).toBe('- First selected\n- Second selected\n\nEnd selected');
+  });
+
+  it('returns the selected option text for each segment', () => {
+    const segments = getSelectedEnglishSegments(
+      {
+        segments: [
+          {
+            original: 'Primeiro',
+            options: ['First default', 'First selected', 'First formal']
+          },
+          {
+            original: 'Segundo',
+            options: ['Second default', 'Second selected', 'Second formal']
+          }
+        ]
+      },
+      [1, 2]
+    );
+
+    expect(segments).toEqual(['First selected', 'Second formal']);
   });
 });

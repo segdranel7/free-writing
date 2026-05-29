@@ -11,6 +11,7 @@ import {
 type MessageConnectionsProps = {
   references: MessageReference[];
   backlinks: MessageBacklink[];
+  isInformationMode?: boolean;
   canNavigateToReference: (reference: MessageReference) => boolean;
   onNavigateToReference: (target: MessageReferenceNavigationTarget) => void;
 };

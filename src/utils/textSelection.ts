@@ -102,3 +102,24 @@ export function removeTextRanges(text: string, ranges: TextSelectionRange[]) {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
+export function replaceTextRanges(text: string, ranges: TextSelectionRange[], replacement: string) {
+  const chunks = getSelectionRangeChunks(text, ranges);
+  if (chunks.length === 0) return text;
+
+  const replacementText = replacement.trim();
+  const replacedText = [...chunks]
+    .reverse()
+    .reduce<string>((currentText, range, reversedIndex) => {
+      const isFirstSelectedChunk = reversedIndex === chunks.length - 1;
+      const insertedText = isFirstSelectedChunk ? replacementText : ' ';
+      return `${currentText.slice(0, range.startOffset)}${insertedText}${currentText.slice(range.endOffset)}`;
+    }, text);
+
+  return replacedText
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

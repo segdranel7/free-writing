@@ -14,6 +14,16 @@ export type Conversation = {
   updatedAt: Timestamp;
   lastMessagePreview: string;
   sortOrder?: number;
+  visualizationView?: ConversationVisualizationView;
+  kanbanColumns?: KanbanColumn[];
+};
+
+export type ConversationVisualizationView = 'list' | 'kanban';
+
+export type KanbanColumn = {
+  id: string;
+  title: string;
+  sortOrder: number;
 };
 
 export type MessageTransferType = 'forwarded' | 'moved' | null;
@@ -75,6 +85,8 @@ export type Message = {
   updatedAt: Timestamp | null;
   scheduledAt: Timestamp | null;
   sortOrder: number;
+  kanbanColumnId?: string | null;
+  kanbanSortOrder?: number;
   isForwarded: boolean;
   transferType?: MessageTransferType;
   forwardedFromConversationId: string | null;
@@ -93,4 +105,10 @@ export type EnglishSegment = {
 
 export type EnglishConversion = {
   segments: EnglishSegment[];
+};
+
+export type EnglishConversionRequest = {
+  text: string;
+  contextBefore?: string;
+  contextAfter?: string;
 };

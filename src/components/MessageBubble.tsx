@@ -9,6 +9,8 @@ import {
 } from 'react';
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   CalendarClock,
   Copy,
@@ -18,14 +20,17 @@ import {
   GripVertical,
   Languages,
   Link2,
+  MoreHorizontal,
   MoveRight,
+  X,
   Trash2
 } from 'lucide-react';
 import { MessageEditForm } from './MessageEditForm';
 import { MessageConnections } from './MessageConnections';
+import { HeaderOverflowMenu, type HeaderOverflowMenuItem } from './HeaderOverflowMenu';
 import { MessageTagEditor } from './MessageTagEditor';
 import { MessageText } from './MessageText';
-import type { Conversation, Message, MessageReference } from '../types';
+import type { Conversation, KanbanColumn, Message, MessageReference } from '../types';
 import { formatDate, formatFullDateTime } from '../utils/date';
 import {
   type MessageBacklink,
@@ -44,10 +49,14 @@ type MessageBubbleProps = {
   messageIndex: number;
   messageCount: number;
   isSelectionMode: boolean;
+  isInformationMode: boolean;
+  isNormalModeOverride: boolean;
   isSelected: boolean;
   isDragging: boolean;
   isDragOver: boolean;
   isReorderDisabled: boolean;
+  kanbanColumns: KanbanColumn[];
+  currentKanbanColumnId: string | null;
   isEditing: boolean;
   editText: string;
   editReferences: MessageReference[];
@@ -61,6 +70,7 @@ type MessageBubbleProps = {
   backlinks: MessageBacklink[];
   onSelect: (messageId: string) => void;
   onStartSelection: (messageId: string, options?: { suppressNextClick?: boolean }) => void;
+  onToggleNormalModeOverride: (messageId: string) => void;
   onNavigateToReference: (target: MessageReferenceNavigationTarget) => void;
   onNavigateToConversation: (conversationId: string) => void;
   canNavigateToReference: (reference: MessageReference) => boolean;
@@ -82,6 +92,8 @@ type MessageBubbleProps = {
   onMoveToConversation: (message: Message) => void;
   onDeleteMessage: (message: Message) => void;
   onMoveMessage: (messageIndex: number, direction: -1 | 1) => void;
+  onAssignKanbanColumn: (message: Message, columnId: string | null) => void;
+  onMoveKanbanMessage: (message: Message, columnId: string, direction: -1 | 1) => void;
   onUpdateTags: (message: Message, tags: string[]) => void | Promise<void>;
   tagSuggestions: TagSummary[];
   onDragStart: (event: DragEvent<HTMLElement>, messageId: string) => void;
@@ -124,10 +136,14 @@ export function MessageBubble({
   messageIndex,
   messageCount,
   isSelectionMode,
+  isInformationMode,
+  isNormalModeOverride,
   isSelected,
   isDragging,
   isDragOver,
   isReorderDisabled,
+  kanbanColumns,
+  currentKanbanColumnId,
   isEditing,
   editText,
   editReferences,
@@ -141,6 +157,7 @@ export function MessageBubble({
   backlinks,
   onSelect,
   onStartSelection,
+  onToggleNormalModeOverride,
   onNavigateToReference,
   onNavigateToConversation,
   canNavigateToReference,
@@ -162,6 +179,8 @@ export function MessageBubble({
   onMoveToConversation,
   onDeleteMessage,
   onMoveMessage,
+  onAssignKanbanColumn,
+  onMoveKanbanMessage,
   onUpdateTags,
   tagSuggestions,
   onDragStart,
@@ -194,6 +213,68 @@ export function MessageBubble({
   const copyTitle = hasAttachments ? 'Copy block' : 'Copy text';
   const isConversationIndex = message.blockKind === 'conversation-index' && (message.indexEntries?.length ?? 0) > 0;
   const scheduledAt = message.scheduledAt ?? null;
+  const isBlockInformationMode = isInformationMode && !isNormalModeOverride;
+  const canToggleNormalModeOverride = isInformationMode && !message.isPending && Boolean(message.text.trim());
+  const isKanbanCard = Boolean(currentKanbanColumnId);
+  const currentKanbanColumnIndex = kanbanColumns.findIndex((column) => column.id === currentKanbanColumnId);
+  const assignedKanbanColumnIndex = kanbanColumns.findIndex((column) => column.id === message.kanbanColumnId);
+  const assignedKanbanColumnTitle =
+    assignedKanbanColumnIndex >= 0 ? kanbanColumns[assignedKanbanColumnIndex].title : 'No Kanban column';
+  const kanbanColumnSelector =
+    kanbanColumns.length > 0 && !message.isPending ? (
+      <select
+        className={message.kanbanColumnId ? 'kanban-column-select assigned' : 'kanban-column-select'}
+        aria-label="Assign to Kanban column"
+        title={`Kanban column: ${assignedKanbanColumnTitle}`}
+        value={message.kanbanColumnId ?? ''}
+        onChange={(event) => onAssignKanbanColumn(message, event.target.value || null)}
+      >
+        <option value="">∅</option>
+        {kanbanColumns.map((column) => (
+          <option key={column.id} value={column.id}>
+            {column.title}
+          </option>
+        ))}
+      </select>
+    ) : null;
+  const hasPreviousKanbanColumn = currentKanbanColumnIndex > 0;
+  const hasNextKanbanColumn = currentKanbanColumnIndex >= 0 && currentKanbanColumnIndex < kanbanColumns.length - 1;
+  const blockOverflowActions: HeaderOverflowMenuItem[] = [
+    ...(!isKanbanCard
+      ? [
+          {
+            label: 'Move up',
+            icon: <ArrowUp size={17} />,
+            disabled: isReorderDisabled || messageIndex === 0,
+            onClick: () => onMoveMessage(messageIndex, -1)
+          },
+          {
+            label: 'Move down',
+            icon: <ArrowDown size={17} />,
+            disabled: isReorderDisabled || messageIndex === messageCount - 1,
+            onClick: () => onMoveMessage(messageIndex, 1)
+          },
+          {
+            label: 'Drag to reorder',
+            icon: <GripVertical size={17} />,
+            disabled: isReorderDisabled || messageCount < 2,
+            draggable: !isReorderDisabled && messageCount > 1,
+            onDragStart: (event: DragEvent<HTMLButtonElement>) => onDragStart(event, message.id),
+            onDragEnd,
+            onPointerDown: (event: PointerEvent<HTMLButtonElement>) => onPointerDown(event, message.id),
+            onPointerMove,
+            onPointerUp,
+            onPointerCancel
+          }
+        ]
+      : []),
+    {
+      label: 'Delete',
+      icon: <Trash2 size={17} />,
+      danger: true,
+      onClick: () => onDeleteMessage(message)
+    }
+  ];
 
   useEffect(() => {
     return () => {
@@ -329,18 +410,30 @@ export function MessageBubble({
           </span>
         )}
         <time>{formatDate(message.createdAt)}</time>
+        {canToggleNormalModeOverride && (
+          <button
+            className="icon-button bare"
+            type="button"
+            title={isNormalModeOverride ? 'Return block to view mode' : 'Show normal controls'}
+            onClick={() => onToggleNormalModeOverride(message.id)}
+          >
+            {isNormalModeOverride ? <X size={16} /> : <MoreHorizontal size={16} />}
+          </button>
+        )}
       </div>
 
       <MessageTagEditor
         message={message}
-        isSelectionMode={isSelectionMode || Boolean(message.isPending)}
+        isSelectionMode={isSelectionMode || isBlockInformationMode || Boolean(message.isPending)}
         tagSuggestions={tagSuggestions}
         onUpdateTags={onUpdateTags}
+        trailingControl={!isBlockInformationMode && !isSelectionMode ? kanbanColumnSelector : null}
       />
 
       {isEditing ? (
         <MessageEditForm
           message={message}
+          conversations={conversations}
           editText={editText}
           editReferences={editReferences}
           editScheduledAt={editScheduledAt}
@@ -393,49 +486,61 @@ export function MessageBubble({
               message={message}
               activeReferenceTarget={activeReferenceTarget}
               conversations={conversations}
+              isInformationMode={isBlockInformationMode}
               onNavigateToConversation={onNavigateToConversation}
             />
           )}
           <MessageConnections
             references={message.references}
             backlinks={backlinks}
+            isInformationMode={isBlockInformationMode}
             canNavigateToReference={canNavigateToReference}
             onNavigateToReference={onNavigateToReference}
           />
-          {!isSelectionMode && !message.isPending && (
+          {!isSelectionMode && !isBlockInformationMode && !message.isPending && (
             <div className="message-actions">
-              <div className="reorder-actions" aria-label="Reorder message">
-                <button
-                  className="icon-button bare"
-                  title="Move up"
-                  disabled={isReorderDisabled || messageIndex === 0}
-                  onClick={() => onMoveMessage(messageIndex, -1)}
-                >
-                  <ArrowUp size={16} />
-                </button>
-                <button
-                  className="icon-button bare"
-                  title="Move down"
-                  disabled={isReorderDisabled || messageIndex === messageCount - 1}
-                  onClick={() => onMoveMessage(messageIndex, 1)}
-                >
-                  <ArrowDown size={16} />
-                </button>
-                <button
-                  className="icon-button bare drag-handle"
-                  title="Drag to reorder"
-                  draggable={!isReorderDisabled && messageCount > 1}
-                  disabled={isReorderDisabled || messageCount < 2}
-                  onDragStart={(event) => onDragStart(event, message.id)}
-                  onDragEnd={onDragEnd}
-                  onPointerDown={(event) => onPointerDown(event, message.id)}
-                  onPointerMove={onPointerMove}
-                  onPointerUp={onPointerUp}
-                  onPointerCancel={onPointerCancel}
-                >
-                  <GripVertical size={16} />
-                </button>
-              </div>
+              {isKanbanCard && currentKanbanColumnId && (
+                <div className="reorder-actions" aria-label="Move Kanban card">
+                  <button
+                    className="icon-button bare"
+                    title="Move to previous column"
+                    disabled={!hasPreviousKanbanColumn}
+                    onClick={() => {
+                      const targetColumn = kanbanColumns[currentKanbanColumnIndex - 1];
+                      if (targetColumn) onAssignKanbanColumn(message, targetColumn.id);
+                    }}
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                  <button
+                    className="icon-button bare"
+                    title="Move up in column"
+                    disabled={messageIndex === 0}
+                    onClick={() => onMoveKanbanMessage(message, currentKanbanColumnId, -1)}
+                  >
+                    <ArrowUp size={16} />
+                  </button>
+                  <button
+                    className="icon-button bare"
+                    title="Move down in column"
+                    disabled={messageIndex === messageCount - 1}
+                    onClick={() => onMoveKanbanMessage(message, currentKanbanColumnId, 1)}
+                  >
+                    <ArrowDown size={16} />
+                  </button>
+                  <button
+                    className="icon-button bare"
+                    title="Move to next column"
+                    disabled={!hasNextKanbanColumn}
+                    onClick={() => {
+                      const targetColumn = kanbanColumns[currentKanbanColumnIndex + 1];
+                      if (targetColumn) onAssignKanbanColumn(message, targetColumn.id);
+                    }}
+                  >
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              )}
               <button className="icon-button bare" title="Edit" onClick={() => onEditMessage(message)}>
                 <Edit3 size={16} />
               </button>
@@ -477,9 +582,7 @@ export function MessageBubble({
               <button className="icon-button bare" title="Move to conversation" onClick={() => onMoveToConversation(message)}>
                 <MoveRight size={16} />
               </button>
-              <button className="icon-button bare" title="Delete" onClick={() => onDeleteMessage(message)}>
-                <Trash2 size={16} />
-              </button>
+              <HeaderOverflowMenu label="More block actions" items={blockOverflowActions} />
             </div>
           )}
         </>

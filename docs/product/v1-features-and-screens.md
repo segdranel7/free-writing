@@ -1,8 +1,8 @@
 # Version 1 Features and Screens
 
-Last updated: 2026-05-26
+Last updated: 2026-05-29
 
-Related docs: [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
+Related docs: [design principles](design-principles.md), [product brief](v1-product-brief.md), [architecture](../architecture/firebase-pwa-architecture.md), [current implementation](../implementation/current-implementation.md).
 
 ## 7. Main features
 
@@ -70,10 +70,12 @@ Long message text should initially render as a compact preview of roughly three 
 Required message actions:
 
 - Create message
+- Toggle information-only view for the active conversation
 - Add small image attachments from the file picker or copied image paste
 - Edit message
 - Copy block content to the system clipboard
 - Download text block content as a Markdown `.md` file
+- Export the active conversation or all conversations as JSON plus Markdown
 - Delete message
 - Add, remove, and reuse tags/flags on a message
 - Copy/forward message to another conversation
@@ -82,10 +84,59 @@ Required message actions:
 - Merge multiple selected messages into one unified block
 - Convert message to English
 - Synthesize a clickable conversation index block for the active conversation
+- Switch the active conversation between List and Kanban visualizations
 
 Optional message actions:
 
 - Duplicate message in same conversation
+
+### 7.3.0 Information-only view mode
+
+The user can switch the active conversation into an information-only view to concentrate on each block's content.
+
+Version 1 behavior:
+
+- The conversation header exposes an `Information-only mode` toggle.
+- The mode is remembered locally in the browser and applies when returning to the app on that device.
+- While active, each block still shows its text, images, tags, created/edited/scheduled metadata, references, backlinks, inline conversation links, and synthesized index rows.
+- While active, normal creation/editing/management controls are hidden, including the composer, block action bars, tag add/remove controls, selection toolbar, and long-text expand/collapse buttons.
+- Long text renders fully in this mode so the user does not need an expand action to read it.
+- Navigation remains available: inline conversation links, reference cards, backlinks, copied-source conversation links, and synthesized index rows still open their targets.
+- Each text-bearing saved block exposes a `Show normal controls` option. Using it restores the normal per-block controls for only that block while the rest of the conversation remains in information-only view.
+- Only one block can show normal controls at a time; choosing another block closes the previously opened one.
+- The active normal-controls block can return to the information-only presentation with `Return block to view mode`.
+- Entering information-only mode clears multi-block selection state.
+
+Requirements:
+
+- This is a visualization preference, not Firestore data. It should not change messages, conversations, tags, references, or ordering.
+- The local browser preference should not be treated as account-synced state.
+
+### 7.3.0.1 Visualization templates and Kanban
+
+The user can view the same conversation blocks through alternate templates over time. Version 1 starts with List and Kanban.
+
+Version 1 behavior:
+
+- The conversation header exposes List and Kanban view controls directly on wider screens and through More on narrow screens.
+- The selected List/Kanban view is saved per conversation and syncs across devices.
+- Kanban uses custom columns created by the user; no default columns are created automatically.
+- Existing blocks are not moved into Kanban automatically. They stay visible in List view until assigned to a Kanban column.
+- Each block can belong to one Kanban column at a time.
+- The block's top tag row exposes a compact button-like column selector when the conversation has Kanban columns. It shows `∅` when no column is selected and the selected column name when assigned, without a visible dropdown arrow.
+- New blocks sent from the composer while Kanban is open are assigned to the active Kanban column.
+- Columns can be added, renamed, moved left/right, and deleted.
+- Deleting a column does not delete blocks. Blocks in that column become unassigned and return to List-only visibility.
+- Desktop Kanban shows columns horizontally. Mobile Kanban shows one active column at a time with previous/next column controls and a picker.
+- Kanban cards keep the same core block actions where practical: edit, tags, connect, copy/download, English conversion, forward, move to conversation, and delete.
+- Kanban cards expose shortcut buttons for moving up/down in the active column and moving to the previous/next column.
+
+Requirements:
+
+- Kanban column metadata is stored on the conversation.
+- Kanban card membership and column-local order are stored on the message.
+- The normal list `sortOrder` remains separate from Kanban card order.
+- This view system should be extensible for future templates such as whiteboard or flowchart without hard-coding all visualization state into the list renderer.
 
 ### 7.3.1 Message composer keyboard behavior
 
@@ -99,6 +150,9 @@ Requirements:
 - `Ctrl+Shift+Enter` sends the current draft directly on Windows/Linux.
 - `Cmd+Shift+Enter` sends the current draft directly on macOS and iPad hardware keyboards.
 - Typing `[[` opens conversation-title suggestions for inline conversation links.
+- The composer should also expose a visible `[[` insert action so touch users can start an inline conversation link without relying on a hardware or software keyboard sequence.
+- On phone screens, the composer keeps `Date`, image attach, `[[` insertion, a composer More menu, and Send in one action row; paste image, structured references, quote citation, and draft English conversion stay available in that More menu.
+- On tablet/desktop screens, the composer can keep all draft tools visible while preserving Send as the visually primary action.
 - Conversation-title suggestions filter as the user types and support mouse/touch selection plus desktop keyboard navigation with `ArrowUp`, `ArrowDown`, `Enter`, `Tab`, and `Escape`.
 - The visible Send button sends the current draft.
 - Empty or whitespace-only messages should not be sent.
@@ -166,23 +220,45 @@ Requirements:
 - Downloading is a browser-only action and does not change Firestore data.
 - Image attachments are not embedded in the Markdown file in Version 1.
 
+### 7.3.3.2 Export conversation data
+
+The user can export conversation data from inside the signed-in app for experiments outside the app.
+
+Version 1 behavior:
+
+- The active conversation header More menu exposes an `Export conversation` action.
+- The app header More menu exposes an `Export all conversations` action.
+- Each export downloads a faithful JSON bundle and a readable Markdown companion.
+- JSON preserves full conversation and message records, including inline image attachment data.
+- Markdown includes readable conversation/message metadata and raw text, but omits inline base64 image payloads.
+- Export actions show a concise pending state and a clear error if the export fails.
+
+Requirements:
+
+- Exporting is a browser download action and does not change Firestore data.
+- Export reads through the signed-in user's normal Firestore access; no admin credential or separate CLI path is required.
+- Pending optimistic blocks are excluded until confirmed by Firestore.
+
 ### 7.3.4 Convert text to English
 
-The user can convert saved text blocks or draft composer text into English.
+The user can convert saved text blocks, selected saved-text portions, or draft composer text into English.
 
 Version 1 behavior:
 
 - Each message has a `Convert to English` action.
 - The composer has a `Convert draft to English` action when a non-empty draft is present.
-- The app breaks the text into sentence-level segments, preferring one segment per complete sentence or short standalone line.
+- Saved-message conversion opens with a source text selection step. Leaving all words unselected converts the whole block; selecting words converts only that part.
+- The saved-message selection step uses the same tap/click toggle and pointer-drag word selection behavior as forwarding and quote selection, and should use most of the available viewport on tiny devices.
+- For selected saved-message text, the conversion request sends the selected text plus surrounding before/after context. The AI must use the context only for meaning and continuity, not translate or return it.
+- The app breaks the selected text into sentence-level segments, preferring one segment per complete sentence or short standalone line.
 - After the user chooses segment options, the selected English text is sent through a second AI organization pass before saving or sending.
-- The organization pass may add Markdown structure such as headings, subheadings, bullet lists, numbered lists, quotes, line breaks, and paragraph breaks while preserving the selected English meaning.
+- The organization pass is limited to arranging the selected English segments into readable Markdown. It may add headings, subheadings, bullet lists, numbered lists, quotes, line breaks, paragraph breaks, and concise organizational text, but every selected segment must remain present verbatim.
 - Each segment shows three selectable English versions.
 - The first option is selected by default.
 - The user can choose one version for every segment.
 - The picker focuses on the segment option list and does not show a separate assembled preview.
-- For a saved message, `Create block` inserts the organized English Markdown text as a new message directly below the original.
-- For a saved message, `Replace block` updates the original block with the organized English Markdown text.
+- For a saved message, `Create block` inserts the organized English Markdown text for the selected part as a new message directly below the original.
+- For a saved message, `Replace block` updates the original block. Whole-block conversion replaces the whole block; partial conversion replaces only the selected source text and keeps surrounding text intact.
 - For draft text, `Send English` sends the organized English Markdown text directly as a new message while preserving any current composer image attachments and structured references.
 
 Requirements:
@@ -201,7 +277,7 @@ The user can synthesize a map-like index for the active conversation.
 
 Version 1 behavior:
 
-- The active conversation header has a `Synthesize conversation index` action.
+- The active conversation header More menu has a `Synthesize conversation index` action.
 - The action sends all currently visible conversation blocks in display order in one contextual AI request.
 - Previous synthesized index blocks are included as source blocks for later synthesis.
 - The newly created index block is appended to the bottom of the conversation.
@@ -230,6 +306,8 @@ Version 1 behavior:
 - Quote fragment selection uses the same word-selection behavior as forwarding: click toggles words, dragging selects or unselects multiple words, and separate non-adjacent fragments stay separate.
 - Blocks with incoming saved-block connections show a collapsed backlink row such as `Connected from 2 blocks`; expanding it shows clickable source-block cards.
 - The composer supports `[[Conversation title]]` inline links through typeahead suggestions from unique conversation titles.
+- The inline edit form supports the same `[[Conversation title]]` typeahead behavior while editing an existing block.
+- The composer and inline edit form both provide a visible `[[` insert action that places the marker at the current cursor or selection and opens suggestions.
 - Saved inline conversation links render as the conversation title with a visual linked/quoted cue; the `[[` and `]]` markers do not show in the message body.
 - Inline conversation links open the matching conversation when exactly one loaded conversation has that title.
 - Missing or duplicate conversation titles remain plain text.
@@ -310,6 +388,7 @@ Requirements:
 - Edit action available from each message.
 - Existing message text appears in an inline edit field inside the message block, not in the bottom composer.
 - The inline edit field expands to show the whole text while editing instead of requiring scrolling inside the field.
+- Typing `[[` or using the visible `[[` insert action while editing opens the same inline conversation-link suggestions as the composer.
 - User can save or cancel.
 - After saving, update the message text.
 - Pasted images while editing should be appended to the block on save.
@@ -512,10 +591,10 @@ Content:
 
 - Header with app name
 - Calendar action
+- More menu with export all conversations and sign-out actions
 - Search button or search input
 - New conversation button
 - List of conversations
-- Sign-out option
 
 Each conversation row should show:
 
@@ -545,6 +624,10 @@ Content:
 
 - Conversation title
 - Back button on mobile
+- Information-only mode toggle in the conversation header
+- List/Kanban view controls in the conversation header on wider screens, and in the header More menu on narrow screens
+- Secondary header actions such as export and conversation-index synthesis in a More menu
+- Kanban column management controls near the active Kanban view rather than competing with the main conversation title
 - Message list
 - Message input fixed at the bottom of the visible conversation pane
 - Image preview strip in the composer when images are selected or pasted
@@ -554,13 +637,17 @@ Content:
 - Message action: move to another conversation
 - Long message text preview with an icon-only expand/collapse control
 - Message tag chips plus an inline add/remove editor with suggestions
+- Compact button-like per-block Kanban column selector beside the tag chips when Kanban columns exist
 - Message action: convert to English
-- Header action: synthesize a clickable conversation index
+- Header More action: synthesize a clickable conversation index
+- Header More action: export the active conversation as JSON plus Markdown
 - Transfer dialog for copying/forwarding whole blocks or selected text parts with tap and drag word selection, plus direct target selection for whole-block moves
 - Reorder controls for moving text blocks, plus drag-handle reordering between blocks on desktop and touch/pointer devices
+- Normal list block reorder controls and Delete live in block More so common block actions remain compact.
 - Selection controls and a merge action for combining multiple selected blocks
 - English conversion picker modal with scrollable segment options
 - Date/time metadata and edit controls when a block is scheduled or being edited
+- Information-only mode that hides most controls while preserving block information and navigation, with a per-block option to temporarily show normal controls for only one block
 
 Scrolling behavior:
 
@@ -623,6 +710,10 @@ Layout:
 
 - User can create a message.
 - User can create an image-only message.
+- User can enable information-only view, read full block information without most controls, and temporarily show normal controls for one block at a time.
+- User can switch the active conversation between List and Kanban views.
+- User can add, rename, move, and delete custom Kanban columns.
+- User can assign a block to a Kanban column from the block's top tag row, where no selected column is shown with `∅`, an assigned column shows its name, and the selector does not show a separate dropdown arrow.
 - User can add image attachments by file selection, paste, or touch paste action where supported.
 - User can open draft English conversion from the composer with `Ctrl+Enter` / `Cmd+Enter`.
 - User can send the current draft directly from the composer with `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`.
@@ -631,6 +722,7 @@ Layout:
 - User can paste images while editing a message and save them onto that block.
 - User can copy text-only, text/image, and image-only blocks to the system clipboard where browser support allows.
 - User can download a text-bearing block as a Markdown `.md` file.
+- User can export the active conversation or all conversations as JSON plus Markdown from inside the app.
 - User can add, remove, and reuse tags/flags on message blocks.
 - User can filter loaded blocks by tags globally and within the active conversation.
 - User can add, edit, clear, and view a scheduled date/time on a block.
@@ -641,7 +733,7 @@ Layout:
 - User can move a whole message to another conversation.
 - User can add a conversation or quote reference to a message.
 - User can connect a saved block to another loaded saved block and expand backlinks from connected source blocks.
-- User can create an inline conversation link by typing `[[`, filtering conversation suggestions, selecting one, and sending the completed link.
+- User can create an inline conversation link by typing `[[` or using the visible `[[` insert action, filtering conversation suggestions, selecting one, and saving or sending the completed link.
 - User can open an inline conversation link from a saved message when its title uniquely matches a conversation.
 - User can reorder conversations in the conversation list with a drag handle and see the same order after refresh.
 - User stays on the conversation list after releasing a reordered conversation.
@@ -649,7 +741,7 @@ Layout:
 - User can reorder messages inside a conversation with move controls or drag-handle drop on desktop and touch/pointer devices.
 - User can open a conversation or send a new block and land with the latest visible block aligned to the bottom of the message list.
 - User can merge multiple selected messages inside a conversation.
-- User can convert a message to English and either create a new result block or replace the source block.
+- User can convert all or part of a message to English and either create a new result block or replace the whole block/selected part.
 - User can convert draft composer text to English and send the selected English result directly with any current composer image attachments and references.
 - User can synthesize a conversation index block from all active conversation blocks in one contextual AI request.
 - User can click each synthesized index entry to jump to its corresponding source block.
@@ -706,6 +798,12 @@ Version 1 is complete when:
 - I can sign in with Google/Gmail.
 - I can create conversations.
 - I can write messages inside conversations.
+- I can enter information-only view, focus on block text/images/tags/metadata/references without the composer or normal block action bars, and still use inline/reference/index navigation.
+- I can show normal controls for one block while in information-only view, confirm no edit form opens automatically, open normal controls on another block and see the previous block return to view mode, then close the active block back to view mode.
+- I can switch a conversation between List and Kanban views and see the selected view persist after reload.
+- I can add, rename, move, and delete custom Kanban columns without default columns being created automatically.
+- I can assign a block to a Kanban column from the top tag row; unassigned blocks show `∅`, assigned blocks show the selected column name, the control opens by tapping its button area without a visible dropdown arrow, and deleting a column makes its blocks unassigned rather than deleting them.
+- On a phone-sized viewport, I can use Kanban one active column at a time with compact previous/next and picker controls.
 - I can add a small image to a new block by file selection or paste.
 - I can paste an image while editing an existing block and save it onto that block.
 - Clicking a saved image preview does nothing.
@@ -716,13 +814,15 @@ Version 1 is complete when:
 - I can copy a block with images and paste text plus attached images into a rich paste target where supported by the browser and target app.
 - I can copy an image-only block and paste the image into a compatible target where supported.
 - I can download a text-bearing block as a Markdown `.md` file whose contents match the block text.
+- I can export the active conversation and all conversations from inside the app, receiving JSON that preserves full records and Markdown that is readable without inline base64 image payloads.
 - I can delete a message.
 - I can tag or flag a block, reuse an existing tag from suggestions while typing, remove the tag, and filter loaded blocks by tag.
 - I can add, edit, clear, and view a date/time on a block.
 - I can open the global calendar, browse dated blocks by today, this week, or this month, and open a source block from a calendar item.
 - I can add a conversation or quote reference to a message and open it when the source is loaded.
 - I can connect a saved block to another loaded saved block, including itself, and use backlinks to navigate back to connected source blocks.
-- I can type `[[`, choose a conversation suggestion by click or keyboard, send the block, and see the saved inline link render without bracket markers while still opening the target conversation.
+- I can type `[[` or use the visible `[[` insert action in the composer, choose a conversation suggestion by click or keyboard, send the block, and see the saved inline link render without bracket markers while still opening the target conversation.
+- I can type `[[` or use the visible `[[` insert action while editing an existing block, choose a conversation suggestion, save the edit, and keep the bottom composer reserved for new messages.
 - I can open draft English conversion with `Ctrl+Enter` / `Cmd+Enter`.
 - I can send the current draft directly with `Ctrl+Shift+Enter` / `Cmd+Shift+Enter`.
 - I can search messages.

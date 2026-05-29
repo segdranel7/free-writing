@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react';
 import { CalendarClock, ClipboardPaste, ImagePlus, Languages, Link2, Quote, Send, X } from 'lucide-react';
+import { HeaderOverflowMenu } from './HeaderOverflowMenu';
 import { useImagePreviews } from '../hooks/useImagePreviews';
 import type { Conversation, MessageReference } from '../types';
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '../utils/calendar';
@@ -64,6 +65,29 @@ export function MessageComposer({
     if (!activeInlineLinkDraft) return [];
     return getInlineConversationLinkSuggestions(conversations, activeInlineLinkDraft.query);
   }, [activeInlineLinkDraft, conversations]);
+  const secondaryComposerActions = [
+    {
+      label: 'Paste image',
+      icon: <ClipboardPaste size={17} />,
+      onClick: () => void pasteImagesFromClipboard()
+    },
+    {
+      label: 'Add conversation link',
+      icon: <Link2 size={17} />,
+      onClick: onAddConversationReference
+    },
+    {
+      label: 'Cite text',
+      icon: <Quote size={17} />,
+      onClick: onAddQuoteReference
+    },
+    {
+      label: 'Convert draft to English',
+      icon: <Languages size={17} />,
+      disabled: !draft.trim(),
+      onClick: () => onConvertDraftToEnglish(getImageFiles())
+    }
+  ];
 
   function getPendingReferenceLabel(reference: MessageReference) {
     if (reference.type === 'quote') return `"${truncateReferenceText(reference.quoteText, 72)}"`;
@@ -170,6 +194,17 @@ export function MessageComposer({
     if (!suggestion) return;
     skipNextDraftCursorUpdate.current = true;
     completeInlineLinkSuggestion(suggestion.title);
+  }
+
+  function insertInlineLinkMarker() {
+    const textarea = textareaRef.current;
+    const startOffset = textarea?.selectionStart ?? draft.length;
+    const endOffset = textarea?.selectionEnd ?? startOffset;
+    const nextText = `${draft.slice(0, startOffset)}[[${draft.slice(endOffset)}`;
+    const nextCursorOffset = startOffset + 2;
+    pendingCursorOffset.current = nextCursorOffset;
+    setDraftCursorOffset(nextCursorOffset);
+    onDraftChange(nextText);
   }
 
   return (
@@ -335,58 +370,75 @@ export function MessageComposer({
           aria-label="Add images"
           onChange={(event) => addComposerImageFiles(event.target.files)}
         />
-        <button
-          className="icon-button composer-date-button"
-          type="button"
-          title="Add date and time"
-          aria-controls={scheduleControlId}
-          aria-expanded={isScheduleVisible}
-          onClick={() => setIsScheduleOpen((isOpen) => !isOpen)}
-        >
-          <CalendarClock size={17} />
-          <span>Date</span>
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Add images"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <ImagePlus size={17} />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Paste image"
-          onClick={() => void pasteImagesFromClipboard()}
-        >
-          <ClipboardPaste size={17} />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Add conversation link"
-          onClick={onAddConversationReference}
-        >
-          <Link2 size={17} />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Cite text"
-          onClick={onAddQuoteReference}
-        >
-          <Quote size={17} />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          title="Convert draft to English"
-          disabled={!draft.trim()}
-          onClick={() => onConvertDraftToEnglish(getImageFiles())}
-        >
-          <Languages size={17} />
-        </button>
+        <div className="composer-primary-tools" aria-label="Primary composer actions">
+          <button
+            className="icon-button composer-date-button"
+            type="button"
+            title="Add date and time"
+            aria-controls={scheduleControlId}
+            aria-expanded={isScheduleVisible}
+            onClick={() => setIsScheduleOpen((isOpen) => !isOpen)}
+          >
+            <CalendarClock size={17} />
+            <span>Date</span>
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            title="Add images"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <ImagePlus size={17} />
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            title="Insert [["
+            aria-label="Insert [["
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={insertInlineLinkMarker}
+          >
+            <span className="inline-link-marker-icon">[[</span>
+          </button>
+          <div className="composer-more-tools">
+            <HeaderOverflowMenu label="More composer actions" items={secondaryComposerActions} />
+          </div>
+        </div>
+        <div className="composer-secondary-tools" aria-label="Secondary composer actions">
+          <button
+            className="icon-button"
+            type="button"
+            title="Paste image"
+            onClick={() => void pasteImagesFromClipboard()}
+          >
+            <ClipboardPaste size={17} />
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            title="Add conversation link"
+            onClick={onAddConversationReference}
+          >
+            <Link2 size={17} />
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            title="Cite text"
+            onClick={onAddQuoteReference}
+          >
+            <Quote size={17} />
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            title="Convert draft to English"
+            disabled={!draft.trim()}
+            onClick={() => onConvertDraftToEnglish(getImageFiles())}
+          >
+            <Languages size={17} />
+          </button>
+        </div>
         <button className="primary-button send-button" title="Send (Ctrl+Shift+Enter)" disabled={!canSend || isSending}>
           <Send size={16} />
           {isSending ? 'Sending...' : 'Send'}

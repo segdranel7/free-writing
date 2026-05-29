@@ -1,5 +1,5 @@
 import { auth } from '../firebase';
-import type { EnglishConversion, EnglishSegment } from '../types';
+import type { EnglishConversion, EnglishConversionRequest, EnglishSegment } from '../types';
 
 const defaultTranslationEndpoint = '/api/to-english';
 const defaultEnglishFormattingEndpoint = '/api/format-english';
@@ -63,12 +63,22 @@ function getEnglishFormattingEndpoint() {
   }
 }
 
-export async function requestEnglishVersions(text: string): Promise<EnglishConversion> {
-  const cleanText = text.trim();
+function createEnglishRequest(input: string | EnglishConversionRequest) {
+  const request = typeof input === 'string' ? { text: input } : input;
+  const cleanText = request.text.trim();
   if (!cleanText) {
     throw new Error('This text block is empty.');
   }
 
+  return {
+    text: cleanText,
+    ...(request.contextBefore?.trim() ? { contextBefore: request.contextBefore.trim() } : {}),
+    ...(request.contextAfter?.trim() ? { contextAfter: request.contextAfter.trim() } : {})
+  };
+}
+
+export async function requestEnglishVersions(input: string | EnglishConversionRequest): Promise<EnglishConversion> {
+  const englishRequest = createEnglishRequest(input);
   const token = await auth?.currentUser?.getIdToken();
   if (!token) {
     throw new Error('Sign in again before converting text to English.');
@@ -81,7 +91,7 @@ export async function requestEnglishVersions(text: string): Promise<EnglishConve
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ text: cleanText })
+    body: JSON.stringify(englishRequest)
   });
 
   let body: unknown = null;
@@ -103,11 +113,12 @@ export async function requestEnglishVersions(text: string): Promise<EnglishConve
   return parseEnglishConversion(body);
 }
 
-export async function requestStructuredEnglishText(text: string): Promise<string> {
+export async function requestStructuredEnglishText(text: string, selectedSegments: string[] = []): Promise<string> {
   const cleanText = text.trim();
   if (!cleanText) {
     throw new Error('This English text is empty.');
   }
+  const cleanSelectedSegments = selectedSegments.map((segment) => segment.trim()).filter(Boolean);
 
   const token = await auth?.currentUser?.getIdToken();
   if (!token) {
@@ -120,7 +131,10 @@ export async function requestStructuredEnglishText(text: string): Promise<string
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ text: cleanText })
+    body: JSON.stringify({
+      text: cleanText,
+      ...(cleanSelectedSegments.length > 0 ? { selectedSegments: cleanSelectedSegments } : {})
+    })
   });
 
   let body: unknown = null;

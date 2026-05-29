@@ -16,3 +16,9 @@ export function assembleEnglishText(conversion: EnglishConversion, selections: n
     return `${text}${selectedOption}${separator}`;
   }, '').trim();
 }
+
+export function getSelectedEnglishSegments(conversion: EnglishConversion, selections: number[]) {
+  return conversion.segments.map((segment, segmentIndex) => (
+    segment.options[selections[segmentIndex] ?? 0] ?? segment.options[0]
+  ).trim()).filter(Boolean);
+}

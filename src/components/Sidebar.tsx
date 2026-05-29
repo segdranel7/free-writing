@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, type MouseEvent } from 'react';
-import { CalendarDays, Edit3, GripVertical, LogOut, Plus, Search, Tag, Trash2, X } from 'lucide-react';
+import { CalendarDays, Download, Edit3, GripVertical, LogOut, Plus, Search, Tag, Trash2, X } from 'lucide-react';
+import { HeaderOverflowMenu } from './HeaderOverflowMenu';
 import { useListReorderDrag } from '../hooks/useListReorderDrag';
 import { signOutUser } from '../services/auth';
 import type { Conversation, Message } from '../types';
@@ -24,11 +25,14 @@ type SidebarProps = {
   tagResults: SearchResult[];
   renamingId: string | null;
   renameDraft: string;
+  isExportingAllConversations: boolean;
+  allConversationsExportError: string | null;
   onSearchTermChange: (value: string) => void;
   onToggleTag: (tag: string) => void;
   onClearTags: () => void;
   onOpenTagResult: (conversationId: string, messageId: string) => void;
   onOpenCalendar: () => void;
+  onExportAllConversations: () => void;
   onCreateConversation: () => void;
   onSelectConversation: (conversationId: string | null) => void;
   onStartRename: (conversation: Conversation) => void;
@@ -50,11 +54,14 @@ export function Sidebar({
   tagResults,
   renamingId,
   renameDraft,
+  isExportingAllConversations,
+  allConversationsExportError,
   onSearchTermChange,
   onToggleTag,
   onClearTags,
   onOpenTagResult,
   onOpenCalendar,
+  onExportAllConversations,
   onCreateConversation,
   onSelectConversation,
   onStartRename,
@@ -93,6 +100,19 @@ export function Sidebar({
     ? conversations.find((conversation) => conversation.id === dragPreview.itemId) ?? null
     : null;
   const hasSelectedTags = selectedTags.length > 0;
+  const headerOverflowItems = [
+    {
+      label: 'Export all conversations',
+      icon: <Download size={17} />,
+      disabled: conversations.length === 0 || isExportingAllConversations,
+      onClick: onExportAllConversations
+    },
+    {
+      label: 'Sign out',
+      icon: <LogOut size={17} />,
+      onClick: () => void signOutUser()
+    }
+  ];
 
   useEffect(() => {
     return () => {
@@ -127,9 +147,14 @@ export function Sidebar({
   return (
     <aside className={`sidebar ${activeConversation || isCalendarOpen ? 'has-active' : ''}`}>
       <header className="app-header">
-        <div>
+        <div className="header-title-block">
           <p className="eyebrow">Private notebook</p>
           <h1>Free Writing</h1>
+          {(isExportingAllConversations || allConversationsExportError) && (
+            <p className={allConversationsExportError ? 'conversation-status error' : 'conversation-status'} role={allConversationsExportError ? 'alert' : 'status'}>
+              {allConversationsExportError ?? 'Exporting conversations...'}
+            </p>
+          )}
         </div>
         <div className="app-header-actions">
           <button
@@ -139,9 +164,7 @@ export function Sidebar({
           >
             <CalendarDays size={19} />
           </button>
-          <button className="icon-button" title="Sign out" onClick={() => void signOutUser()}>
-            <LogOut size={19} />
-          </button>
+          <HeaderOverflowMenu items={headerOverflowItems} />
         </div>
       </header>
 

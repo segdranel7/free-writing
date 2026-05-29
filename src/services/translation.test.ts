@@ -47,6 +47,32 @@ describe('translation service', () => {
     expect(result.segments[0].separatorAfter).toBe('line');
   });
 
+  it('posts selected text with surrounding context', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      segments: [
+        {
+          original: 'mundo',
+          options: ['world', 'earth', 'the world']
+        }
+      ]
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await requestEnglishVersions({
+      text: ' mundo ',
+      contextBefore: 'Olá ',
+      contextAfter: ' bonito '
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/to-english', expect.objectContaining({
+      body: JSON.stringify({
+        text: 'mundo',
+        contextBefore: 'Olá',
+        contextAfter: 'bonito'
+      })
+    }));
+  });
+
   it('rejects invalid or empty translation responses', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ segments: [] }))));
 
@@ -85,7 +111,7 @@ describe('translation service', () => {
     })));
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await requestStructuredEnglishText('  Ready to send  ');
+    const result = await requestStructuredEnglishText('  Ready to send  ', [' Ready to send ']);
 
     expect(fetchMock).toHaveBeenCalledWith('/api/format-english', {
       method: 'POST',
@@ -93,7 +119,7 @@ describe('translation service', () => {
         Authorization: 'Bearer id-token',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ text: 'Ready to send' })
+      body: JSON.stringify({ text: 'Ready to send', selectedSegments: ['Ready to send'] })
     });
     expect(result).toBe('# Notes\n\n- Ready to send');
   });

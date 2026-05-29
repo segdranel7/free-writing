@@ -12,6 +12,7 @@ type MessageTextProps = {
   message: Message;
   activeReferenceTarget: MessageReferenceNavigationTarget | null;
   conversations: Conversation[];
+  isInformationMode?: boolean;
   onNavigateToConversation: (conversationId: string) => void;
 };
 
@@ -213,7 +214,13 @@ function renderMarkdownText(
   );
 }
 
-export function MessageText({ message, activeReferenceTarget, conversations, onNavigateToConversation }: MessageTextProps) {
+export function MessageText({
+  message,
+  activeReferenceTarget,
+  conversations,
+  isInformationMode = false,
+  onNavigateToConversation
+}: MessageTextProps) {
   const isReferenceTarget = isMessageTarget(message, activeReferenceTarget);
   const range = isReferenceTarget ? activeReferenceTarget?.range : null;
   const shouldTruncate = useMemo(() => isLargeText(message.text), [message.text]);
@@ -229,10 +236,10 @@ export function MessageText({ message, activeReferenceTarget, conversations, onN
 
   if (!message.text) return null;
 
-  const displayedText = shouldTruncate && !isExpanded ? createCollapsedText(message.text) : message.text;
+  const displayedText = shouldTruncate && !isExpanded && !isInformationMode ? createCollapsedText(message.text) : message.text;
 
   function renderTextContent() {
-    if (shouldTruncate && !isExpanded) {
+    if (shouldTruncate && !isExpanded && !isInformationMode) {
       return renderInlineConversationLinks(displayedText, conversations, onNavigateToConversation);
     }
 
@@ -254,7 +261,7 @@ export function MessageText({ message, activeReferenceTarget, conversations, onN
     );
   }
 
-  if (!shouldTruncate) {
+  if (!shouldTruncate || isInformationMode) {
     if (!range || range.endOffset <= range.startOffset) {
       return renderMarkdownText(displayedText, conversations, onNavigateToConversation);
     }

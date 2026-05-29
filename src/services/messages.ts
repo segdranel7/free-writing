@@ -27,6 +27,11 @@ const sortStep = 1000;
 
 type ScheduledAtWriteValue = Date | Message['scheduledAt'] | null;
 
+export type MessageKanbanPlacement = {
+  columnId: string | null;
+  sortOrder?: number;
+};
+
 type MessageWriteInput = {
   userId: string;
   conversationId: string;
@@ -37,6 +42,7 @@ type MessageWriteInput = {
   references?: MessageReference[];
   scheduledAt?: ScheduledAtWriteValue;
   sortOrder: number;
+  kanbanPlacement?: MessageKanbanPlacement | null;
   isForwarded?: boolean;
   transferType?: Message['transferType'];
   forwardedFromConversationId?: string | null;
@@ -60,6 +66,7 @@ function buildMessageWrite({
   references = [],
   scheduledAt = null,
   sortOrder,
+  kanbanPlacement = null,
   isForwarded = false,
   transferType = null,
   forwardedFromConversationId = null,
@@ -79,6 +86,12 @@ function buildMessageWrite({
     updatedAt: null,
     scheduledAt,
     sortOrder,
+    ...(kanbanPlacement?.columnId
+      ? {
+          kanbanColumnId: kanbanPlacement.columnId,
+          kanbanSortOrder: kanbanPlacement.sortOrder ?? sortOrder
+        }
+      : {}),
     isForwarded,
     transferType,
     forwardedFromConversationId,
@@ -131,6 +144,13 @@ function normalizeMessages(messages: Message[]) {
       scheduledAt: message.scheduledAt ?? null,
       indexEntries: message.indexEntries ?? [],
       sortOrder: typeof message.sortOrder === 'number' ? message.sortOrder : (index + 1) * sortStep,
+      kanbanColumnId: typeof message.kanbanColumnId === 'string' ? message.kanbanColumnId : null,
+      kanbanSortOrder:
+        typeof message.kanbanSortOrder === 'number'
+          ? message.kanbanSortOrder
+          : typeof message.sortOrder === 'number'
+            ? message.sortOrder
+            : (index + 1) * sortStep,
       transferType: message.transferType ?? (message.isForwarded ? 'forwarded' : null),
       forwardedFromConversationTitle: message.forwardedFromConversationTitle ?? null
     }))
@@ -170,7 +190,8 @@ export async function createMessage(
   text: string,
   attachments: MessageAttachment[] = [],
   references: MessageReference[] = [],
-  scheduledAt: Date | null = null
+  scheduledAt: Date | null = null,
+  kanbanPlacement: MessageKanbanPlacement | null = null
 ) {
   const cleanText = text.trim();
   if (!cleanText && attachments.length === 0 && references.length === 0) return null;
@@ -182,7 +203,8 @@ export async function createMessage(
     attachments,
     references,
     scheduledAt,
-    sortOrder
+    sortOrder,
+    kanbanPlacement
   }));
   await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments, references), {
     moveToTop: true
@@ -202,7 +224,8 @@ export async function createMessageWithId(
   sortOrder: number,
   attachments: MessageAttachment[] = [],
   references: MessageReference[] = [],
-  scheduledAt: Date | null = null
+  scheduledAt: Date | null = null,
+  kanbanPlacement: MessageKanbanPlacement | null = null
 ) {
   const cleanText = text.trim();
   if (!messageId || (!cleanText && attachments.length === 0 && references.length === 0)) return null;
@@ -215,7 +238,8 @@ export async function createMessageWithId(
     attachments,
     references,
     scheduledAt,
-    sortOrder
+    sortOrder,
+    kanbanPlacement
   }));
   await batch.commit();
   await touchConversation(userId, conversationId, getMessagePreview(cleanText, attachments, references), {
@@ -360,6 +384,19 @@ export async function updateMessageReferences(
   });
 }
 
+export async function updateMessageKanbanPlacement(
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  placement: MessageKanbanPlacement | null
+) {
+  await updateDoc(messagePath(userId, conversationId, messageId), {
+    kanbanColumnId: placement?.columnId ?? null,
+    kanbanSortOrder: placement?.columnId ? placement.sortOrder ?? sortStep : null,
+    updatedAt: serverTimestamp()
+  });
+}
+
 export function deleteMessage(userId: string, conversationId: string, messageId: string) {
   return deleteDoc(messagePath(userId, conversationId, messageId));
 }
@@ -479,6 +516,22 @@ export async function reorderMessages(userId: string, conversationId: string, me
   messages.forEach((message, index) => {
     batch.update(messagePath(userId, conversationId, message.id), {
       sortOrder: (index + 1) * sortStep
+    });
+  });
+  await batch.commit();
+}
+
+export async function reorderKanbanMessages(
+  userId: string,
+  conversationId: string,
+  columnId: string,
+  messages: Message[]
+) {
+  const batch = writeBatch(requireDb());
+  messages.forEach((message, index) => {
+    batch.update(messagePath(userId, conversationId, message.id), {
+      kanbanColumnId: columnId,
+      kanbanSortOrder: (index + 1) * sortStep
     });
   });
   await batch.commit();
